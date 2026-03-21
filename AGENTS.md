@@ -1,26 +1,26 @@
-# AnyChat (Electron Mainline)
+# AmberKeeper
 
-本分支用于管理和维护基于 **Electron** 的多 AI Chat 聚合主线，并同步必要的上游变更以保持可扩展和可维护。
+本仓库用于独立维护基于 **Electron** 的多 AI provider 对话采集与管理桌面主线。
 
-## 分支说明
-
-- **main**: 稳定/主开发分支，保留历史主线与通用改动。
-- **tauri**: 历史技术攻关分支，聚焦 MITM 代理与 CSP 绕过实验。
-- **electron**: 当前 Electron 正式主线分支，承载 Electron 方案演进、实验收敛与 provider 扩展。
-
-## 分支定位
+## 仓库定位
 
 - **状态**: `Active`
-- **目标**: 作为 Electron 正式主线持续推进，围绕 capture、cache、restart persistence 和后续 provider 扩展进行演进。
+- **目标**: 作为 AmberKeeper 正式主仓持续推进，围绕 capture、cache、restart persistence、provider 扩展和独立发布进行演进。
+
+## 历史来源
+
+- 当前代码基线来源于 `anyChat` 的 `electron` 主线
+- AmberKeeper 作为拆分后的独立仓库继续维护
+- 历史研究与架构文档仍保留在 `docs/` 中作为迁移参考
 
 ## 方案原理
 
 使用 Electron 的成熟架构解决外部站点数据捕获问题：
 
-- **核心组件**: 使用 `<webview>` 标签承载 AI 站点。
-- **数据注入**: 通过 `preload` 脚本注入拦截逻辑。
-- **CSP 绕过**: 利用 `session.webRequest.onHeadersReceived` 动态剥离 `Content-Security-Policy` 响应头。
-- **数据传输**: 使用 `ipcRenderer.sendToHost()` 将捕获的聊天数据传回主进程或宿主页面。
+- **核心组件**: 使用原生 `WebContentsView` 承载 AI 站点
+- **数据注入**: 通过 `preload` 脚本注入拦截逻辑
+- **CSP 绕过**: 利用 `session.webRequest.onHeadersReceived` 动态剥离 `Content-Security-Policy` 响应头
+- **数据传输**: 通过 bridge 和 IPC 将捕获的聊天数据传回主进程与桌面工作台
 
 ## 主要参考资料
 
@@ -30,11 +30,12 @@
 
 ## 关键文档索引
 
-- 技术调研: `.sisyphus/plans/003-plan-b-electron.md`
-- 历史研究报告: `docs/research/data-capture-implementation-report.md`
-- Gemini 研究报告: `docs/research/2026-01-20 研究报告gemini.md`
-- 任务跟踪记录: `docs/plans/2026-01-28-anychat-triage.md`
+- 仓库拆分计划: `docs/plans/2026-03-21-amberkeeper-repo-split-plan.md`
+- Electron 主线重构计划: `docs/plans/2026-03-19-electron-mainline-refactor-plan.md`
+- Electron 主线架构设计: `docs/plans/2026-03-19-electron-mainline-architecture-design.md`
+- 架构总览: `docs/architecture/electron-mainline-overview.md`
+- 历史研究日志: 见 `docs/research/`
 
 ---
 
-_详细信息请参阅文档索引中的具体文档_
+_详细信息请优先参阅 `docs/` 中的当前架构与迁移文档。_

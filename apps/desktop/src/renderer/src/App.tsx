@@ -14,7 +14,7 @@ export function App() {
       <aside className="shell-sidebar">
         <header className="shell-header">
           <div>
-            <p className="shell-kicker">AnyChat Electron Mainline</p>
+            <p className="shell-kicker">AmberKeeper Desktop</p>
             <h1 className="shell-title">Workspace and Diagnostics</h1>
           </div>
           <nav className="surface-switcher" aria-label="Surface switcher">

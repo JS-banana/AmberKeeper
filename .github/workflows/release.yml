@@ -144,7 +144,7 @@ jobs:
 
       - name: Archive build output
         run: |
-          ARCHIVE_NAME="anychat-${{ needs.tag.outputs.tag_name }}-${{ matrix.artifact_suffix }}.tgz"
+          ARCHIVE_NAME="amberkeeper-${{ needs.tag.outputs.tag_name }}-${{ matrix.artifact_suffix }}.tgz"
           tar -czf "$ARCHIVE_NAME" -C apps/desktop out
           echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> "$GITHUB_ENV"
 
@@ -165,7 +165,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: anychat-*
+          pattern: amberkeeper-*
           path: release-artifacts
           merge-multiple: true
 
@@ -187,5 +187,5 @@ jobs:
           fi
 
           gh release create "$TAG_NAME" "${ARTIFACTS[@]}" \
-            --title "AnyChat $TAG_NAME" \
+            --title "AmberKeeper $TAG_NAME" \
             --notes "Automated Electron desktop build from tag $TAG_NAME."
