@@ -75,10 +75,12 @@ pnpm desktop:build
 
 ## 相关文档
 
+- AmberKeeper 架构总览：`docs/architecture/amberkeeper-overview.md`
 - 仓库拆分计划：`docs/plans/2026-03-21-amberkeeper-repo-split-plan.md`
 - Electron 主线重构计划：`docs/plans/2026-03-19-electron-mainline-refactor-plan.md`
 - Electron 主线架构设计：`docs/plans/2026-03-19-electron-mainline-architecture-design.md`
-- 现有架构总览：`docs/architecture/electron-mainline-overview.md`
+- 历史 Electron 架构总览：`docs/architecture/electron-mainline-overview.md`
+- 拆仓日志：`docs/research/2026-03-21-amberkeeper-split-log.md`
 - 历史研究日志：见 `docs/research/`
 
 ---

@@ -1,5 +1,7 @@
 # Electron Mainline Overview
 
+> 历史说明：这份文档来自 `anyChat` 的 Electron mainline 阶段，用于保留 AmberKeeper 独立拆仓前的架构背景。当前仓库的活跃入口文档请优先阅读 `docs/architecture/amberkeeper-overview.md`。
+
 ## 目标
 
 AnyChat 当前以 Electron 作为唯一活跃桌面运行时。当前主线的目标不是继续验证 Electron 是否可行，而是把已经验证通过的 ChatGPT 抓取链路整理成可扩展、可持久化、可继续接入更多 mainstream provider 的正式架构。
