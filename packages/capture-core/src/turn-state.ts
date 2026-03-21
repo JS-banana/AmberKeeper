@@ -1,4 +1,4 @@
-import type { NormalizedMessage } from '@anychat/shared-types';
+import type { NormalizedMessage } from '@amberkeeper/shared-types';
 import type { CompletedTurn, ProviderSignal } from './signals';
 
 export type TurnStatus =

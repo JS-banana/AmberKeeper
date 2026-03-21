@@ -3,12 +3,12 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 
 const workspacePackageExcludes = [
-  '@anychat/capture-core',
-  '@anychat/provider-claude',
-  '@anychat/provider-deepseek',
-  '@anychat/provider-gemini',
-  '@anychat/provider-chatgpt',
-  '@anychat/shared-types',
+  '@amberkeeper/capture-core',
+  '@amberkeeper/provider-claude',
+  '@amberkeeper/provider-deepseek',
+  '@amberkeeper/provider-gemini',
+  '@amberkeeper/provider-chatgpt',
+  '@amberkeeper/shared-types',
 ];
 
 const sharedTypesEntry = resolve(__dirname, '../../packages/shared-types/src/index.ts');
@@ -23,12 +23,12 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: workspacePackageExcludes })],
     resolve: {
       alias: {
-        '@anychat/capture-core': captureCoreEntry,
-        '@anychat/provider-claude': providerClaudeEntry,
-        '@anychat/provider-deepseek': providerDeepSeekEntry,
-        '@anychat/provider-gemini': providerGeminiEntry,
-        '@anychat/provider-chatgpt': providerChatGptEntry,
-        '@anychat/shared-types': sharedTypesEntry,
+        '@amberkeeper/capture-core': captureCoreEntry,
+        '@amberkeeper/provider-claude': providerClaudeEntry,
+        '@amberkeeper/provider-deepseek': providerDeepSeekEntry,
+        '@amberkeeper/provider-gemini': providerGeminiEntry,
+        '@amberkeeper/provider-chatgpt': providerChatGptEntry,
+        '@amberkeeper/shared-types': sharedTypesEntry,
       },
     },
     build: {
@@ -44,12 +44,12 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: workspacePackageExcludes })],
     resolve: {
       alias: {
-        '@anychat/capture-core': captureCoreEntry,
-        '@anychat/provider-claude': providerClaudeEntry,
-        '@anychat/provider-deepseek': providerDeepSeekEntry,
-        '@anychat/provider-gemini': providerGeminiEntry,
-        '@anychat/provider-chatgpt': providerChatGptEntry,
-        '@anychat/shared-types': sharedTypesEntry,
+        '@amberkeeper/capture-core': captureCoreEntry,
+        '@amberkeeper/provider-claude': providerClaudeEntry,
+        '@amberkeeper/provider-deepseek': providerDeepSeekEntry,
+        '@amberkeeper/provider-gemini': providerGeminiEntry,
+        '@amberkeeper/provider-chatgpt': providerChatGptEntry,
+        '@amberkeeper/shared-types': sharedTypesEntry,
       },
     },
     build: {
@@ -69,12 +69,12 @@ export default defineConfig({
     plugins: [react()],
     resolve: {
       alias: {
-        '@anychat/capture-core': captureCoreEntry,
-        '@anychat/provider-claude': providerClaudeEntry,
-        '@anychat/provider-deepseek': providerDeepSeekEntry,
-        '@anychat/provider-gemini': providerGeminiEntry,
-        '@anychat/provider-chatgpt': providerChatGptEntry,
-        '@anychat/shared-types': sharedTypesEntry,
+        '@amberkeeper/capture-core': captureCoreEntry,
+        '@amberkeeper/provider-claude': providerClaudeEntry,
+        '@amberkeeper/provider-deepseek': providerDeepSeekEntry,
+        '@amberkeeper/provider-gemini': providerGeminiEntry,
+        '@amberkeeper/provider-chatgpt': providerChatGptEntry,
+        '@amberkeeper/shared-types': sharedTypesEntry,
       },
     },
     build: {

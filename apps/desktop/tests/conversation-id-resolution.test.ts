@@ -1,4 +1,4 @@
-import { geminiAdapter } from '@anychat/provider-gemini';
+import { geminiAdapter } from '@amberkeeper/provider-gemini';
 import { describe, expect, test } from 'vitest';
 import { resolveConversationIdSignal } from '../src/main/runtime/conversation-id-resolution';
 

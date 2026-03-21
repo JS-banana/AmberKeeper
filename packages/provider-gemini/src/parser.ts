@@ -1,4 +1,4 @@
-import type { NormalizedMessage } from '@anychat/shared-types';
+import type { NormalizedMessage } from '@amberkeeper/shared-types';
 
 export function parseGeminiRequestBody(body: string): NormalizedMessage[] {
   const payload = extractGeminiPayload(body);

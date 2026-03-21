@@ -1,5 +1,5 @@
-import type { DomSnapshotSeenSignal } from '@anychat/capture-core';
-import type { ProviderId } from '@anychat/shared-types';
+import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
+import type { ProviderId } from '@amberkeeper/shared-types';
 import { WebContentsView } from 'electron';
 import type { HandlerDetails } from 'electron/main';
 import { createSerializedNavigationExecutor } from './navigation-queue';

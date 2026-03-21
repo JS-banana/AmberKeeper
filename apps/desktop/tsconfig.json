@@ -11,12 +11,12 @@
     "jsx": "react-jsx",
     "types": ["node", "vitest/globals"],
     "paths": {
-      "@anychat/capture-core": ["../../packages/capture-core/src/index.ts"],
-      "@anychat/provider-claude": ["../../packages/provider-claude/src/index.ts"],
-      "@anychat/provider-deepseek": ["../../packages/provider-deepseek/src/index.ts"],
-      "@anychat/provider-gemini": ["../../packages/provider-gemini/src/index.ts"],
-      "@anychat/provider-chatgpt": ["../../packages/provider-chatgpt/src/index.ts"],
-      "@anychat/shared-types": ["../../packages/shared-types/src/index.ts"]
+      "@amberkeeper/capture-core": ["../../packages/capture-core/src/index.ts"],
+      "@amberkeeper/provider-claude": ["../../packages/provider-claude/src/index.ts"],
+      "@amberkeeper/provider-deepseek": ["../../packages/provider-deepseek/src/index.ts"],
+      "@amberkeeper/provider-gemini": ["../../packages/provider-gemini/src/index.ts"],
+      "@amberkeeper/provider-chatgpt": ["../../packages/provider-chatgpt/src/index.ts"],
+      "@amberkeeper/shared-types": ["../../packages/shared-types/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "scripts/**/*.d.ts", "vitest.config.ts"]

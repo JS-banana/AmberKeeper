@@ -1,4 +1,4 @@
-import type { CaptureMessageRecord } from '@anychat/shared-types';
+import type { CaptureMessageRecord } from '@amberkeeper/shared-types';
 
 export function MessageList(props: {
   messages: CaptureMessageRecord[];

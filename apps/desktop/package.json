@@ -1,5 +1,5 @@
 {
-  "name": "electron-chatgpt-capture",
+  "name": "amberkeeper-desktop",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -13,12 +13,12 @@
     "gemini:dirty-data:cleanup": "node scripts/gemini-dirty-data-cleanup.mjs"
   },
   "dependencies": {
-    "@anychat/capture-core": "workspace:*",
-    "@anychat/provider-claude": "workspace:*",
-    "@anychat/provider-deepseek": "workspace:*",
-    "@anychat/provider-gemini": "workspace:*",
-    "@anychat/provider-chatgpt": "workspace:*",
-    "@anychat/shared-types": "workspace:*",
+    "@amberkeeper/capture-core": "workspace:*",
+    "@amberkeeper/provider-claude": "workspace:*",
+    "@amberkeeper/provider-deepseek": "workspace:*",
+    "@amberkeeper/provider-gemini": "workspace:*",
+    "@amberkeeper/provider-chatgpt": "workspace:*",
+    "@amberkeeper/shared-types": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

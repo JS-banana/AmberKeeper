@@ -1,4 +1,4 @@
-import type { CaptureAttemptLogRecord } from '@anychat/shared-types';
+import type { CaptureAttemptLogRecord } from '@amberkeeper/shared-types';
 
 export function AttemptLogPanel(props: { attempts: CaptureAttemptLogRecord[] }) {
   const { attempts } = props;

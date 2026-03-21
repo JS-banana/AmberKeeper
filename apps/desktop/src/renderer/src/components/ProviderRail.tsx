@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderRecord } from '@anychat/shared-types';
+import type { ProviderId, ProviderRecord } from '@amberkeeper/shared-types';
 
 export function ProviderRail(props: {
   providers: ProviderRecord[];

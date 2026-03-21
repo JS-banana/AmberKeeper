@@ -1,4 +1,4 @@
-import type { CaptureEnvelope, CaptureSource, NormalizedMessage } from '@anychat/shared-types';
+import type { CaptureEnvelope, CaptureSource, NormalizedMessage } from '@amberkeeper/shared-types';
 
 export type ProviderId = CaptureEnvelope['provider'];
 

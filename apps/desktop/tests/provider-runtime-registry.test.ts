@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { ProviderId, ProviderRecord } from '@anychat/shared-types';
+import type { ProviderId, ProviderRecord } from '@amberkeeper/shared-types';
 import { createProviderRuntimeRegistry } from '../src/main/runtime/provider-runtime-registry';
 import { applyProviderStageLayout } from '../src/main/windows/main-window';
 

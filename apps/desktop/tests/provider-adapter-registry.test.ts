@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { chatgptAdapter } from '@anychat/provider-chatgpt';
+import { chatgptAdapter } from '@amberkeeper/provider-chatgpt';
 import { getProviderAdapter, listRegisteredProviderAdapters } from '../src/main/runtime/provider-adapters';
 
 describe('provider-adapter-registry', () => {

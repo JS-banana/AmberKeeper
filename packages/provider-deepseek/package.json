@@ -1,5 +1,5 @@
 {
-  "name": "@anychat/provider-deepseek",
+  "name": "@amberkeeper/provider-deepseek",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -7,8 +7,8 @@
     "test": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run"
   },
   "dependencies": {
-    "@anychat/capture-core": "workspace:*",
-    "@anychat/shared-types": "workspace:*"
+    "@amberkeeper/capture-core": "workspace:*",
+    "@amberkeeper/shared-types": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

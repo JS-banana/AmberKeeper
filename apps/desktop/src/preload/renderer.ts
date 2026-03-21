@@ -5,7 +5,7 @@ import type {
   ProviderId,
   ProviderRecord,
   RuntimeStatus,
-} from '@anychat/shared-types';
+} from '@amberkeeper/shared-types';
 
 type RuntimeCallback = (status: RuntimeStatus) => void;
 

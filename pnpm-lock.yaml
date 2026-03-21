@@ -10,22 +10,22 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@anychat/capture-core':
+      '@amberkeeper/capture-core':
         specifier: workspace:*
         version: link:../../packages/capture-core
-      '@anychat/provider-chatgpt':
+      '@amberkeeper/provider-chatgpt':
         specifier: workspace:*
         version: link:../../packages/provider-chatgpt
-      '@anychat/provider-claude':
+      '@amberkeeper/provider-claude':
         specifier: workspace:*
         version: link:../../packages/provider-claude
-      '@anychat/provider-deepseek':
+      '@amberkeeper/provider-deepseek':
         specifier: workspace:*
         version: link:../../packages/provider-deepseek
-      '@anychat/provider-gemini':
+      '@amberkeeper/provider-gemini':
         specifier: workspace:*
         version: link:../../packages/provider-gemini
-      '@anychat/shared-types':
+      '@amberkeeper/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
       react:
@@ -74,7 +74,7 @@ importers:
 
   packages/capture-core:
     dependencies:
-      '@anychat/shared-types':
+      '@amberkeeper/shared-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
@@ -87,10 +87,10 @@ importers:
 
   packages/provider-chatgpt:
     dependencies:
-      '@anychat/capture-core':
+      '@amberkeeper/capture-core':
         specifier: workspace:*
         version: link:../capture-core
-      '@anychat/shared-types':
+      '@amberkeeper/shared-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
@@ -103,10 +103,10 @@ importers:
 
   packages/provider-claude:
     dependencies:
-      '@anychat/capture-core':
+      '@amberkeeper/capture-core':
         specifier: workspace:*
         version: link:../capture-core
-      '@anychat/shared-types':
+      '@amberkeeper/shared-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
@@ -119,10 +119,10 @@ importers:
 
   packages/provider-deepseek:
     dependencies:
-      '@anychat/capture-core':
+      '@amberkeeper/capture-core':
         specifier: workspace:*
         version: link:../capture-core
-      '@anychat/shared-types':
+      '@amberkeeper/shared-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
@@ -135,10 +135,10 @@ importers:
 
   packages/provider-gemini:
     dependencies:
-      '@anychat/capture-core':
+      '@amberkeeper/capture-core':
         specifier: workspace:*
         version: link:../capture-core
-      '@anychat/shared-types':
+      '@amberkeeper/shared-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:

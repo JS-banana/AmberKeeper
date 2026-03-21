@@ -6,7 +6,7 @@ import type {
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderRecord,
-} from '@anychat/shared-types';
+} from '@amberkeeper/shared-types';
 import { App } from './App';
 
 afterEach(() => {

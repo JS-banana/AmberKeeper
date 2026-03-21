@@ -1,4 +1,4 @@
-import type { CaptureSessionRecord, NormalizedMessage, ProviderId } from '@anychat/shared-types';
+import type { CaptureSessionRecord, NormalizedMessage, ProviderId } from '@amberkeeper/shared-types';
 
 type StructuredSnapshotMessage = {
   role?: string;

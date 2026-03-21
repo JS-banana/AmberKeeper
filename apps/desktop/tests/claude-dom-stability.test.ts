@@ -1,7 +1,7 @@
 // @ts-expect-error apps/desktop test harness intentionally uses jsdom without local type declarations.
 import { JSDOM } from 'jsdom';
 import { describe, expect, test } from 'vitest';
-import { collectClaudeStructuredMessages } from '@anychat/provider-claude';
+import { collectClaudeStructuredMessages } from '@amberkeeper/provider-claude';
 
 describe('collectClaudeStructuredMessages', () => {
   test('prefers visible innerText over textContent noise inside Claude prose blocks', () => {

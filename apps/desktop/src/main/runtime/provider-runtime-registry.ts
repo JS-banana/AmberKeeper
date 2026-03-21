@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderRecord } from '@anychat/shared-types';
+import type { ProviderId, ProviderRecord } from '@amberkeeper/shared-types';
 
 export interface ProviderRuntimeEntry<
   TView extends { setBounds(bounds: ProviderStageBounds): void } = {

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { CaptureEnvelope, NormalizedMessage } from '@anychat/shared-types';
+import type { CaptureEnvelope, NormalizedMessage } from '@amberkeeper/shared-types';
 import { ensureCaptureCorePersistenceSchema } from './schema';
 
 export function createMessageRepository(db: DatabaseSync) {

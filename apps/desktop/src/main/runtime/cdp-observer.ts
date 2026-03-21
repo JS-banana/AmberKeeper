@@ -1,5 +1,5 @@
-import type { RuntimeSignal } from '@anychat/capture-core';
-import type { ProviderId } from '@anychat/shared-types';
+import type { RuntimeSignal } from '@amberkeeper/capture-core';
+import type { ProviderId } from '@amberkeeper/shared-types';
 
 export interface DebuggerTarget {
   isAttached(): boolean;

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { CaptureSessionRecord } from '@anychat/shared-types';
+import type { CaptureSessionRecord } from '@amberkeeper/shared-types';
 import {
   normalizeHydratedDomMessages,
   resolveSessionNavigationUrl,

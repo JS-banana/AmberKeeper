@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { ensureCaptureCorePersistenceSchema } from '@anychat/capture-core';
+import { ensureCaptureCorePersistenceSchema } from '@amberkeeper/capture-core';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 // @ts-expect-error plain JS CLI module is intentionally imported in the test.
 import { runGeminiDirtyDataCleanup } from '../scripts/gemini-dirty-data-cleanup.mjs';

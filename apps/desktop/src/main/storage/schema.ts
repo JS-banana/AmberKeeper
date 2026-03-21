@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { ensureCaptureCorePersistenceSchema } from '@anychat/capture-core';
+import { ensureCaptureCorePersistenceSchema } from '@amberkeeper/capture-core';
 
 const CAPTURE_ATTEMPT_LOGS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS capture_attempt_logs (

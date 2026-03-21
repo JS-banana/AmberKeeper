@@ -1,5 +1,5 @@
-import type { DomSnapshotSeenSignal } from '@anychat/capture-core';
-import type { NormalizedMessage } from '@anychat/shared-types';
+import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
+import type { NormalizedMessage } from '@amberkeeper/shared-types';
 
 export interface DeepSeekDomSnapshotMessageInput {
   role?: string;

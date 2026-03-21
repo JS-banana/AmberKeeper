@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { CaptureEnvelope } from '@anychat/shared-types';
+import type { CaptureEnvelope } from '@amberkeeper/shared-types';
 import { createCaptureEventRepository } from './persistence/capture-event-repository';
 import { createConversationRepository } from './persistence/conversation-repository';
 import { createMessageRepository } from './persistence/message-repository';

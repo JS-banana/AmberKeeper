@@ -1,5 +1,5 @@
-import type { ProviderSignal } from '@anychat/capture-core';
-import type { NormalizedMessage, ProviderAdapter } from '@anychat/shared-types';
+import type { ProviderSignal } from '@amberkeeper/capture-core';
+import type { NormalizedMessage, ProviderAdapter } from '@amberkeeper/shared-types';
 import {
   buildClaudeDomSignal,
   getLatestClaudeAssistantContent,

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import type { CaptureEnvelope } from '@anychat/shared-types';
+import type { CaptureEnvelope } from '@amberkeeper/shared-types';
 import { CaptureStore } from '../src/main/storage/capture-store';
 
 describe('capture-store', () => {

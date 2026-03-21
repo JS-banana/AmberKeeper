@@ -4,8 +4,8 @@ import type {
   ProviderId,
   ProviderRecord,
   RuntimeStatus,
-} from '@anychat/shared-types';
-import type { DomSnapshotSeenSignal } from '@anychat/capture-core';
+} from '@amberkeeper/shared-types';
+import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
 
 declare global {
   interface Window {

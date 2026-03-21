@@ -1,4 +1,4 @@
-import type { NormalizedMessage } from '@anychat/shared-types';
+import type { NormalizedMessage } from '@amberkeeper/shared-types';
 
 interface ClaudeConversationRequest {
   conversation_uuid?: string;

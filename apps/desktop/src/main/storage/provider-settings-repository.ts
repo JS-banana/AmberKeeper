@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { ProviderId, ProviderRecord } from '@anychat/shared-types';
+import type { ProviderId, ProviderRecord } from '@amberkeeper/shared-types';
 import {
   BUILT_IN_BROWSER_SESSION_CONFIGS,
   type BrowserSessionConfig,

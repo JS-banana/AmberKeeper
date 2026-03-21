@@ -1,5 +1,5 @@
-import type { ProviderSignal } from '@anychat/capture-core';
-import type { ProviderAdapter } from '@anychat/shared-types';
+import type { ProviderSignal } from '@amberkeeper/capture-core';
+import type { ProviderAdapter } from '@amberkeeper/shared-types';
 import {
   buildChatGptDomSignal,
   getLatestAssistantContent,
@@ -20,7 +20,7 @@ import {
   parseChatGptStreamStatus,
   summarizeResponseBody,
 } from './parser';
-import type { NormalizedMessage } from '@anychat/shared-types';
+import type { NormalizedMessage } from '@amberkeeper/shared-types';
 
 interface SignalContextInput {
   source: 'cdp-network' | 'preload-dom';

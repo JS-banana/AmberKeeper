@@ -1,25 +1,25 @@
-import type { DomSnapshotSeenSignal } from '@anychat/capture-core';
+import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
 import {
   buildClaudeDomSignal,
   buildClaudeDomSnapshot,
   collectClaudeStructuredMessages,
-} from '@anychat/provider-claude';
+} from '@amberkeeper/provider-claude';
 import {
   buildDeepSeekDomSignal,
   buildDeepSeekDomSnapshot,
   collectDeepSeekStructuredMessages,
-} from '@anychat/provider-deepseek';
+} from '@amberkeeper/provider-deepseek';
 import {
   buildGeminiDomSignal,
   buildGeminiDomSnapshot,
   collectGeminiStructuredMessages,
-} from '@anychat/provider-gemini';
+} from '@amberkeeper/provider-gemini';
 import {
   buildChatGptDomSignal,
   buildChatGptDomSnapshot,
   collectChatGptStructuredMessages,
-} from '@anychat/provider-chatgpt';
-import type { ProviderId } from '@anychat/shared-types';
+} from '@amberkeeper/provider-chatgpt';
+import type { ProviderId } from '@amberkeeper/shared-types';
 
 export interface StructuredSnapshotResult {
   url: string;

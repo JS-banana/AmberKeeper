@@ -1,4 +1,4 @@
-import type { CaptureSessionRecord } from '@anychat/shared-types';
+import type { CaptureSessionRecord } from '@amberkeeper/shared-types';
 
 export function SessionList(props: {
   sessions: CaptureSessionRecord[];

@@ -1,4 +1,4 @@
-import type { CaptureMessageRecord, CaptureSessionRecord } from '@anychat/shared-types';
+import type { CaptureMessageRecord, CaptureSessionRecord } from '@amberkeeper/shared-types';
 
 export function ConversationMessagePane(props: {
   session: CaptureSessionRecord | null;

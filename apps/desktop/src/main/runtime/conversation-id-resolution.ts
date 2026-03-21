@@ -1,5 +1,5 @@
-import type { ConversationIdResolvedSignal, ProviderSignal } from '@anychat/capture-core';
-import type { CaptureSource, ProviderAdapter, ProviderId } from '@anychat/shared-types';
+import type { ConversationIdResolvedSignal, ProviderSignal } from '@amberkeeper/capture-core';
+import type { CaptureSource, ProviderAdapter, ProviderId } from '@amberkeeper/shared-types';
 
 export function resolveConversationIdSignal(input: {
   provider: ProviderId;

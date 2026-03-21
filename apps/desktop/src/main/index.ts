@@ -4,8 +4,8 @@ import {
   type CompletedTurn,
   type ProviderSignal,
   type RuntimeSignal,
-} from '@anychat/capture-core';
-import type { CaptureSessionRecord, ProviderId, ProviderRecord, RuntimeStatus } from '@anychat/shared-types';
+} from '@amberkeeper/capture-core';
+import type { CaptureSessionRecord, ProviderId, ProviderRecord, RuntimeStatus } from '@amberkeeper/shared-types';
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

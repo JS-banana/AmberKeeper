@@ -3,7 +3,7 @@ import type {
   CaptureMessageRecord,
   CaptureSessionRecord,
   RuntimeStatus,
-} from '@anychat/shared-types';
+} from '@amberkeeper/shared-types';
 
 export const EMPTY_STATUS: RuntimeStatus = {
   debuggerAttached: false,

@@ -6,7 +6,7 @@ import {
   createMessageRepository,
   persistCompletedTurn,
   type CompletedTurn,
-} from '@anychat/capture-core';
+} from '@amberkeeper/capture-core';
 import type {
   CaptureAttemptLogRecord,
   CaptureEnvelope,
@@ -14,7 +14,7 @@ import type {
   CaptureSessionRecord,
   ProviderId,
   ProviderRecord,
-} from '@anychat/shared-types';
+} from '@amberkeeper/shared-types';
 import { createProviderSettingsRepository } from './provider-settings-repository';
 import { ensureCaptureStoreSchema, hasTable } from './schema';
 

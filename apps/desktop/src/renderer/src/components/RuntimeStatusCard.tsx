@@ -1,4 +1,4 @@
-import type { RuntimeStatus } from '@anychat/shared-types';
+import type { RuntimeStatus } from '@amberkeeper/shared-types';
 
 export function RuntimeStatusCard(props: {
   status: RuntimeStatus;

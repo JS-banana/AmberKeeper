@@ -9,7 +9,7 @@ import {
   parseChatGptSseResponse,
   parseChatGptStreamStatus,
   summarizeResponseBody,
-} from '@anychat/provider-chatgpt';
+} from '@amberkeeper/provider-chatgpt';
 
 describe('chatgpt-parser', () => {
   test('extracts the user message from a ChatGPT request body', () => {

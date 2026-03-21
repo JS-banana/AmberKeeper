@@ -6,7 +6,7 @@ import {
   isChatGptConversationTurnRoute,
   shouldTriggerDomAutoCapture,
   shouldLogNetworkObservation,
-} from '@anychat/provider-chatgpt';
+} from '@amberkeeper/provider-chatgpt';
 
 describe('chatgpt-network', () => {
   test('classifies legacy and current conversation endpoints as capture routes', () => {

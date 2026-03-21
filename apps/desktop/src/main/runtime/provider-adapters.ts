@@ -1,9 +1,9 @@
-import type { ProviderSignal } from '@anychat/capture-core';
-import { claudeAdapter } from '@anychat/provider-claude';
-import { deepseekAdapter } from '@anychat/provider-deepseek';
-import { geminiAdapter } from '@anychat/provider-gemini';
-import { chatgptAdapter } from '@anychat/provider-chatgpt';
-import type { ProviderAdapter, ProviderId } from '@anychat/shared-types';
+import type { ProviderSignal } from '@amberkeeper/capture-core';
+import { claudeAdapter } from '@amberkeeper/provider-claude';
+import { deepseekAdapter } from '@amberkeeper/provider-deepseek';
+import { geminiAdapter } from '@amberkeeper/provider-gemini';
+import { chatgptAdapter } from '@amberkeeper/provider-chatgpt';
+import type { ProviderAdapter, ProviderId } from '@amberkeeper/shared-types';
 
 const PROVIDER_ADAPTERS: Partial<Record<ProviderId, ProviderAdapter<ProviderSignal>>> = {
   chatgpt: chatgptAdapter,

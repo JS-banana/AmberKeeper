@@ -1,4 +1,4 @@
-import type { ProviderId } from '@anychat/shared-types';
+import type { ProviderId } from '@amberkeeper/shared-types';
 import { app, BrowserWindow, WebContentsView } from 'electron';
 
 export interface StageViewBounds {
