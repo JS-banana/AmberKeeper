@@ -21,7 +21,7 @@ declare global {
       triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
       onRuntimeStatus: (callback: (status: RuntimeStatus) => void) => () => void;
     };
-    anychatChatCapture?: {
+    amberkeeperChatCapture?: {
       snapshotDom: () => { message: string; detail: string };
       snapshotMessages: () => {
         url: string;

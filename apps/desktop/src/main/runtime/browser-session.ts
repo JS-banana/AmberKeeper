@@ -14,6 +14,7 @@ export interface BrowserSessionConfig {
   sourceSessionKey: string;
 }
 
+// Keep legacy AnyChat partitions for the first AmberKeeper standalone release.
 export const BUILT_IN_BROWSER_SESSION_CONFIGS: readonly BrowserSessionConfig[] = [
   {
     id: 'chatgpt',
@@ -152,7 +153,7 @@ export function createBrowserSessionRuntime(options: {
       const raw = (await view.webContents.executeJavaScript(
         `
           (async () => {
-            const capture = window.anychatChatCapture;
+            const capture = window.amberkeeperChatCapture;
             if (!capture?.snapshotDom) {
               return { message: 'Chat preload snapshot API unavailable.', detail: '' };
             }
@@ -171,7 +172,7 @@ export function createBrowserSessionRuntime(options: {
       const raw = (await view.webContents.executeJavaScript(
         `
           (async () => {
-            const capture = window.anychatChatCapture;
+            const capture = window.amberkeeperChatCapture;
             if (capture?.snapshotSignal) {
               return capture.snapshotSignal();
             }
@@ -213,7 +214,7 @@ function buildPopupHandler(
     overrideBrowserWindowOptions: {
       width: 520,
       height: 720,
-      title: 'AnyChat Auth',
+      title: 'AmberKeeper Auth',
       webPreferences: {
         partition: options.partition,
         contextIsolation: true,

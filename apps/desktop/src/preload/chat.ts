@@ -39,7 +39,7 @@ installPageNetworkCapture({
 });
 
 contextBridge.exposeInMainWorld(
-  'anychatChatCapture',
+  'amberkeeperChatCapture',
   createChatCaptureApi({
     getUrl: () => location.href,
     getTitle: () => document.title,

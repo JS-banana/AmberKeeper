@@ -1,10 +1,15 @@
 import { describe, expect, test } from 'vitest';
 import {
   installPageNetworkCapture,
+  PAGE_NETWORK_RELAY_BRIDGE,
   shouldRelayPageNetworkPayload,
 } from '../src/preload/page-network-capture';
 
 describe('page-network-capture', () => {
+  test('exposes the AmberKeeper relay bridge name', () => {
+    expect(PAGE_NETWORK_RELAY_BRIDGE).toBe('amberkeeperPageNetworkRelay');
+  });
+
   test('relays DeepSeek history_messages GET responses', () => {
     expect(
       shouldRelayPageNetworkPayload({
@@ -89,6 +94,6 @@ describe('page-network-capture', () => {
     });
 
     expect(appendedScripts).toHaveLength(1);
-    expect(container.dataset.anychatPageNetworkCaptureInjected).toBe('true');
+    expect(container.dataset.amberkeeperPageNetworkCaptureInjected).toBe('true');
   });
 });

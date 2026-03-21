@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import {
   DEFAULT_GEMINI_CAPTURE_DB_PATH,
   analyzeGeminiDirtyData,
+  resolveGeminiCaptureDbPath,
 } from './gemini-dirty-data-dry-run.mjs';
 
 /**
@@ -240,7 +241,13 @@ function parseCliArgs(argv) {
   const positionalArgs = args.filter((argument) => !argument.startsWith('--'));
   return {
     apply,
-    dbPath: positionalArgs[0] || process.env.ANYCHAT_CAPTURE_DB_PATH || DEFAULT_GEMINI_CAPTURE_DB_PATH,
+    dbPath:
+      positionalArgs[0] ||
+      resolveGeminiCaptureDbPath({
+        argv: ['node', 'script'],
+        env: process.env,
+      }) ||
+      DEFAULT_GEMINI_CAPTURE_DB_PATH,
   };
 }
 

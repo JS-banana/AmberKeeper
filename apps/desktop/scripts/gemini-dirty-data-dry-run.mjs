@@ -11,6 +11,18 @@ export const DEFAULT_GEMINI_CAPTURE_DB_PATH = path.join(
   'capture-lab.db'
 );
 
+export function resolveGeminiCaptureDbPath(input = {}) {
+  const argv = input.argv ?? process.argv;
+  const env = input.env ?? process.env;
+
+  return (
+    argv[2] ||
+    env.AMBERKEEPER_CAPTURE_DB_PATH ||
+    env.ANYCHAT_CAPTURE_DB_PATH ||
+    DEFAULT_GEMINI_CAPTURE_DB_PATH
+  );
+}
+
 const HEX_REMOTE_CONVERSATION_ID_PATTERN = /^[a-f0-9]{16}$/i;
 const GEMINI_ASSET_URL_PATTERN =
   /(fonts\.gstatic\.com|gstatic\.com\/s\/i\/short-term|googlesymbols\/expand|googleusercontent\.com)/i;
@@ -242,7 +254,7 @@ function isDirectRun() {
 }
 
 if (isDirectRun()) {
-  const dbPath = process.argv[2] || process.env.ANYCHAT_CAPTURE_DB_PATH || DEFAULT_GEMINI_CAPTURE_DB_PATH;
+  const dbPath = resolveGeminiCaptureDbPath();
   const report = runGeminiDirtyDataDryRun({ dbPath });
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-// @ts-expect-error plain JS CLI module is intentionally imported in the test.
-import { analyzeGeminiDirtyData } from '../scripts/gemini-dirty-data-dry-run.mjs';
+// @ts-ignore plain JS CLI module is intentionally imported in the test.
+import { analyzeGeminiDirtyData, resolveGeminiCaptureDbPath } from '../scripts/gemini-dirty-data-dry-run.mjs';
 
 interface GeminiDirtyDataCandidate {
   conversationId: string;
@@ -209,5 +209,30 @@ describe('analyzeGeminiDirtyData', () => {
     expect(report.candidates.every((candidate) => candidate.proposedAction === 'review_delete_conversation')).toBe(
       true
     );
+  });
+});
+
+describe('resolveGeminiCaptureDbPath', () => {
+  test('prefers the AmberKeeper environment variable before the legacy AnyChat fallback', () => {
+    expect(
+      resolveGeminiCaptureDbPath({
+        argv: ['node', 'script'],
+        env: {
+          AMBERKEEPER_CAPTURE_DB_PATH: '/tmp/amberkeeper.db',
+          ANYCHAT_CAPTURE_DB_PATH: '/tmp/anychat.db',
+        },
+      })
+    ).toBe('/tmp/amberkeeper.db');
+  });
+
+  test('falls back to the legacy AnyChat environment variable when the AmberKeeper variable is absent', () => {
+    expect(
+      resolveGeminiCaptureDbPath({
+        argv: ['node', 'script'],
+        env: {
+          ANYCHAT_CAPTURE_DB_PATH: '/tmp/anychat.db',
+        },
+      })
+    ).toBe('/tmp/anychat.db');
   });
 });

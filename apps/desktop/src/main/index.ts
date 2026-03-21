@@ -855,9 +855,9 @@ async function collectDeepSeekHistoryFetchDiagnostics(
                 ...sampleNodes('[role="listitem"]'),
               ].slice(0, 6),
             },
-            relayBridgeType: typeof window.anychatPageNetworkRelay,
-            relaySendType: typeof window.anychatPageNetworkRelay?.send,
-            relayInstalled: window.__anychatPageNetworkCaptureInstalled ?? null,
+            relayBridgeType: typeof window.amberkeeperPageNetworkRelay,
+            relaySendType: typeof window.amberkeeperPageNetworkRelay?.send,
+            relayInstalled: window.__amberkeeperPageNetworkCaptureInstalled ?? null,
           };
         })();
       `,

@@ -19,8 +19,9 @@ interface PageNetworkCaptureWindowLike {
   removeEventListener?: (type: string, listener: EventListener) => void;
 }
 
-export const PAGE_NETWORK_RELAY_BRIDGE = 'anychatPageNetworkRelay';
-const PAGE_NETWORK_CAPTURE_EVENT = 'anychat:page-network-payload';
+const PAGE_NETWORK_CAPTURE_DATASET_FLAG = 'amberkeeperPageNetworkCaptureInjected';
+export const PAGE_NETWORK_RELAY_BRIDGE = 'amberkeeperPageNetworkRelay';
+const PAGE_NETWORK_CAPTURE_EVENT = 'amberkeeper:page-network-payload';
 const DEEPSEEK_HISTORY_PATH = '/api/v0/chat/history_messages';
 
 export function shouldRelayPageNetworkPayload(input: {
@@ -88,7 +89,7 @@ function injectPageNetworkCaptureScript(
   documentObject: PageNetworkCaptureDocumentLike,
   eventName: string
 ): boolean {
-  if (documentObject.documentElement?.dataset?.anychatPageNetworkCaptureInjected === 'true') {
+  if (documentObject.documentElement?.dataset?.[PAGE_NETWORK_CAPTURE_DATASET_FLAG] === 'true') {
     return true;
   }
 
@@ -99,7 +100,7 @@ function injectPageNetworkCaptureScript(
   }
 
   if (documentObject.documentElement?.dataset) {
-    documentObject.documentElement.dataset.anychatPageNetworkCaptureInjected = 'true';
+    documentObject.documentElement.dataset[PAGE_NETWORK_CAPTURE_DATASET_FLAG] = 'true';
   }
 
   const script = documentObject.createElement('script');
@@ -112,11 +113,11 @@ function injectPageNetworkCaptureScript(
 function buildPageNetworkCaptureScript(eventName: string): string {
   return `
     (() => {
-      if (window.__anychatPageNetworkCaptureInstalled) {
+      if (window.__amberkeeperPageNetworkCaptureInstalled) {
         return;
       }
 
-      window.__anychatPageNetworkCaptureInstalled = true;
+      window.__amberkeeperPageNetworkCaptureInstalled = true;
       const eventName = ${JSON.stringify(eventName)};
       const historyPath = ${JSON.stringify(DEEPSEEK_HISTORY_PATH)};
 
@@ -147,7 +148,7 @@ function buildPageNetworkCaptureScript(eventName: string): string {
         const currentUrl = new URL(location.href);
         if (isDeepSeekHost(currentUrl.hostname)) {
           dispatchPayload({
-            url: currentUrl.origin + historyPath + '?chat_session_id=anychat-relay-probe',
+            url: currentUrl.origin + historyPath + '?chat_session_id=amberkeeper-relay-probe',
             method: 'GET',
             status: 299,
             body: '{"probe":true}',
@@ -156,7 +157,7 @@ function buildPageNetworkCaptureScript(eventName: string): string {
       } catch {}
 
       const originalFetch = window.fetch.bind(window);
-      window.fetch = async function anychatCapturedFetch(input, init) {
+      window.fetch = async function amberkeeperCapturedFetch(input, init) {
         const response = await originalFetch(input, init);
 
         try {
@@ -186,20 +187,23 @@ function buildPageNetworkCaptureScript(eventName: string): string {
       const originalOpen = XMLHttpRequest.prototype.open;
       const originalSend = XMLHttpRequest.prototype.send;
 
-      XMLHttpRequest.prototype.open = function anychatCapturedOpen(method, url, ...args) {
-        this.__anychatMethod = typeof method === 'string' ? method : 'GET';
-        this.__anychatUrl = typeof url === 'string' ? url : String(url);
+      XMLHttpRequest.prototype.open = function amberkeeperCapturedOpen(method, url, ...args) {
+        this.__amberkeeperMethod = typeof method === 'string' ? method : 'GET';
+        this.__amberkeeperUrl = typeof url === 'string' ? url : String(url);
         return originalOpen.call(this, method, url, ...args);
       };
 
-      XMLHttpRequest.prototype.send = function anychatCapturedSend(...args) {
+      XMLHttpRequest.prototype.send = function amberkeeperCapturedSend(...args) {
         this.addEventListener(
           'loadend',
-          function anychatCapturedLoadEnd() {
+          function amberkeeperCapturedLoadEnd() {
             try {
               const requestMethod =
-                typeof this.__anychatMethod === 'string' ? this.__anychatMethod : 'GET';
-              const resolvedUrl = new URL(this.responseURL || this.__anychatUrl || '', location.href).toString();
+                typeof this.__amberkeeperMethod === 'string' ? this.__amberkeeperMethod : 'GET';
+              const resolvedUrl = new URL(
+                this.responseURL || this.__amberkeeperUrl || '',
+                location.href
+              ).toString();
 
               if (shouldCapture(resolvedUrl, requestMethod)) {
                 dispatchPayload({

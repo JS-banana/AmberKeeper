@@ -49,6 +49,11 @@ export interface GeminiDirtyDataReport {
 
 export declare const DEFAULT_GEMINI_CAPTURE_DB_PATH: string;
 
+export declare function resolveGeminiCaptureDbPath(input?: {
+  argv?: string[];
+  env?: Record<string, string | undefined>;
+}): string;
+
 export declare function analyzeGeminiDirtyData(input: {
   conversations: GeminiDryRunConversationRecord[];
   messages: GeminiDryRunMessageRecord[];
