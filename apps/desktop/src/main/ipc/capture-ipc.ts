@@ -1,0 +1,53 @@
+import { ipcMain } from 'electron';
+
+export function registerCaptureIpc(options: {
+  listSessions: () => unknown[];
+  listMessages: (sessionId: string) => unknown[];
+  openSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
+  listProviders: () => unknown[];
+  getActiveProvider: () => unknown;
+  setActiveProvider: (providerId: string) => unknown;
+  setProviderEnabled: (providerId: string, enabled: boolean) => unknown;
+  getRuntimeStatus: () => unknown;
+  triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
+  onPageContext: (payload: { url?: string }) => void;
+  onRelayedNetworkPayload: (payload: {
+    url?: string;
+    method?: string;
+    status?: number | null;
+    body?: string;
+    pageUrl?: string;
+    capturedAt?: string;
+  }) => void;
+}): void {
+  ipcMain.handle('capture:listSessions', () => options.listSessions());
+  ipcMain.handle('capture:listMessages', (_event, sessionId: string) => options.listMessages(sessionId));
+  ipcMain.handle('capture:openSession', (_event, sessionId: string) => options.openSession(sessionId));
+  ipcMain.handle('providers:list', () => options.listProviders());
+  ipcMain.handle('providers:getActive', () => options.getActiveProvider());
+  ipcMain.handle('providers:setActive', (_event, providerId: string) => options.setActiveProvider(providerId));
+  ipcMain.handle('providers:setEnabled', (_event, providerId: string, enabled: boolean) =>
+    options.setProviderEnabled(providerId, enabled)
+  );
+  ipcMain.handle('capture:getRuntimeStatus', () => options.getRuntimeStatus());
+  ipcMain.handle('capture:triggerDomSnapshot', () => options.triggerDomSnapshot());
+  ipcMain.on('chat:page-context', (_event, payload: { url?: string }) => {
+    options.onPageContext(payload);
+  });
+  ipcMain.on(
+    'chat:network-payload',
+    (
+      _event,
+      payload: {
+        url?: string;
+        method?: string;
+        status?: number | null;
+        body?: string;
+        pageUrl?: string;
+        capturedAt?: string;
+      }
+    ) => {
+      options.onRelayedNetworkPayload(payload);
+    }
+  );
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@anychat/provider-chatgpt",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "test": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run"
+  },
+  "dependencies": {
+    "@anychat/capture-core": "workspace:*",
+    "@anychat/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.17"
+  }
+}

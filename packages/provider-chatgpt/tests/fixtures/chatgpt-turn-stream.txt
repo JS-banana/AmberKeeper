@@ -1,0 +1,3 @@
+data: {"message":{"id":"msg-assistant-1","author":{"role":"assistant"},"content":{"parts":["Partial answer"]},"metadata":{"model_slug":"gpt-4.1"},"status":"in_progress"},"conversation_id":"conv-123"}
+data: {"message":{"id":"msg-assistant-1","author":{"role":"assistant"},"content":{"parts":["Final answer"]},"metadata":{"model_slug":"gpt-4.1"},"status":"finished_successfully"},"conversation_id":"conv-123"}
+data: [DONE]

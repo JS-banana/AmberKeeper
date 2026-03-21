@@ -1,0 +1,19 @@
+{
+  "name": "anychat-electron-mainline",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "desktop:dev": "pnpm --dir apps/desktop dev",
+    "desktop:test": "pnpm --dir apps/desktop test",
+    "desktop:build": "pnpm --dir apps/desktop build",
+    "desktop:gemini:dry-run": "pnpm --dir apps/desktop gemini:dirty-data:dry-run",
+    "desktop:gemini:cleanup": "pnpm --dir apps/desktop gemini:dirty-data:cleanup"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  }
+}

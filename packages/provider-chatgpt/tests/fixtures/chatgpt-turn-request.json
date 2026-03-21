@@ -1,0 +1,11 @@
+{
+  "conversation_id": "conv-123",
+  "model": "gpt-4.1",
+  "messages": [
+    {
+      "id": "msg-user-1",
+      "author": { "role": "user" },
+      "content": { "parts": ["Explain WebContentsView in one paragraph."] }
+    }
+  ]
+}

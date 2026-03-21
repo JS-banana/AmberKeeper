@@ -1,0 +1,191 @@
+name: Release
+
+# NOTE: Workflow changes are validated via PR merge behavior (no local TDD).
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'dev'
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.tag.outputs.tag_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TOKEN }}
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Read versions
+        id: versions
+        run: |
+          PACKAGE_VERSION=$(node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('package.json','utf8')); console.log(c.version)")
+          DESKTOP_VERSION=$(node --input-type=module -e "import fs from 'node:fs'; const c=JSON.parse(fs.readFileSync('apps/desktop/package.json','utf8')); console.log(c.version)")
+          LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "desktop_version=$DESKTOP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve next version
+        id: next
+        run: |
+          NEXT_VERSION=$(node scripts/ci/next-version.mjs "${{ steps.versions.outputs.package_version }}" "${{ steps.versions.outputs.latest_tag }}")
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $NEXT_VERSION"
+
+      - name: Update version files (if needed)
+        run: |
+          NEXT_VERSION="${{ steps.next.outputs.next_version }}"
+          UPDATED=false
+
+          if [ "${{ steps.versions.outputs.package_version }}" != "$NEXT_VERSION" ]; then
+            node --input-type=module -e "import fs from 'node:fs'; const path='package.json'; const data=JSON.parse(fs.readFileSync(path,'utf8')); data.version='${NEXT_VERSION}'; fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');"
+            UPDATED=true
+          fi
+
+          if [ "${{ steps.versions.outputs.desktop_version }}" != "$NEXT_VERSION" ]; then
+            node --input-type=module -e "import fs from 'node:fs'; const path='apps/desktop/package.json'; const data=JSON.parse(fs.readFileSync(path,'utf8')); data.version='${NEXT_VERSION}'; fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');"
+            UPDATED=true
+          fi
+
+          if [ "$UPDATED" = true ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package.json apps/desktop/package.json
+            git commit -m "chore: 版本 $NEXT_VERSION [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - name: Create and push tag
+        id: tag
+        run: |
+          TAG="v${{ steps.next.outputs.next_version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+            echo "tag_name=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.os }}
+    needs: [tag]
+    if: needs.tag.outputs.tag_name != ''
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact_suffix: macos
+          - os: ubuntu-22.04
+            artifact_suffix: linux
+          - os: windows-latest
+            artifact_suffix: windows
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.tag_name }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Verify pnpm
+        run: pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build desktop bundle
+        run: pnpm desktop:build
+
+      - name: Archive build output
+        run: |
+          ARCHIVE_NAME="anychat-${{ needs.tag.outputs.tag_name }}-${{ matrix.artifact_suffix }}.tgz"
+          tar -czf "$ARCHIVE_NAME" -C apps/desktop out
+          echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE_NAME }}
+          path: ${{ env.ARCHIVE_NAME }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish Release
+    needs: [tag, build]
+    if: needs.tag.outputs.tag_name != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: anychat-*
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN }}
+          TAG_NAME: ${{ needs.tag.outputs.tag_name }}
+        run: |
+          mapfile -t ARTIFACTS < <(find release-artifacts -type f | sort)
+
+          if [ "${#ARTIFACTS[@]}" -eq 0 ]; then
+            echo "No release artifacts were downloaded."
+            exit 1
+          fi
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "${ARTIFACTS[@]}" --clobber
+            exit 0
+          fi
+
+          gh release create "$TAG_NAME" "${ARTIFACTS[@]}" \
+            --title "AnyChat $TAG_NAME" \
+            --notes "Automated Electron desktop build from tag $TAG_NAME."
