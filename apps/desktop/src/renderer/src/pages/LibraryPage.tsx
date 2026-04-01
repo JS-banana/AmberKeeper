@@ -41,8 +41,13 @@ export function LibraryPage(props: {
   useEffect(() => {
     const nextTarget =
       props.selectedSession?.provider ?? props.activeProvider?.id ?? exportProviderOptions[0]?.id ?? '';
-    setProviderExportTarget((current) => (current ? current : nextTarget));
+    setProviderExportTarget((current) =>
+      current && exportProviderOptions.some((provider) => provider.id === current) ? current : nextTarget
+    );
   }, [exportProviderOptions, props.activeProvider?.id, props.selectedSession?.provider]);
+
+  const exportProvider =
+    exportProviderOptions.find((provider) => provider.id === providerExportTarget) ?? null;
 
   async function handleProviderExport() {
     if (!providerExportTarget) {
@@ -61,49 +66,61 @@ export function LibraryPage(props: {
   }
 
   return (
-    <section className="utility-page">
-      <header className="utility-page__header">
-        <div>
-          <p className="utility-page__eyebrow">知识库</p>
-          <h1>历史会话档案</h1>
-        </div>
-        <p className="utility-page__copy">
-          当前展示所有 provider 的历史会话档案。你可以跨应用查看本地缓存，再按需导出某个 provider 的归档数据。
-        </p>
-      </header>
+    <section className="utility-page utility-page--library">
+      <div className="library-page__top">
+        <header className="utility-page__header utility-page__header--compact">
+          <div>
+            <p className="utility-page__eyebrow">历史会话</p>
+            <h1>历史会话档案</h1>
+          </div>
+          <p className="utility-page__copy">
+            跨 provider 查看本地缓存，并按需导出单个 provider 的归档数据。
+          </p>
+        </header>
 
-      <div className="library-page__provider">
-        <div className="library-page__provider-copy">
-          <strong>全部历史会话</strong>
-          <span>
-            {props.sessions.length} 条会话 · {exportProviderOptions.length} 个 provider
-          </span>
-        </div>
+        <div className="library-page__provider">
+          <div className="library-page__provider-copy">
+            <strong>全部历史会话</strong>
+            <span>
+              {props.sessions.length} 条会话 · {exportProviderOptions.length} 个 provider
+            </span>
+            {exportProvider ? (
+              <p className="library-page__provider-target">当前导出目标：{exportProvider.name}</p>
+            ) : null}
+          </div>
 
-        <div className="library-page__provider-actions">
-          <label className="field-select">
-            <span>导出 provider</span>
-            <select
-              aria-label="选择要导出的 provider"
-              value={providerExportTarget}
-              disabled={exportProviderOptions.length === 0 || providerActionBusy}
-              onChange={(event) => {
-                setProviderExportTarget(event.currentTarget.value as ProviderRecord['id']);
-              }}
-            >
-              {exportProviderOptions.map((provider) => (
-                <option key={provider.id} value={provider.id}>
+          <div className="library-page__provider-tabs" aria-label="选择要导出的 provider">
+            {exportProviderOptions.map((provider) => {
+              const active = provider.id === providerExportTarget;
+
+              return (
+                <button
+                  key={provider.id}
+                  type="button"
+                  aria-pressed={active}
+                  className={
+                    active
+                      ? 'library-page__provider-tab library-page__provider-tab--active'
+                      : 'library-page__provider-tab'
+                  }
+                  disabled={providerActionBusy}
+                  onClick={() => {
+                    setProviderExportTarget(provider.id);
+                  }}
+                >
                   {provider.name}
-                </option>
-              ))}
-            </select>
-          </label>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="library-page__provider-actions">
           <label className="field-select">
             <span>导出格式</span>
             <select
               aria-label="选择 provider 导出格式"
               value={providerExportFormat}
-              disabled={!props.activeProvider || providerActionBusy}
+              disabled={!providerExportTarget || providerActionBusy}
               onChange={(event) => {
                 setProviderExportFormat(event.currentTarget.value as CaptureExportFormat);
               }}
@@ -124,13 +141,14 @@ export function LibraryPage(props: {
             {providerActionBusy ? '正在导出…' : '导出所选 provider'}
           </button>
         </div>
-      </div>
+        </div>
 
-      {providerFeedback ? (
-        <p className="library-page__feedback" aria-live="polite">
-          {providerFeedback}
-        </p>
-      ) : null}
+        {providerFeedback ? (
+          <p className="library-page__feedback" aria-live="polite">
+            {providerFeedback}
+          </p>
+        ) : null}
+      </div>
 
       <div className="library-grid">
         <ConversationList

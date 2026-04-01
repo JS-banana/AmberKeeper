@@ -109,7 +109,6 @@ export function ConversationMessagePane(props: {
                   void handleExport();
                 }}
               >
-                <ExportIcon />
                 {busyAction === 'export' ? '导出中…' : '导出会话'}
               </button>
               <button
@@ -120,12 +119,11 @@ export function ConversationMessagePane(props: {
                   void handleDelete();
                 }}
               >
-                <TrashIcon />
                 {busyAction === 'delete' ? '删除中…' : '删除会话'}
               </button>
             </div>
           </div>
-          <dl className="message-pane__facts">
+          <dl className="message-pane__meta-list">
             <div>
               <dt>来源页面</dt>
               <dd>{props.session.pageUrl}</dd>
@@ -140,75 +138,46 @@ export function ConversationMessagePane(props: {
               {feedback}
             </p>
           ) : null}
-        </div>
+          <div className="message-pane__body">
+            {props.loading ? (
+              <div className="workspace-empty">
+                <p>正在加载消息…</p>
+              </div>
+            ) : null}
+
+            {!props.loading && props.messages.length === 0 ? (
+              <div className="workspace-empty">
+                <p>当前会话还没有捕获到消息。</p>
+              </div>
+            ) : null}
+
+            {props.messages.length > 0 ? (
+              <ol className="message-list">
+                {props.messages.map((message) => (
+                  <li
+                    key={message.id}
+                    className={
+                      message.role === 'assistant'
+                        ? 'message-bubble assistant'
+                        : 'message-bubble user'
+                    }
+                  >
+                    <div className="message-bubble__meta">
+                      <span>{message.role === 'assistant' ? '助手' : '用户'}</span>
+                      <span>{message.createdAt}</span>
+                    </div>
+                    <p>{message.content}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+          </div>
+        </>
       ) : (
         <div className="workspace-empty">
           <p>选择左侧会话后，可在这里查看档案详情并执行导出或删除。</p>
         </div>
       )}
-
-      {props.session && props.loading ? (
-        <div className="workspace-empty">
-          <p>正在加载消息…</p>
-        </div>
-      ) : null}
-
-      {props.session && !props.loading && props.messages.length === 0 ? (
-        <div className="workspace-empty">
-          <p>当前会话还没有捕获到消息。</p>
-        </div>
-      ) : null}
-
-      {props.session && props.messages.length > 0 ? (
-        <ol className="message-list">
-          {props.messages.map((message) => (
-            <li
-              key={message.id}
-              className={
-                message.role === 'assistant'
-                  ? 'message-bubble assistant'
-                  : 'message-bubble user'
-              }
-            >
-              <div className="message-bubble__meta">
-                <span>{message.role === 'assistant' ? '助手' : '用户'}</span>
-                <span>{message.createdAt}</span>
-              </div>
-              <p>{message.content}</p>
-            </li>
-          ))}
-        </ol>
-      ) : null}
     </article>
-  );
-}
-
-function ExportIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="button-icon">
-      <path
-        d="M12 4.5v10m0 0 4-4m-4 4-4-4M5.5 16.5v1.25A1.75 1.75 0 0 0 7.25 19.5h9.5a1.75 1.75 0 0 0 1.75-1.75V16.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="button-icon">
-      <path
-        d="M6.5 7.5h11M9.5 7.5v9m5-9v9M10 4.5h4l.5 2H9.5l.5-2Zm-1.25 15h6.5A1.75 1.75 0 0 0 17 17.75V7.5H7v10.25A1.75 1.75 0 0 0 8.75 19.5Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

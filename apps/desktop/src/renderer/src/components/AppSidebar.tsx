@@ -56,15 +56,9 @@ export function AppSidebar(props: {
         <button
           type="button"
           aria-label="打开设置"
-          aria-pressed={
-            props.activeSurface === 'settings' ||
-            props.activeSurface === 'library' ||
-            props.activeSurface === 'diagnostics'
-          }
+          aria-pressed={props.activeSurface !== 'chat'}
           className={
-            props.activeSurface === 'settings' ||
-            props.activeSurface === 'library' ||
-            props.activeSurface === 'diagnostics'
+            props.activeSurface !== 'chat'
               ? 'rail-button rail-button--utility active'
               : 'rail-button rail-button--utility'
           }

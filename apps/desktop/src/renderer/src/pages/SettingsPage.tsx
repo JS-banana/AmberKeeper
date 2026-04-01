@@ -52,15 +52,15 @@ export function SettingsPage(props: {
   }
 
   return (
-    <section className="utility-page">
+    <section className="utility-page utility-page--scroll">
       <header className="utility-page__header">
         <div>
           <p className="utility-page__eyebrow">设置</p>
-          <h1>应用设置</h1>
+          <h1>服务管理</h1>
         </div>
         <p className="utility-page__copy">
-          AmberKeeper 当前只提供已完成抓取链路适配的内置应用。这里优先处理服务启停与排序，
-          历史会话入口已收回到当前设置域的二级导航中。
+          参考 anyChat 的服务管理体验：拖拽整行调整顺序，使用图标快速启停与打开服务；
+          历史会话已收回到设置域中的“历史会话”入口查看。
         </p>
       </header>
 

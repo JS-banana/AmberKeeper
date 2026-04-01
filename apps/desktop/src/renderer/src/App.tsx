@@ -36,7 +36,13 @@ export function App() {
         }}
       />
 
-      <main className={showChatSurface ? 'product-main product-main--stage' : 'product-main'}>
+      <main
+        className={
+          showChatSurface
+            ? 'product-main product-main--stage'
+            : 'product-main product-main--utility'
+        }
+      >
         {showChatSurface ? (
           <div className="native-stage-shell" aria-hidden="true" />
         ) : (
@@ -79,7 +85,13 @@ function UtilityWorkbench(props: {
   const currentSurface = props.activeSurface === 'chat' ? 'settings' : props.activeSurface;
 
   return (
-    <section className="utility-workbench">
+    <section
+      className={
+        currentSurface === 'library'
+          ? 'utility-workbench utility-workbench--library'
+          : 'utility-workbench'
+      }
+    >
       <nav className="utility-workbench__nav" aria-label="设置与历史">
         {menuItems.map((item) => {
           const isActive = currentSurface === item.id;
@@ -100,7 +112,15 @@ function UtilityWorkbench(props: {
         })}
       </nav>
 
-      <div className="utility-workbench__body">{props.children}</div>
+      <div
+        className={
+          currentSurface === 'library'
+            ? 'utility-workbench__body utility-workbench__body--library'
+            : 'utility-workbench__body'
+        }
+      >
+        {props.children}
+      </div>
     </section>
   );
 }

@@ -25,7 +25,7 @@ export function ConversationList(props: {
           <p>当前还没有可查看的历史会话。</p>
         </div>
       ) : (
-        <ul className="conversation-list">
+        <ul className="conversation-list conversation-list--scroll">
           {props.sessions.map((session) => (
             <li key={session.id}>
               <button
@@ -38,9 +38,9 @@ export function ConversationList(props: {
                 onClick={() => {
                   props.onSelect(session.id);
                 }}
-                >
+              >
                   <span className="conversation-item__title">
-                  {resolveSessionTitle(session)}
+                    {resolveSessionTitle(session)}
                   </span>
                   <span className="conversation-item__meta">
                     <span>{getProviderLabel(session.provider)}</span>

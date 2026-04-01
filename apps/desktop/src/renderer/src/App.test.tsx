@@ -278,6 +278,7 @@ test('supports provider export and session delete actions from the knowledge bas
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
+  fireEvent.click(screen.getByRole('button', { name: 'ChatGPT' }));
   fireEvent.change(screen.getByRole('combobox', { name: '选择 provider 导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
