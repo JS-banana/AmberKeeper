@@ -81,5 +81,6 @@ AmberKeeper 后续独立化的重点包括：
 ## 推荐阅读顺序
 
 1. 当前文档：`docs/architecture/amberkeeper-overview.md`
-2. 仓库拆分计划：`docs/plans/2026-03-21-amberkeeper-repo-split-plan.md`
-3. 历史架构背景：`docs/architecture/electron-mainline-overview.md`
+2. 服务管理 / 历史会话 round-3 UX 评审契约：`docs/architecture/service-history-ux-round3.md`
+3. 仓库拆分计划：`docs/plans/2026-03-21-amberkeeper-repo-split-plan.md`
+4. 历史架构背景：`docs/architecture/electron-mainline-overview.md`
