@@ -231,7 +231,5 @@ function WorkbenchGlyph(props: {
           />
         </svg>
       );
-    case 'chat':
-      return null;
   }
 }
