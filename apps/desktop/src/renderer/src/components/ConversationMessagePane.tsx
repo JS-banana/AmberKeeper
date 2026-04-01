@@ -49,7 +49,7 @@ export function ConversationMessagePane(props: {
     }
 
     const confirmed = window.confirm(
-      `确认删除「${resolveSessionTitle(props.session)}」吗？此操作会移除该会话的本地缓存。`
+      `确认删除「${resolveSessionTitle(props.session)}」吗？此操作会移除这条记录的本地缓存。`
     );
     if (!confirmed) {
       return;
@@ -69,7 +69,7 @@ export function ConversationMessagePane(props: {
   return (
     <article className="workspace-card workspace-card--messages">
       <div className="section-header section-header--tight">
-        <h2>档案详情</h2>
+        <h2>记录详情</h2>
         <span className="panel-count">{props.messages.length}</span>
       </div>
 
@@ -113,7 +113,7 @@ export function ConversationMessagePane(props: {
                   </select>
                 </label>
                 <IconActionButton
-                  label="导出当前会话"
+                  label="导出当前记录"
                   busy={busyAction === 'export'}
                   disabled={busyAction !== null}
                   onClick={() => {
@@ -123,7 +123,7 @@ export function ConversationMessagePane(props: {
                   <ExportIcon />
                 </IconActionButton>
                 <IconActionButton
-                  label="删除当前会话"
+                  label="删除当前记录"
                   busy={busyAction === 'delete'}
                   disabled={busyAction !== null}
                   danger
@@ -144,13 +144,13 @@ export function ConversationMessagePane(props: {
           <div className="message-pane__body">
             {props.loading ? (
               <div className="workspace-empty">
-                <p>正在加载消息…</p>
+                <p>正在加载记录…</p>
               </div>
             ) : null}
 
             {!props.loading && props.messages.length === 0 ? (
               <div className="workspace-empty">
-                <p>当前会话还没有捕获到消息。</p>
+                <p>当前记录还没有捕获到消息。</p>
               </div>
             ) : null}
 
@@ -178,7 +178,7 @@ export function ConversationMessagePane(props: {
         </>
       ) : (
         <div className="workspace-empty">
-          <p>选择左侧会话后即可查看记录。</p>
+          <p>先从左侧选择一条记录。</p>
         </div>
       )}
     </article>

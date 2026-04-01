@@ -63,7 +63,7 @@ test('switches the active provider from the rail and keeps chat mode focused on 
   });
 });
 
-test('opens the library, hides the native stage, and hydrates the selected session history', async () => {
+test('opens the library in all-record mode, hides the native stage, and hydrates provider-specific history on demand', async () => {
   const state = createHydrationFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -74,11 +74,15 @@ test('opens the library, hides the native stage, and hydrates the selected sessi
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
-  expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(screen.getByText('2 条会话 · 1 个 provider')).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(screen.getByText('2 条记录 · 1 个服务')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByText('全部记录总览')).toBeInTheDocument();
+  expect(screen.queryByText('Recent answer')).not.toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
+  fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
   expect(await screen.findByText('Recent answer')).toBeInTheDocument();
   fireEvent.click(await screen.findByRole('button', { name: /chatgpt-older-conv/i }));
 
@@ -143,12 +147,19 @@ test('shows the library as an all-provider knowledge base instead of scoping to 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
-  expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(screen.getByText('3 条会话 · 3 个 provider')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '选择 Claude' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(screen.getByText('3 条记录 · 3 个服务')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByText('全部记录总览')).toBeInTheDocument();
+  expect(screen.queryByRole('list', { name: '历史记录列表' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: '记录详情' })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: '查看 Claude 记录' }));
+
+  expect(await screen.findByRole('list', { name: '历史记录列表' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /chatgpt-conv/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /gemini-conv/i })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /chatgpt-conv/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /gemini-conv/i })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /claude-conv/i }));
   expect(await screen.findByText('Claude answer')).toBeInTheDocument();
 });
@@ -170,10 +181,13 @@ test('keeps all-provider history visible even when the active provider has no se
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
-  expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(screen.getByText('3 条会话 · 4 个 provider')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /chatgpt-conv/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(screen.getByText('3 条记录 · 4 个服务')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
+  expect(await screen.findByRole('button', { name: /chatgpt-conv/i })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '查看 Claude 记录' }));
+  expect(await screen.findByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
 });
 
 test('uses semantic fallback titles in the knowledge base when provider page titles are generic', async () => {
@@ -204,6 +218,7 @@ test('uses semantic fallback titles in the knowledge base when provider page tit
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(await screen.findByRole('button', { name: '历史会话' }));
+  fireEvent.click(await screen.findByRole('button', { name: '查看 DeepSeek 记录' }));
 
   expect(
     await screen.findByRole('button', {
@@ -312,26 +327,30 @@ test('supports provider export and session delete actions from the knowledge bas
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
-  fireEvent.click(screen.getByRole('button', { name: '选择 ChatGPT' }));
-  fireEvent.change(screen.getByRole('combobox', { name: '选择 provider 导出格式' }), {
+  fireEvent.change(screen.getByRole('combobox', { name: '选择要导出的服务' }), {
+    target: { value: 'chatgpt' },
+  });
+  fireEvent.change(screen.getByRole('combobox', { name: '选择导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出 ChatGPT 会话档案' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出 ChatGPT 记录' }));
 
   await waitFor(() => {
     expect(api.exportProviderSessions).toHaveBeenCalledWith('chatgpt', 'markdown');
   });
 
+  fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
+
   fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出当前会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
 
   await waitFor(() => {
     expect(api.exportSession).toHaveBeenCalledWith('chatgpt-recent-session', 'markdown');
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '删除当前会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '删除当前记录' }));
 
   expect(confirmSpy).toHaveBeenCalled();
   await waitFor(() => {
@@ -351,7 +370,7 @@ test('lets operators manually refresh the history list so new sessions surface',
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
-  await screen.findByRole('button', { name: /chatgpt-conv/i });
+  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
   const initialListSessionCalls = api.listSessions.mock.calls.length;
 
   state.sessions.unshift(
@@ -378,6 +397,8 @@ test('lets operators manually refresh the history list so new sessions surface',
   await waitFor(() => {
     expect(api.listSessions.mock.calls.length).toBeGreaterThan(initialListSessionCalls);
   });
+  expect(screen.queryByText('已刷新历史会话列表。')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '查看 DeepSeek 记录' }));
   expect(await screen.findByRole('button', { name: /DeepSeek launch summary/i })).toBeInTheDocument();
 });
 
@@ -392,7 +413,7 @@ test('refreshes sessions after capture-driven runtime status updates', async () 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
-  await screen.findByRole('button', { name: /chatgpt-conv/i });
+  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
   const initialListSessionCalls = api.listSessions.mock.calls.length;
 
   state.sessions.unshift(
@@ -419,9 +440,43 @@ test('refreshes sessions after capture-driven runtime status updates', async () 
   await waitFor(() => {
     expect(api.listSessions.mock.calls.length).toBeGreaterThan(initialListSessionCalls);
   });
+  fireEvent.click(screen.getByRole('button', { name: '查看 DeepSeek 记录' }));
   expect(
     await screen.findByRole('button', { name: /Auto refreshed DeepSeek session/i })
   ).toBeInTheDocument();
+});
+
+test('shows provider-specific history with a scrollable list and active record state', async () => {
+  const state = createHydrationFixture();
+  const api = installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
+
+  const list = await screen.findByRole('list', { name: '历史记录列表' });
+  expect(list).toHaveClass('conversation-list--scroll');
+
+  const recentRecordButton = screen.getByRole('button', { name: /chatgpt-recent-conv/i });
+  const olderRecordButton = screen.getByRole('button', { name: /chatgpt-older-conv/i });
+
+  expect(recentRecordButton).toHaveAttribute('aria-pressed', 'true');
+  expect(olderRecordButton).toHaveAttribute('aria-pressed', 'false');
+
+  fireEvent.click(olderRecordButton);
+
+  await waitFor(() => {
+    expect(api.openSession).toHaveBeenCalledWith('chatgpt-older-session');
+  });
+  expect(await screen.findByText('Hydrated old answer')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(olderRecordButton).toHaveAttribute('aria-pressed', 'true');
+  });
+  expect(recentRecordButton).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('shows diagnostics only when the shell info enables developer tools', async () => {

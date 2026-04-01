@@ -10,6 +10,7 @@ import { ConversationMessagePane } from '../components/ConversationMessagePane';
 import { ProviderIcon } from '../components/ProviderIcon';
 
 type CaptureActionResult = { message: string; detail: string };
+type HistoryScope = 'all' | ProviderRecord['id'];
 
 export function LibraryPage(props: {
   activeProvider: ProviderRecord | null;
@@ -32,6 +33,7 @@ export function LibraryPage(props: {
   ) => Promise<CaptureActionResult>;
 }) {
   const exportProviderOptions = props.providers.filter((provider) => provider.enabled);
+  const [historyScope, setHistoryScope] = useState<HistoryScope>('all');
   const [providerExportTarget, setProviderExportTarget] = useState<ProviderRecord['id'] | ''>(
     props.selectedSession?.provider ?? props.activeProvider?.id ?? exportProviderOptions[0]?.id ?? ''
   );
@@ -39,7 +41,22 @@ export function LibraryPage(props: {
     useState<CaptureExportFormat>('json');
   const [providerActionBusy, setProviderActionBusy] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
-  const [providerFeedback, setProviderFeedback] = useState<string | null>(null);
+  const scopedProvider =
+    historyScope === 'all'
+      ? null
+      : exportProviderOptions.find((provider) => provider.id === historyScope) ?? null;
+  const scopedSessions =
+    historyScope === 'all'
+      ? props.sessions
+      : props.sessions.filter((session) => session.provider === historyScope);
+  const scopedSelectedSession =
+    historyScope === 'all'
+      ? null
+      : props.selectedSession && props.selectedSession.provider === historyScope
+        ? props.selectedSession
+        : scopedSessions[0] ?? null;
+  const scopedMessages =
+    scopedSelectedSession && scopedSelectedSession.id === props.selectedSessionId ? props.messages : [];
 
   useEffect(() => {
     const nextTarget =
@@ -48,6 +65,30 @@ export function LibraryPage(props: {
       current && exportProviderOptions.some((provider) => provider.id === current) ? current : nextTarget
     );
   }, [exportProviderOptions, props.activeProvider?.id, props.selectedSession?.provider]);
+
+  useEffect(() => {
+    if (historyScope === 'all') {
+      return;
+    }
+
+    setProviderExportTarget(historyScope);
+  }, [historyScope]);
+
+  useEffect(() => {
+    if (historyScope === 'all') {
+      return;
+    }
+
+    if (scopedSessions.length === 0) {
+      return;
+    }
+
+    if (props.selectedSessionId && scopedSessions.some((session) => session.id === props.selectedSessionId)) {
+      return;
+    }
+
+    props.onSelectSession(scopedSessions[0].id);
+  }, [historyScope, props.onSelectSession, props.selectedSessionId, scopedSessions]);
 
   const exportProvider =
     exportProviderOptions.find((provider) => provider.id === providerExportTarget) ?? null;
@@ -59,10 +100,9 @@ export function LibraryPage(props: {
 
     setProviderActionBusy(true);
     try {
-      const result = await props.onExportProviderSessions(providerExportTarget, providerExportFormat);
-      setProviderFeedback(result.detail || result.message);
-    } catch (error) {
-      setProviderFeedback(error instanceof Error ? error.message : String(error));
+      await props.onExportProviderSessions(providerExportTarget, providerExportFormat);
+    } catch {
+      // Error state is surfaced by the shared workspace store; avoid persistent top-level feedback strips here.
     } finally {
       setProviderActionBusy(false);
     }
@@ -72,9 +112,8 @@ export function LibraryPage(props: {
     setRefreshBusy(true);
     try {
       await props.onRefresh();
-      setProviderFeedback('已刷新历史会话列表。');
-    } catch (error) {
-      setProviderFeedback(error instanceof Error ? error.message : String(error));
+    } catch {
+      // Error state is surfaced by the shared workspace store; keep the page header visually quiet.
     } finally {
       setRefreshBusy(false);
     }
@@ -85,24 +124,41 @@ export function LibraryPage(props: {
       <div className="library-page__top">
         <header className="utility-page__header utility-page__header--compact library-page__header">
           <div>
-            <p className="utility-page__eyebrow">历史会话</p>
-            <h1>历史会话档案</h1>
+            <p className="utility-page__eyebrow">历史记录</p>
+            <h1>历史记录</h1>
           </div>
           <span className="library-page__summary">
-            {props.sessions.length} 条会话 · {exportProviderOptions.length} 个 provider
+            {props.sessions.length} 条记录 · {exportProviderOptions.length} 个服务
           </span>
         </header>
 
         <div className="library-page__toolbar">
-          <div className="library-page__provider-tabs" aria-label="选择要导出的 provider">
+          <div className="library-page__provider-tabs" aria-label="按服务筛选历史记录">
+            <button
+              type="button"
+              aria-label="查看全部记录"
+              aria-pressed={historyScope === 'all'}
+              title="全部"
+              className={
+                historyScope === 'all'
+                  ? 'library-page__provider-tab library-page__provider-tab--active'
+                  : 'library-page__provider-tab'
+              }
+              disabled={providerActionBusy || refreshBusy}
+              onClick={() => {
+                setHistoryScope('all');
+              }}
+            >
+              全部
+            </button>
             {exportProviderOptions.map((provider) => {
-              const active = provider.id === providerExportTarget;
+              const active = provider.id === historyScope;
 
               return (
                 <button
                   key={provider.id}
                   type="button"
-                  aria-label={`选择 ${provider.name}`}
+                  aria-label={`查看 ${provider.name} 记录`}
                   aria-pressed={active}
                   title={provider.name}
                   className={
@@ -112,7 +168,7 @@ export function LibraryPage(props: {
                   }
                   disabled={providerActionBusy || refreshBusy}
                   onClick={() => {
-                    setProviderExportTarget(provider.id);
+                    setHistoryScope(provider.id);
                   }}
                 >
                   <ProviderIcon
@@ -126,19 +182,36 @@ export function LibraryPage(props: {
             })}
           </div>
 
-          <div className="library-page__toolbar-actions">
+        <div className="library-page__toolbar-actions">
             <label className="field-select field-select--compact">
-              <span className="visually-hidden">选择 provider 导出格式</span>
+              <span className="visually-hidden">选择要导出的服务</span>
               <select
-                aria-label="选择 provider 导出格式"
+                aria-label="选择要导出的服务"
+                value={providerExportTarget}
+                disabled={providerActionBusy || exportProviderOptions.length === 0}
+                onChange={(event) => {
+                  setProviderExportTarget(event.currentTarget.value as ProviderRecord['id']);
+                }}
+              >
+                {exportProviderOptions.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field-select field-select--compact">
+              <span className="visually-hidden">选择导出格式</span>
+              <select
+                aria-label="选择导出格式"
                 value={providerExportFormat}
                 disabled={!providerExportTarget || providerActionBusy}
                 onChange={(event) => {
                   setProviderExportFormat(event.currentTarget.value as CaptureExportFormat);
                 }}
               >
-                <option value="json">JSON bundle</option>
-                <option value="markdown">Markdown archive</option>
+                <option value="json">JSON 格式</option>
+                <option value="markdown">Markdown 格式</option>
               </select>
             </label>
 
@@ -154,9 +227,7 @@ export function LibraryPage(props: {
 
             <IconActionButton
               label={
-                exportProvider
-                  ? `导出 ${exportProvider.name} 会话档案`
-                  : '导出当前 provider 会话档案'
+                exportProvider ? `导出 ${exportProvider.name} 记录` : '导出服务记录'
               }
               busy={providerActionBusy}
               disabled={!providerExportTarget}
@@ -168,27 +239,58 @@ export function LibraryPage(props: {
             </IconActionButton>
           </div>
         </div>
-
-        {providerFeedback ? (
-          <p className="library-page__feedback" aria-live="polite">
-            {providerFeedback}
-          </p>
-        ) : null}
       </div>
 
-      <div className="library-grid">
-        <ConversationList
-          sessions={props.sessions}
-          selectedSessionId={props.selectedSessionId}
-          onSelect={props.onSelectSession}
+      {historyScope === 'all' ? (
+        <LibraryOverview
+          sessionCount={props.sessions.length}
+          providerCount={exportProviderOptions.length}
+          activeProviderName={props.activeProvider?.name ?? '未选择'}
         />
-        <ConversationMessagePane
-          session={props.selectedSession}
-          messages={props.messages}
-          loading={props.loading}
-          onDeleteSession={props.onDeleteSession}
-          onExportSession={props.onExportSession}
-        />
+      ) : (
+        <div className="library-grid">
+          <ConversationList
+            sessions={scopedSessions}
+            selectedSessionId={scopedSelectedSession?.id ?? null}
+            onSelect={props.onSelectSession}
+          />
+          <ConversationMessagePane
+            session={scopedSelectedSession}
+            messages={scopedMessages}
+            loading={props.loading}
+            onDeleteSession={props.onDeleteSession}
+            onExportSession={props.onExportSession}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LibraryOverview(props: {
+  sessionCount: number;
+  providerCount: number;
+  activeProviderName: string;
+}) {
+  return (
+    <section className="workspace-card" aria-label="全部记录总览">
+      <div className="section-header section-header--tight">
+        <h2>全部记录总览</h2>
+        <span className="panel-count">{props.sessionCount}</span>
+      </div>
+      <div className="provider-summary__facts">
+        <div>
+          <dt>已收录记录</dt>
+          <dd>{props.sessionCount} 条历史记录</dd>
+        </div>
+        <div>
+          <dt>已接入服务</dt>
+          <dd>{props.providerCount} 个服务可切换查看</dd>
+        </div>
+        <div>
+          <dt>当前工作服务</dt>
+          <dd>{props.activeProviderName}</dd>
+        </div>
       </div>
     </section>
   );

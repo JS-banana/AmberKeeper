@@ -44,13 +44,13 @@ test('renders archive detail actions and forwards export/delete intents', async 
   fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出当前会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
 
   await waitFor(() => {
     expect(onExportSession).toHaveBeenCalledWith('session-1', 'markdown');
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '删除当前会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '删除当前记录' }));
 
   await waitFor(() => {
     expect(onDeleteSession).toHaveBeenCalledWith('session-1');
