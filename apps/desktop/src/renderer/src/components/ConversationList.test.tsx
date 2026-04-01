@@ -9,7 +9,7 @@ afterEach(() => {
   cleanup();
 });
 
-test('renders archive metadata and falls back to preview text when the stored title is not useful', () => {
+test('renders chat record metadata, preserves the scroll list, and falls back to preview text when titles are generic', () => {
   const onSelect = vi.fn();
   render(
     <ConversationList
@@ -33,10 +33,13 @@ test('renders archive metadata and falls back to preview text when the stored ti
     />
   );
 
+  expect(screen.getByRole('heading', { name: '聊天记录' })).toBeInTheDocument();
+  expect(screen.getByRole('list')).toHaveClass('conversation-list--scroll');
   expect(screen.getByText('产品复盘')).toBeInTheDocument();
   expect(screen.getByText('这是更像标题的首条用户消息')).toBeInTheDocument();
   expect(screen.getAllByText(/^3 条$/)).toHaveLength(2);
   expect(screen.getAllByText(/2026年/)).toHaveLength(2);
+  expect(screen.getByRole('button', { name: /产品复盘/i })).toHaveClass('active');
 
   fireEvent.click(screen.getByRole('button', { name: /这是更像标题的首条用户消息/i }));
   expect(onSelect).toHaveBeenCalledWith('session-fallback');

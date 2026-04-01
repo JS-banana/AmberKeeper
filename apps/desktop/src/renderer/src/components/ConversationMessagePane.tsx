@@ -35,7 +35,12 @@ export function ConversationMessagePane(props: {
     setBusyAction('export');
     try {
       const result = await props.onExportSession(props.session.id, exportFormat);
-      setFeedback(result.detail || result.message);
+      const nextFeedback = result.detail || result.message;
+      if (nextFeedback.includes('导出已取消') || result.message === 'cancelled') {
+        setFeedback(null);
+      } else {
+        setFeedback(nextFeedback);
+      }
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : String(error));
     } finally {
@@ -108,8 +113,8 @@ export function ConversationMessagePane(props: {
                       setExportFormat(event.currentTarget.value as CaptureExportFormat);
                     }}
                   >
-                    <option value="json">JSON</option>
-                    <option value="markdown">Markdown</option>
+                    <option value="json">JSON 格式</option>
+                    <option value="markdown">Markdown 格式</option>
                   </select>
                 </label>
                 <IconActionButton

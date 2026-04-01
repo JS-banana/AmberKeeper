@@ -14,7 +14,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test('renders archive detail actions and forwards export/delete intents', async () => {
+test('renders record detail actions with chinese export labels and forwards export/delete intents', async () => {
   const onExportSession = vi.fn(
     async (_sessionId: string, format: CaptureExportFormat) => ({
       message: 'exported',
@@ -37,11 +37,14 @@ test('renders archive detail actions and forwards export/delete intents', async 
     />
   );
 
+  expect(screen.getByRole('heading', { name: '记录详情' })).toBeInTheDocument();
   expect(screen.getByText('Amber 项目回顾')).toBeInTheDocument();
   expect(screen.getByText('ChatGPT')).toBeInTheDocument();
   expect(screen.getByText('conv-1')).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'JSON 格式' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Markdown 格式' })).toBeInTheDocument();
 
-  fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
+  fireEvent.change(screen.getByRole('combobox', { name: /会话导出格式|记录导出格式|导出格式/ }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
   fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
@@ -56,6 +59,35 @@ test('renders archive detail actions and forwards export/delete intents', async 
     expect(onDeleteSession).toHaveBeenCalledWith('session-1');
   });
   expect(await screen.findByText('deleted')).toBeInTheDocument();
+});
+
+test('does not keep cancelled export feedback visible in the record detail pane', async () => {
+  const onExportSession = vi.fn(async () => ({
+    message: 'cancelled',
+    detail: '导出已取消',
+  }));
+
+  render(
+    <ConversationMessagePane
+      session={buildSession()}
+      messages={[buildMessage()]}
+      loading={false}
+      onExportSession={onExportSession}
+      onDeleteSession={vi.fn(async () => ({
+        message: 'deleted',
+        detail: 'deleted',
+      }))}
+    />
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
+
+  await waitFor(() => {
+    expect(onExportSession).toHaveBeenCalledWith('session-1', 'json');
+  });
+  await waitFor(() => {
+    expect(screen.queryByText('导出已取消')).not.toBeInTheDocument();
+  });
 });
 
 function buildSession(): CaptureSessionRecord {

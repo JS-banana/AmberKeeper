@@ -116,18 +116,18 @@ test('renders the utility area with a left nav and compact service rows', async 
     .find((item) => item.getAttribute('data-provider-id') === 'chatgpt');
 
   expect(chatgptItem).toBeDefined();
-  expect(within(chatgptItem!).getByText('https://chatgpt.com')).toBeInTheDocument();
+  expect(within(chatgptItem!).queryByText('https://chatgpt.com')).not.toBeInTheDocument();
   expect(
     within(chatgptItem!).queryByText(/拖动整行即可调整服务顺序|拖动到目标位置后松手完成排序/)
   ).not.toBeInTheDocument();
-  expect(within(chatgptItem!).queryByRole('button', { name: '打开 ChatGPT' })).not.toBeInTheDocument();
+  expect(within(chatgptItem!).getByRole('button', { name: '打开 ChatGPT' })).toHaveAttribute(
+    'title',
+    '打开 ChatGPT'
+  );
   expect(within(chatgptItem!).getByRole('button', { name: '停用 ChatGPT' })).toHaveAttribute(
     'title',
     '停用 ChatGPT'
   );
-  expect(within(chatgptItem!).queryByText('当前使用')).not.toBeInTheDocument();
-  expect(within(chatgptItem!).queryByText('已启用')).not.toBeInTheDocument();
-  expect(within(chatgptItem!).queryByText('已停用')).not.toBeInTheDocument();
 });
 
 test('shows the library as an all-provider knowledge base instead of scoping to the active provider', async () => {
@@ -238,7 +238,7 @@ test('allows enabling and reordering built-in providers from settings', async ()
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
 
-  expect(screen.queryByRole('heading', { name: '服务管理' })).not.toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '服务管理' })).toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
