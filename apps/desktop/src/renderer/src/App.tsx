@@ -68,7 +68,7 @@ function UtilityWorkbench(props: {
   children: ReactNode;
 }) {
   const menuItems: Array<{ id: Exclude<AppSurfaceId, 'chat'>; label: string }> = [
-    { id: 'library', label: '会话库' },
+    { id: 'library', label: '知识库' },
     { id: 'settings', label: '应用设置' },
   ];
 
@@ -123,6 +123,9 @@ function renderUtilitySurface(input: {
           messages={input.state.messages}
           loading={input.state.loading}
           onSelectSession={input.actions.selectSession}
+          onDeleteSession={input.actions.deleteSession}
+          onExportSession={input.actions.exportSession}
+          onExportProviderSessions={input.actions.exportProviderSessions}
         />
       );
     case 'settings':

@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useEffectEvent, useState } from 'react';
 import type {
+  CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderId,
@@ -20,6 +21,8 @@ interface WorkspaceState {
   loading: boolean;
   error: string | null;
 }
+
+type CaptureActionResult = { message: string; detail: string };
 
 const INITIAL_STATE: WorkspaceState = {
   providers: [],
@@ -171,6 +174,61 @@ export function useWorkspaceStore() {
     }
   });
 
+  const deleteSession = useEffectEvent(async (sessionId: string): Promise<CaptureActionResult> => {
+    const remainingSessions = state.sessions.filter((session) => session.id !== sessionId);
+    const preferredSessionId =
+      state.selectedSessionId === sessionId
+        ? remainingSessions[0]?.id ?? null
+        : state.selectedSessionId;
+
+    try {
+      const result = await window.captureApi.deleteSession(sessionId);
+      await refresh(preferredSessionId);
+      return result;
+    } catch (error) {
+      const message = formatError(error);
+      startTransition(() => {
+        setState((current) => ({
+          ...current,
+          error: message,
+        }));
+      });
+      throw error;
+    }
+  });
+
+  const exportSession = useEffectEvent(
+    async (sessionId: string, format: CaptureExportFormat): Promise<CaptureActionResult> => {
+      try {
+        return await window.captureApi.exportSession(sessionId, format);
+      } catch (error) {
+        startTransition(() => {
+          setState((current) => ({
+            ...current,
+            error: formatError(error),
+          }));
+        });
+        throw error;
+      }
+    }
+  );
+
+  const exportProviderSessions = useEffectEvent(
+    async (providerId: ProviderId, format: CaptureExportFormat): Promise<CaptureActionResult> => {
+      try {
+        return await window.captureApi.exportProviderSessions(providerId, format);
+      } catch (error) {
+        startTransition(() => {
+          setState((current) => ({
+            ...current,
+            error: formatError(error),
+          }));
+        });
+        throw error;
+      }
+    }
+  );
+
   useEffect(() => {
     void refresh(null);
 
@@ -199,6 +257,9 @@ export function useWorkspaceStore() {
       setProviderEnabled,
       moveProvider,
       selectSession,
+      deleteSession,
+      exportSession,
+      exportProviderSessions,
     },
   };
 }
