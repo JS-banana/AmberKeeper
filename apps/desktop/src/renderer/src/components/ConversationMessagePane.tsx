@@ -76,68 +76,70 @@ export function ConversationMessagePane(props: {
       </div>
 
       {props.session ? (
-        <div className="message-pane__header">
-          <div className="message-pane__headline">
-            <div>
-              <strong>{resolveSessionTitle(props.session)}</strong>
-              <div className="message-pane__chips">
-                <span>{getProviderLabel(props.session.provider)}</span>
-                <span>{props.session.messageCount} 条消息</span>
-                <span>更新于 {formatSessionUpdatedAt(props.session.updatedAt)}</span>
+        <>
+          <div className="message-pane__header">
+            <div className="message-pane__headline">
+              <div>
+                <strong>{resolveSessionTitle(props.session)}</strong>
+                <div className="message-pane__chips">
+                  <span>{getProviderLabel(props.session.provider)}</span>
+                  <span>{props.session.messageCount} 条消息</span>
+                  <span>更新于 {formatSessionUpdatedAt(props.session.updatedAt)}</span>
+                </div>
               </div>
-            </div>
-            <div className="message-pane__actions">
-              <label className="field-select">
-                <span>导出格式</span>
-                <select
-                  aria-label="选择会话导出格式"
-                  value={exportFormat}
+              <div className="message-pane__actions">
+                <label className="field-select">
+                  <span>导出格式</span>
+                  <select
+                    aria-label="选择会话导出格式"
+                    value={exportFormat}
+                    disabled={busyAction !== null}
+                    onChange={(event) => {
+                      setExportFormat(event.currentTarget.value as CaptureExportFormat);
+                    }}
+                  >
+                    <option value="json">JSON</option>
+                    <option value="markdown">Markdown</option>
+                  </select>
+                </label>
+                <button
+                  className="secondary-button"
+                  type="button"
                   disabled={busyAction !== null}
-                  onChange={(event) => {
-                    setExportFormat(event.currentTarget.value as CaptureExportFormat);
+                  onClick={() => {
+                    void handleExport();
                   }}
                 >
-                  <option value="json">JSON</option>
-                  <option value="markdown">Markdown</option>
-                </select>
-              </label>
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={busyAction !== null}
-                onClick={() => {
-                  void handleExport();
-                }}
-              >
-                {busyAction === 'export' ? '导出中…' : '导出会话'}
-              </button>
-              <button
-                className="secondary-button secondary-button--danger"
-                type="button"
-                disabled={busyAction !== null}
-                onClick={() => {
-                  void handleDelete();
-                }}
-              >
-                {busyAction === 'delete' ? '删除中…' : '删除会话'}
-              </button>
+                  {busyAction === 'export' ? '导出中…' : '导出会话'}
+                </button>
+                <button
+                  className="secondary-button secondary-button--danger"
+                  type="button"
+                  disabled={busyAction !== null}
+                  onClick={() => {
+                    void handleDelete();
+                  }}
+                >
+                  {busyAction === 'delete' ? '删除中…' : '删除会话'}
+                </button>
+              </div>
             </div>
+            <dl className="message-pane__meta-list">
+              <div>
+                <dt>来源页面</dt>
+                <dd>{props.session.pageUrl}</dd>
+              </div>
+              <div>
+                <dt>会话 ID</dt>
+                <dd>{props.session.remoteConversationId ?? props.session.id}</dd>
+              </div>
+            </dl>
+            {feedback ? (
+              <p className="message-pane__feedback" aria-live="polite">
+                {feedback}
+              </p>
+            ) : null}
           </div>
-          <dl className="message-pane__meta-list">
-            <div>
-              <dt>来源页面</dt>
-              <dd>{props.session.pageUrl}</dd>
-            </div>
-            <div>
-              <dt>会话 ID</dt>
-              <dd>{props.session.remoteConversationId ?? props.session.id}</dd>
-            </div>
-          </dl>
-          {feedback ? (
-            <p className="message-pane__feedback" aria-live="polite">
-              {feedback}
-            </p>
-          ) : null}
           <div className="message-pane__body">
             {props.loading ? (
               <div className="workspace-empty">

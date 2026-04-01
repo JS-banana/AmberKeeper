@@ -169,7 +169,8 @@ test('uses semantic fallback titles in the knowledge base when provider page tit
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '历史会话' }));
 
   expect(
     await screen.findByRole('button', {
@@ -189,7 +190,7 @@ test('allows enabling and reordering built-in providers from settings', async ()
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
 
-  expect(await screen.findByRole('heading', { name: '应用设置' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '服务管理' })).toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
