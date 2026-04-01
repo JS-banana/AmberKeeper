@@ -6,6 +6,8 @@ import {
   type RuntimeSignal,
 } from '@amberkeeper/capture-core';
 import type {
+  CaptureExportArtifact,
+  CaptureExportFormat,
   CaptureSessionRecord,
   ProviderId,
   ProviderMoveDirection,
@@ -13,7 +15,8 @@ import type {
   RuntimeStatus,
   ShellInfo,
 } from '@amberkeeper/shared-types';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAppLifecycle } from './bootstrap/app';
@@ -78,6 +81,7 @@ let currentUrl = '';
 let lastCaptureAt: string | null = null;
 let domCaptureInFlight = false;
 let nativeStageVisible = true;
+const providerPageTitles = new Map<ProviderId, string>();
 
 const trackedRequests = new Map<string, TrackedRequest>();
 const seenObservationKeys: string[] = [];
@@ -553,6 +557,11 @@ function persistTurn(turn: CompletedTurn): void {
 }
 
 function resolveActiveRuntimeTitle(providerId: ProviderId): string | null {
+  const knownTitle = providerPageTitles.get(providerId)?.trim();
+  if (knownTitle) {
+    return knownTitle;
+  }
+
   const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
 
   if (!runtime || runtime.providerId !== providerId) {
@@ -732,6 +741,7 @@ async function hydrateSessionHistory(
   let bestSnapshot:
     | {
         url: string;
+        title: string;
         conversationId: string | null;
         messages: Array<{ role?: string; content?: string }>;
       }
@@ -749,6 +759,7 @@ async function hydrateSessionHistory(
     if (normalized.length > 0) {
       bestSnapshot = {
         url: snapshot.url || targetUrl,
+        title: snapshot.title ?? '',
         conversationId,
         messages: snapshot.messages,
       };
@@ -923,6 +934,7 @@ function persistHydratedSessionSnapshot(
   runtime: ProviderRuntimeContext,
   snapshot: {
     url: string;
+    title: string;
     conversationId: string | null;
     messages: Array<{ role?: string; content?: string }>;
   },
@@ -1047,6 +1059,52 @@ function moveProvider(
   return providers;
 }
 
+async function deleteSession(sessionId: string): Promise<{ message: string; detail: string }> {
+  if (!captureStore) {
+    throw new Error('Capture store is not ready yet.');
+  }
+
+  captureStore.deleteSession(sessionId);
+  publishRuntimeStatus();
+
+  return {
+    message: '已删除该会话的本地缓存。',
+    detail: `session=${sessionId}`,
+  };
+}
+
+async function exportSession(
+  sessionId: string,
+  format: CaptureExportFormat
+): Promise<{ message: string; detail: string }> {
+  if (!captureStore) {
+    throw new Error('Capture store is not ready yet.');
+  }
+
+  const artifact = captureStore.exportSession(sessionId, format);
+  const savedPath = await saveExportArtifact(artifact);
+  return {
+    message: '已导出当前会话。',
+    detail: savedPath,
+  };
+}
+
+async function exportProviderSessions(
+  providerId: ProviderId,
+  format: CaptureExportFormat
+): Promise<{ message: string; detail: string }> {
+  if (!captureStore) {
+    throw new Error('Capture store is not ready yet.');
+  }
+
+  const artifact = captureStore.exportProviderSessions(providerId, format);
+  const savedPath = await saveExportArtifact(artifact);
+  return {
+    message: '已导出当前 provider 的会话档案。',
+    detail: savedPath,
+  };
+}
+
 function getShellInfo(): ShellInfo {
   return {
     diagnosticsEnabled: !app.isPackaged || process.env.AMBERKEEPER_ENABLE_DIAGNOSTICS === '1',
@@ -1065,6 +1123,27 @@ function setNativeStageVisible(visible: boolean): void {
     })),
     nativeStageVisible ? activeProviderId : null
   );
+}
+
+async function saveExportArtifact(artifact: CaptureExportArtifact): Promise<string> {
+  const options = {
+    defaultPath: path.join(app.getPath('downloads'), artifact.fileName),
+    filters: [
+      artifact.format === 'json'
+        ? { name: 'JSON', extensions: ['json'] }
+        : { name: 'Markdown', extensions: ['md'] },
+    ],
+  };
+  const target = mainWindow
+    ? await dialog.showSaveDialog(mainWindow, options)
+    : await dialog.showSaveDialog(options);
+
+  if (target.canceled || !target.filePath) {
+    throw new Error('导出已取消。');
+  }
+
+  await writeFile(target.filePath, artifact.content, 'utf8');
+  return target.filePath;
 }
 
 function getActiveRuntimeWithAdapter():
@@ -1191,10 +1270,11 @@ registerAppLifecycle({
       listSessions: () => captureStore?.listSessions() ?? [],
       listMessages: (sessionId) => captureStore?.listMessages(sessionId) ?? [],
       openSession,
-      deleteSession: (sessionId) => captureStore?.deleteSession(sessionId),
-      exportSession: (sessionId, format) => captureStore?.exportSession(sessionId, format),
+      deleteSession,
+      exportSession: (sessionId, format) =>
+        exportSession(sessionId, format as CaptureExportFormat),
       exportProviderSessions: (providerId, format) =>
-        captureStore?.exportProviderSessions(providerId as ProviderId, format),
+        exportProviderSessions(providerId as ProviderId, format as CaptureExportFormat),
       listProviders: () => captureStore?.listProviders() ?? [],
       getActiveProvider: () => captureStore?.getActiveProvider() ?? null,
       setActiveProvider: (providerId) => setActiveProvider(providerId as ProviderId),
@@ -1219,7 +1299,15 @@ registerAppLifecycle({
 
         return snapshot;
       },
-      onPageContext: () => {
+      onPageContext: (payload) => {
+        if (activeProviderId && payload.title?.trim()) {
+          providerPageTitles.set(activeProviderId, payload.title.trim());
+        }
+
+        if (payload.url) {
+          currentUrl = payload.url;
+        }
+
         publishRuntimeStatus();
       },
       onRelayedNetworkPayload: handleRelayedNetworkPayload,

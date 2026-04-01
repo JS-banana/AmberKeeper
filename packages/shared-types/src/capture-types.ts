@@ -34,14 +34,11 @@ export interface CaptureSessionRecord {
   remoteConversationId: string | null;
   sourceSessionKey: string;
   pageUrl: string;
-  title?: string | null;
   titleSource?: SessionTitleSource | null;
   messageCount: number;
   createdAt: string;
   updatedAt: string;
 }
-
-export type CaptureExportFormat = 'json' | 'markdown';
 
 export interface CaptureMessageRecord {
   id: string;

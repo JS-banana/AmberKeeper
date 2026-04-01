@@ -55,9 +55,30 @@ export function AppSidebar(props: {
       <nav className="product-rail__nav" aria-label="工作台入口">
         <button
           type="button"
+          aria-label="打开知识库"
+          aria-pressed={props.activeSurface === 'library'}
+          className={
+            props.activeSurface === 'library'
+              ? 'rail-button rail-button--utility active'
+              : 'rail-button rail-button--utility'
+          }
+          onClick={() => {
+            startTransition(() => {
+              props.onSelectSurface('library');
+            });
+          }}
+        >
+          <RailGlyph kind="library" />
+        </button>
+        <button
+          type="button"
           aria-label="打开设置"
-          aria-pressed={props.activeSurface !== 'chat'}
-          className={props.activeSurface !== 'chat' ? 'rail-button rail-button--utility active' : 'rail-button rail-button--utility'}
+          aria-pressed={props.activeSurface === 'settings' || props.activeSurface === 'diagnostics'}
+          className={
+            props.activeSurface === 'settings' || props.activeSurface === 'diagnostics'
+              ? 'rail-button rail-button--utility active'
+              : 'rail-button rail-button--utility'
+          }
           onClick={() => {
             startTransition(() => {
               props.onSelectSurface('settings');

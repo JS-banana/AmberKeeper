@@ -105,15 +105,16 @@ test('shows the library as a provider-scoped knowledge base for the active provi
     expect(api.setActiveProvider).toHaveBeenCalledWith('claude');
   });
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(await screen.findByRole('button', { name: '会话库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
 
-  expect(await screen.findByText('聊天记录')).toBeInTheDocument();
+  expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
   expect(
-    screen.getByText('这里展示 Claude 的已捕获会话。切换左侧应用即可查看其他应用的数据。')
+    screen.getByText(
+      '当前按 provider 浏览 Claude 的历史缓存。先把单个应用内的档案管理做好，再逐步扩展跨 provider 聚合。'
+    )
   ).toBeInTheDocument();
-  expect(screen.getByText('Claude')).toBeInTheDocument();
-  expect(screen.getByText('1 条已缓存会话')).toBeInTheDocument();
+  expect(screen.getAllByText('Claude').length).toBeGreaterThan(0);
+  expect(screen.getByText('1 条会话 · provider-first MVP')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /chatgpt-conv/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /gemini-conv/i })).not.toBeInTheDocument();
@@ -134,16 +135,17 @@ test('keeps the library empty state scoped to the active provider when that prov
     expect(api.setActiveProvider).toHaveBeenCalledWith('deepseek');
   });
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(await screen.findByRole('button', { name: '会话库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
 
-  expect(await screen.findByText('聊天记录')).toBeInTheDocument();
+  expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
   expect(
-    screen.getByText('这里展示 DeepSeek 的已捕获会话。切换左侧应用即可查看其他应用的数据。')
+    screen.getByText(
+      '当前按 provider 浏览 DeepSeek 的历史缓存。先把单个应用内的档案管理做好，再逐步扩展跨 provider 聚合。'
+    )
   ).toBeInTheDocument();
   expect(screen.getByText('DeepSeek')).toBeInTheDocument();
-  expect(screen.getByText('0 条已缓存会话')).toBeInTheDocument();
-  expect(screen.getByText('当前应用还没有可查看的会话。')).toBeInTheDocument();
+  expect(screen.getByText('0 条会话 · provider-first MVP')).toBeInTheDocument();
+  expect(screen.getByText('当前 provider 还没有可查看的历史会话。')).toBeInTheDocument();
 });
 
 test('allows enabling and reordering built-in providers from settings', async () => {

@@ -160,7 +160,7 @@ export function createConversationRepository(db: DatabaseSync) {
             title_source,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       ).run(
         conversationId,

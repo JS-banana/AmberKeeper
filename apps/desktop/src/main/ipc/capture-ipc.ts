@@ -4,9 +4,9 @@ export function registerCaptureIpc(options: {
   listSessions: () => unknown[];
   listMessages: (sessionId: string) => unknown[];
   openSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
-  deleteSession: (sessionId: string) => void;
-  exportSession: (sessionId: string, format: 'json' | 'markdown') => unknown;
-  exportProviderSessions: (providerId: string, format: 'json' | 'markdown') => unknown;
+  deleteSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
+  exportSession: (sessionId: string, format: 'json' | 'markdown') => Promise<{ message: string; detail: string }>;
+  exportProviderSessions: (providerId: string, format: 'json' | 'markdown') => Promise<{ message: string; detail: string }>;
   listProviders: () => unknown[];
   getActiveProvider: () => unknown;
   setActiveProvider: (providerId: string) => unknown;
@@ -16,7 +16,7 @@ export function registerCaptureIpc(options: {
   setNativeStageVisible: (visible: boolean) => void;
   getRuntimeStatus: () => unknown;
   triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
-  onPageContext: (payload: { url?: string }) => void;
+  onPageContext: (payload: { url?: string; title?: string }) => void;
   onRelayedNetworkPayload: (payload: {
     url?: string;
     method?: string;
@@ -53,7 +53,7 @@ export function registerCaptureIpc(options: {
   });
   ipcMain.handle('capture:getRuntimeStatus', () => options.getRuntimeStatus());
   ipcMain.handle('capture:triggerDomSnapshot', () => options.triggerDomSnapshot());
-  ipcMain.on('chat:page-context', (_event, payload: { url?: string }) => {
+  ipcMain.on('chat:page-context', (_event, payload: { url?: string; title?: string }) => {
     options.onPageContext(payload);
   });
   ipcMain.on(
