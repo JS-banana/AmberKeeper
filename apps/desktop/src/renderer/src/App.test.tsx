@@ -89,6 +89,61 @@ test('opens the library, hides the native stage, and hydrates the selected sessi
   });
 });
 
+test('shows the library as a provider-scoped knowledge base for the active provider', async () => {
+  const state = createWorkspaceFixture();
+  const api = installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开 Claude' }));
+
+  await waitFor(() => {
+    expect(api.setActiveProvider).toHaveBeenCalledWith('claude');
+  });
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '会话库' }));
+
+  expect(await screen.findByText('聊天记录')).toBeInTheDocument();
+  expect(
+    screen.getByText('这里展示 Claude 的已捕获会话。切换左侧应用即可查看其他应用的数据。')
+  ).toBeInTheDocument();
+  expect(screen.getByText('Claude')).toBeInTheDocument();
+  expect(screen.getByText('1 条已缓存会话')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /chatgpt-conv/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /gemini-conv/i })).not.toBeInTheDocument();
+  expect(await screen.findByText('Claude answer')).toBeInTheDocument();
+});
+
+test('keeps the library empty state scoped to the active provider when that provider has no sessions', async () => {
+  const state = createWorkspaceFixture({ deepseekEnabled: true });
+  const api = installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开 DeepSeek' }));
+
+  await waitFor(() => {
+    expect(api.setActiveProvider).toHaveBeenCalledWith('deepseek');
+  });
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '会话库' }));
+
+  expect(await screen.findByText('聊天记录')).toBeInTheDocument();
+  expect(
+    screen.getByText('这里展示 DeepSeek 的已捕获会话。切换左侧应用即可查看其他应用的数据。')
+  ).toBeInTheDocument();
+  expect(screen.getByText('DeepSeek')).toBeInTheDocument();
+  expect(screen.getByText('0 条已缓存会话')).toBeInTheDocument();
+  expect(screen.getByText('当前应用还没有可查看的会话。')).toBeInTheDocument();
+});
+
 test('allows enabling and reordering built-in providers from settings', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   const api = installCaptureApiMock(state, {
