@@ -1191,6 +1191,10 @@ registerAppLifecycle({
       listSessions: () => captureStore?.listSessions() ?? [],
       listMessages: (sessionId) => captureStore?.listMessages(sessionId) ?? [],
       openSession,
+      deleteSession: (sessionId) => captureStore?.deleteSession(sessionId),
+      exportSession: (sessionId, format) => captureStore?.exportSession(sessionId, format),
+      exportProviderSessions: (providerId, format) =>
+        captureStore?.exportProviderSessions(providerId as ProviderId, format),
       listProviders: () => captureStore?.listProviders() ?? [],
       getActiveProvider: () => captureStore?.getActiveProvider() ?? null,
       setActiveProvider: (providerId) => setActiveProvider(providerId as ProviderId),
