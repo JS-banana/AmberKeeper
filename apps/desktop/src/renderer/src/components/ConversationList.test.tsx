@@ -35,8 +35,8 @@ test('renders archive metadata and falls back to preview text when the stored ti
 
   expect(screen.getByText('产品复盘')).toBeInTheDocument();
   expect(screen.getByText('这是更像标题的首条用户消息')).toBeInTheDocument();
-  expect(screen.getAllByText(/条消息/)).toHaveLength(2);
-  expect(screen.getAllByText(/更新于/)).toHaveLength(2);
+  expect(screen.getAllByText(/^3 条$/)).toHaveLength(2);
+  expect(screen.getAllByText(/2026年/)).toHaveLength(2);
 
   fireEvent.click(screen.getByRole('button', { name: /这是更像标题的首条用户消息/i }));
   expect(onSelect).toHaveBeenCalledWith('session-fallback');

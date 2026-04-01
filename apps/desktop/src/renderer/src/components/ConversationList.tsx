@@ -4,6 +4,7 @@ import {
   getProviderLabel,
   resolveSessionTitle,
 } from '../lib/session-display';
+import { ProviderIcon } from './ProviderIcon';
 
 export function ConversationList(props: {
   sessions: CaptureSessionRecord[];
@@ -13,10 +14,7 @@ export function ConversationList(props: {
   return (
     <article className="workspace-card workspace-card--sessions">
       <div className="section-header section-header--tight">
-        <div>
-          <h2>会话档案</h2>
-          <p className="conversation-list__copy">跨 provider 浏览标题、消息数与最近更新时间</p>
-        </div>
+        <h2>会话档案</h2>
         <span className="panel-count">{props.sessions.length}</span>
       </div>
 
@@ -39,15 +37,24 @@ export function ConversationList(props: {
                   props.onSelect(session.id);
                 }}
               >
-                  <span className="conversation-item__title">
-                    {resolveSessionTitle(session)}
+                <span className="conversation-item__row">
+                  <span className="conversation-item__identity">
+                    <ProviderIcon
+                      providerId={session.provider}
+                      providerName={getProviderLabel(session.provider)}
+                      homeUrl={session.pageUrl}
+                      className="conversation-item__provider-icon"
+                    />
+                    <span className="conversation-item__title">
+                      {resolveSessionTitle(session)}
+                    </span>
                   </span>
                   <span className="conversation-item__meta">
-                    <span>{getProviderLabel(session.provider)}</span>
-                    <span>{session.messageCount} 条消息</span>
-                    <span>更新于 {formatSessionUpdatedAt(session.updatedAt)}</span>
+                    <span>{session.messageCount} 条</span>
+                    <span>{formatSessionUpdatedAt(session.updatedAt)}</span>
                   </span>
-                </button>
+                </span>
+              </button>
             </li>
           ))}
         </ul>

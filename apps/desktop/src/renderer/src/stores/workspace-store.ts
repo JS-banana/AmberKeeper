@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useEffectEvent, useState } from 'react';
+import { startTransition, useEffect, useEffectEvent, useRef, useState } from 'react';
 import type {
   CaptureExportFormat,
   CaptureMessageRecord,
@@ -38,6 +38,9 @@ const INITIAL_STATE: WorkspaceState = {
 
 export function useWorkspaceStore() {
   const [state, setState] = useState<WorkspaceState>(INITIAL_STATE);
+  const latestSelectedSessionIdRef = useRef<string | null>(null);
+  const lastCaptureAtRef = useRef<string | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useEffectEvent(async (preferredSessionId?: string | null) => {
     startTransition(() => {
@@ -65,6 +68,7 @@ export function useWorkspaceStore() {
       const messages = nextSelectedSessionId
         ? await window.captureApi.listMessages(nextSelectedSessionId)
         : [];
+      lastCaptureAtRef.current = runtimeStatus.lastCaptureAt;
 
       startTransition(() => {
         setState({
@@ -88,6 +92,17 @@ export function useWorkspaceStore() {
         }));
       });
     }
+  });
+
+  const scheduleRefresh = useEffectEvent((preferredSessionId?: string | null) => {
+    if (refreshTimerRef.current !== null) {
+      return;
+    }
+
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      void refresh(preferredSessionId ?? latestSelectedSessionIdRef.current);
+    }, 400);
   });
 
   const selectProvider = useEffectEvent(async (providerId: ProviderId) => {
@@ -233,9 +248,21 @@ export function useWorkspaceStore() {
   );
 
   useEffect(() => {
+    latestSelectedSessionIdRef.current = state.selectedSessionId;
+  }, [state.selectedSessionId]);
+
+  useEffect(() => {
     void refresh(null);
 
     return window.captureApi.onRuntimeStatus((runtimeStatus) => {
+      if (
+        runtimeStatus.lastCaptureAt &&
+        runtimeStatus.lastCaptureAt !== lastCaptureAtRef.current
+      ) {
+        lastCaptureAtRef.current = runtimeStatus.lastCaptureAt;
+        scheduleRefresh(latestSelectedSessionIdRef.current);
+      }
+
       startTransition(() => {
         setState((current) => ({
           ...current,
@@ -243,6 +270,14 @@ export function useWorkspaceStore() {
         }));
       });
     });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current !== null) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
   }, []);
 
   const activeProvider =

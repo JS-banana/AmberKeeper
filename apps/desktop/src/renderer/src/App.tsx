@@ -146,6 +146,7 @@ function renderUtilitySurface(input: {
           selectedSessionId={input.state.selectedSessionId}
           messages={input.state.messages}
           loading={input.state.loading}
+          onRefresh={() => input.actions.refresh(input.state.selectedSessionId)}
           onSelectSession={input.actions.selectSession}
           onDeleteSession={input.actions.deleteSession}
           onExportSession={input.actions.exportSession}

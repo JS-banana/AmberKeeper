@@ -39,19 +39,18 @@ test('renders archive detail actions and forwards export/delete intents', async 
 
   expect(screen.getByText('Amber 项目回顾')).toBeInTheDocument();
   expect(screen.getByText('ChatGPT')).toBeInTheDocument();
-  expect(screen.getByText('来源页面')).toBeInTheDocument();
-  expect(screen.getByText('会话 ID')).toBeInTheDocument();
+  expect(screen.getByText('conv-1')).toBeInTheDocument();
 
   fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出当前会话' }));
 
   await waitFor(() => {
     expect(onExportSession).toHaveBeenCalledWith('session-1', 'markdown');
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '删除会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '删除当前会话' }));
 
   await waitFor(() => {
     expect(onDeleteSession).toHaveBeenCalledWith('session-1');

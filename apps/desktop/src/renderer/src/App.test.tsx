@@ -75,7 +75,7 @@ test('opens the library, hides the native stage, and hydrates the selected sessi
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(screen.getByText(/全部历史会话/i)).toBeInTheDocument();
+  expect(screen.getByText('2 条会话 · 1 个 provider')).toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
@@ -144,9 +144,8 @@ test('shows the library as an all-provider knowledge base instead of scoping to 
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(screen.getByText('全部历史会话')).toBeInTheDocument();
   expect(screen.getByText('3 条会话 · 3 个 provider')).toBeInTheDocument();
-  expect(screen.getAllByText('Claude').length).toBeGreaterThan(0);
+  expect(screen.getByRole('button', { name: '选择 Claude' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /chatgpt-conv/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /gemini-conv/i })).toBeInTheDocument();
@@ -172,7 +171,6 @@ test('keeps all-provider history visible even when the active provider has no se
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(screen.getByText('全部历史会话')).toBeInTheDocument();
   expect(screen.getByText('3 条会话 · 4 个 provider')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /chatgpt-conv/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
@@ -314,11 +312,11 @@ test('supports provider export and session delete actions from the knowledge bas
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
   fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
-  fireEvent.click(screen.getByRole('button', { name: 'ChatGPT' }));
+  fireEvent.click(screen.getByRole('button', { name: '选择 ChatGPT' }));
   fireEvent.change(screen.getByRole('combobox', { name: '选择 provider 导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出所选 provider' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出 ChatGPT 会话档案' }));
 
   await waitFor(() => {
     expect(api.exportProviderSessions).toHaveBeenCalledWith('chatgpt', 'markdown');
@@ -327,19 +325,103 @@ test('supports provider export and session delete actions from the knowledge bas
   fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出当前会话' }));
 
   await waitFor(() => {
     expect(api.exportSession).toHaveBeenCalledWith('chatgpt-recent-session', 'markdown');
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '删除会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '删除当前会话' }));
 
   expect(confirmSpy).toHaveBeenCalled();
   await waitFor(() => {
     expect(api.deleteSession).toHaveBeenCalledWith('chatgpt-recent-session');
   });
   expect((await screen.findAllByText('chatgpt-older-conv')).length).toBeGreaterThan(0);
+});
+
+test('lets operators manually refresh the history list so new sessions surface', async () => {
+  const state = createWorkspaceFixture({ deepseekEnabled: true });
+  const api = installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+
+  await screen.findByRole('button', { name: /chatgpt-conv/i });
+  const initialListSessionCalls = api.listSessions.mock.calls.length;
+
+  state.sessions.unshift(
+    buildSession({
+      id: 'deepseek-session',
+      provider: 'deepseek',
+      remoteConversationId: 'deepseek-conv',
+      title: 'DeepSeek launch summary',
+      previewText: 'DeepSeek launch summary',
+    })
+  );
+  state.messages['deepseek-session'] = [
+    buildMessage({
+      id: 'deepseek-message-1',
+      sessionId: 'deepseek-session',
+      provider: 'deepseek',
+      role: 'assistant',
+      content: 'DeepSeek launch summary',
+    }),
+  ];
+
+  fireEvent.click(screen.getByRole('button', { name: '刷新会话' }));
+
+  await waitFor(() => {
+    expect(api.listSessions.mock.calls.length).toBeGreaterThan(initialListSessionCalls);
+  });
+  expect(await screen.findByRole('button', { name: /DeepSeek launch summary/i })).toBeInTheDocument();
+});
+
+test('refreshes sessions after capture-driven runtime status updates', async () => {
+  const state = createWorkspaceFixture({ deepseekEnabled: true });
+  const api = installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+
+  await screen.findByRole('button', { name: /chatgpt-conv/i });
+  const initialListSessionCalls = api.listSessions.mock.calls.length;
+
+  state.sessions.unshift(
+    buildSession({
+      id: 'deepseek-session-auto',
+      provider: 'deepseek',
+      remoteConversationId: 'deepseek-auto-conv',
+      title: 'Auto refreshed DeepSeek session',
+      previewText: 'Auto refreshed DeepSeek session',
+    })
+  );
+  state.messages['deepseek-session-auto'] = [
+    buildMessage({
+      id: 'deepseek-message-auto',
+      sessionId: 'deepseek-session-auto',
+      provider: 'deepseek',
+      role: 'assistant',
+      content: 'Auto refreshed DeepSeek session',
+    }),
+  ];
+
+  api.emitRuntimeStatus({ lastCaptureAt: '2026-04-01T09:35:00.000Z' });
+
+  await waitFor(() => {
+    expect(api.listSessions.mock.calls.length).toBeGreaterThan(initialListSessionCalls);
+  });
+  expect(
+    await screen.findByRole('button', { name: /Auto refreshed DeepSeek session/i })
+  ).toBeInTheDocument();
 });
 
 test('shows diagnostics only when the shell info enables developer tools', async () => {
@@ -381,8 +463,11 @@ function installCaptureApiMock(
   state: WorkspaceFixtureState,
   input?: {
     shellInfo?: { diagnosticsEnabled: boolean; isPackaged: boolean };
+    runtimeStatus?: Partial<RuntimeStatus>;
   }
 ) {
+  let runtimeStatusListener: ((status: RuntimeStatus) => void) | null = null;
+  let runtimeStatusOverrides = input?.runtimeStatus ?? {};
   const setActiveProvider = vi.fn(async (providerId: string) => {
     state.providers = state.providers.map((provider) => ({
       ...provider,
@@ -485,10 +570,15 @@ function installCaptureApiMock(
   );
 
   const setNativeStageVisible = vi.fn(async (_visible: boolean) => undefined);
+  const listSessions = vi.fn(async () => state.sessions);
+  const listMessages = vi.fn(async (sessionId: string) => state.messages[sessionId] ?? []);
+  const getRuntimeStatus = vi.fn(
+    async () => ({ ...buildRuntimeStatus(state.providers), ...runtimeStatusOverrides })
+  );
 
   window.captureApi = {
-    listSessions: async () => state.sessions,
-    listMessages: async (sessionId: string) => state.messages[sessionId] ?? [],
+    listSessions,
+    listMessages,
     openSession,
     deleteSession,
     exportSession,
@@ -498,7 +588,7 @@ function installCaptureApiMock(
     setActiveProvider,
     setProviderEnabled,
     moveProvider,
-    getRuntimeStatus: async () => buildRuntimeStatus(state.providers),
+    getRuntimeStatus,
     triggerDomSnapshot: async () => ({
       message: 'stubbed',
       detail: '',
@@ -509,10 +599,20 @@ function installCaptureApiMock(
         isPackaged: true,
       },
     setNativeStageVisible,
-    onRuntimeStatus: () => () => undefined,
+    onRuntimeStatus: (callback: (status: RuntimeStatus) => void) => {
+      runtimeStatusListener = callback;
+      return () => {
+        if (runtimeStatusListener === callback) {
+          runtimeStatusListener = null;
+        }
+      };
+    },
   } as never;
 
   return {
+    listSessions,
+    listMessages,
+    getRuntimeStatus,
     setActiveProvider,
     setProviderEnabled,
     moveProvider,
@@ -521,6 +621,13 @@ function installCaptureApiMock(
     exportSession,
     exportProviderSessions,
     setNativeStageVisible,
+    emitRuntimeStatus: (overrides?: Partial<RuntimeStatus>) => {
+      runtimeStatusOverrides = { ...runtimeStatusOverrides, ...overrides };
+      runtimeStatusListener?.({
+        ...buildRuntimeStatus(state.providers),
+        ...runtimeStatusOverrides,
+      });
+    },
   };
 }
 
