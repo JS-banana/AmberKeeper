@@ -53,20 +53,18 @@ export function SettingsPage(props: {
 
   return (
     <section className="utility-page utility-page--scroll">
-      <header className="utility-page__header utility-page__header--compact">
-        <h1>服务管理</h1>
-      </header>
-
       <ol className="settings-list" aria-label="内置应用列表">
         {props.providers.map((provider) => {
           const isDragging = draggingProviderId === provider.id;
           const isDropTarget = dropTargetProviderId === provider.id;
+          const isActive = provider.id === props.activeProviderId;
 
           return (
             <li
               key={provider.id}
               className={[
                 'settings-item',
+                isActive ? 'settings-item--active' : '',
                 isDropTarget ? 'settings-item--drop-target' : '',
                 isDragging ? 'settings-item--dragging' : '',
               ]
@@ -110,36 +108,23 @@ export function SettingsPage(props: {
               </span>
 
               <div className="settings-item__meta">
-                <div className="settings-item__title">
+                <button
+                  type="button"
+                  className="settings-item__select"
+                  aria-label={isActive ? `当前服务 ${provider.name}` : `切换到 ${provider.name}`}
+                  aria-pressed={isActive}
+                  draggable={false}
+                  onClick={() => props.onSelectProvider(provider.id)}
+                >
                   <div className="settings-item__summary">
                     <div className="settings-item__headline">
                       <strong>{provider.name}</strong>
-
-                      <div className="settings-item__badges">
-                        {provider.id === props.activeProviderId ? (
-                          <span className="settings-badge">当前使用</span>
-                        ) : null}
-                        <span
-                          className={
-                            provider.enabled
-                              ? 'settings-badge settings-badge--enabled'
-                              : 'settings-badge settings-badge--disabled'
-                          }
-                        >
-                          {provider.enabled ? '已启用' : '已停用'}
-                        </span>
-                      </div>
                     </div>
+                    <p className="settings-item__subtitle">{provider.homeUrl}</p>
                   </div>
-                </div>
+                </button>
 
                 <div className="settings-item__actions">
-                  <IconButton
-                    label={`打开 ${provider.name}`}
-                    onClick={() => props.onSelectProvider(provider.id)}
-                  >
-                    <ArrowRightIcon />
-                  </IconButton>
                   <IconButton
                     label={provider.enabled ? `停用 ${provider.name}` : `启用 ${provider.name}`}
                     active={provider.enabled}
@@ -186,21 +171,6 @@ function GripIcon() {
       <circle cx="15" cy="12" r="1.4" fill="currentColor" />
       <circle cx="9" cy="17" r="1.4" fill="currentColor" />
       <circle cx="15" cy="17" r="1.4" fill="currentColor" />
-    </svg>
-  );
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="mini-icon">
-      <path
-        d="M8 6.5 14 12l-6 5.5M13.5 12H4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }
