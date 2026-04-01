@@ -3,6 +3,8 @@ export const BUILTIN_PROVIDER_IDS = ['chatgpt', 'claude', 'deepseek', 'gemini'] 
 export type ProviderId = (typeof BUILTIN_PROVIDER_IDS)[number];
 
 export type CaptureSource = 'cdp-network' | 'preload-dom';
+export type SessionTitleSource = 'provider' | 'fallback';
+export type CaptureExportFormat = 'json' | 'markdown';
 
 export interface NormalizedMessage {
   role: 'user' | 'assistant';
@@ -20,6 +22,8 @@ export interface CaptureEnvelope {
   capturedAt: string;
   sourceSessionKey: string;
   remoteConversationId?: string;
+  title?: string | null;
+  titleSource?: SessionTitleSource;
   messages: NormalizedMessage[];
 }
 
@@ -29,6 +33,8 @@ export interface CaptureSessionRecord {
   remoteConversationId: string | null;
   sourceSessionKey: string;
   pageUrl: string;
+  title?: string | null;
+  titleSource?: SessionTitleSource | null;
   messageCount: number;
   createdAt: string;
   updatedAt: string;
@@ -83,4 +89,14 @@ export interface RuntimeStatus {
   lastCaptureAt: string | null;
   pendingRequestCount: number;
   recentAttempts: CaptureAttemptLogRecord[];
+}
+
+export interface CaptureExportArtifact {
+  scope: 'session' | 'provider';
+  format: CaptureExportFormat;
+  fileName: string;
+  mimeType: string;
+  content: string;
+  sessionId?: string;
+  providerId?: ProviderId;
 }

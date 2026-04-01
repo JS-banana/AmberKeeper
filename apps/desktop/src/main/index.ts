@@ -535,7 +535,12 @@ async function captureConversationFromDom(pageUrl: string): Promise<void> {
 }
 
 function persistTurn(turn: CompletedTurn): void {
-  captureStore?.persistTurn(turn);
+  const title = resolveActiveRuntimeTitle(turn.provider);
+  captureStore?.persistTurn({
+    ...turn,
+    title: title ?? turn.title,
+    titleSource: title ? 'provider' : turn.titleSource,
+  });
   lastCaptureAt = turn.capturedAt;
   recordAttempt({
     source: turn.source,
@@ -545,6 +550,17 @@ function persistTurn(turn: CompletedTurn): void {
     detail: turn.conversationId ?? turn.pageUrl,
     createdAt: turn.capturedAt,
   });
+}
+
+function resolveActiveRuntimeTitle(providerId: ProviderId): string | null {
+  const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
+
+  if (!runtime || runtime.providerId !== providerId) {
+    return null;
+  }
+
+  const title = runtime.view.webContents.getTitle().trim();
+  return title || null;
 }
 
 async function runDomSnapshot(): Promise<{ message: string; detail: string }> {
@@ -941,6 +957,8 @@ function persistHydratedSessionSnapshot(
     capturedAt,
     sourceSessionKey: runtime.browserSession.config.sourceSessionKey,
     remoteConversationId: snapshot.conversationId ?? session.remoteConversationId ?? undefined,
+    title: snapshot.title?.trim() || session.title,
+    titleSource: snapshot.title?.trim() ? 'provider' : session.titleSource ?? 'fallback',
     messages,
   });
   lastCaptureAt = capturedAt;

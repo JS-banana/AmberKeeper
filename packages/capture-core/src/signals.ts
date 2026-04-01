@@ -1,4 +1,9 @@
-import type { CaptureEnvelope, CaptureSource, NormalizedMessage } from '@amberkeeper/shared-types';
+import type {
+  CaptureEnvelope,
+  CaptureSource,
+  NormalizedMessage,
+  SessionTitleSource,
+} from '@amberkeeper/shared-types';
 
 export type ProviderId = CaptureEnvelope['provider'];
 
@@ -97,5 +102,7 @@ export type ProviderSignal =
 
 export interface CompletedTurn extends SignalContext {
   conversationId: string;
+  title?: string;
+  titleSource?: SessionTitleSource;
   messages: NormalizedMessage[];
 }

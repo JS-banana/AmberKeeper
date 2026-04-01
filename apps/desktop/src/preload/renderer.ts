@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  CaptureExportArtifact,
+  CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderId,
@@ -17,6 +19,12 @@ contextBridge.exposeInMainWorld('captureApi', {
     ipcRenderer.invoke('capture:listMessages', sessionId) as Promise<CaptureMessageRecord[]>,
   openSession: (sessionId: string) =>
     ipcRenderer.invoke('capture:openSession', sessionId) as Promise<{ message: string; detail: string }>,
+  deleteSession: (sessionId: string) =>
+    ipcRenderer.invoke('capture:deleteSession', sessionId) as Promise<void>,
+  exportSession: (sessionId: string, format: CaptureExportFormat) =>
+    ipcRenderer.invoke('capture:exportSession', sessionId, format) as Promise<CaptureExportArtifact>,
+  exportProviderSessions: (providerId: ProviderId, format: CaptureExportFormat) =>
+    ipcRenderer.invoke('capture:exportProviderSessions', providerId, format) as Promise<CaptureExportArtifact>,
   listProviders: () => ipcRenderer.invoke('providers:list') as Promise<ProviderRecord[]>,
   getActiveProvider: () => ipcRenderer.invoke('providers:getActive') as Promise<ProviderRecord | null>,
   setActiveProvider: (providerId: ProviderId) =>

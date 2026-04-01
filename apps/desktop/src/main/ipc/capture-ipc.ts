@@ -4,6 +4,9 @@ export function registerCaptureIpc(options: {
   listSessions: () => unknown[];
   listMessages: (sessionId: string) => unknown[];
   openSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
+  deleteSession: (sessionId: string) => void;
+  exportSession: (sessionId: string, format: 'json' | 'markdown') => unknown;
+  exportProviderSessions: (providerId: string, format: 'json' | 'markdown') => unknown;
   listProviders: () => unknown[];
   getActiveProvider: () => unknown;
   setActiveProvider: (providerId: string) => unknown;
@@ -26,6 +29,15 @@ export function registerCaptureIpc(options: {
   ipcMain.handle('capture:listSessions', () => options.listSessions());
   ipcMain.handle('capture:listMessages', (_event, sessionId: string) => options.listMessages(sessionId));
   ipcMain.handle('capture:openSession', (_event, sessionId: string) => options.openSession(sessionId));
+  ipcMain.handle('capture:deleteSession', (_event, sessionId: string) => options.deleteSession(sessionId));
+  ipcMain.handle('capture:exportSession', (_event, sessionId: string, format: 'json' | 'markdown') =>
+    options.exportSession(sessionId, format)
+  );
+  ipcMain.handle(
+    'capture:exportProviderSessions',
+    (_event, providerId: string, format: 'json' | 'markdown') =>
+      options.exportProviderSessions(providerId, format)
+  );
   ipcMain.handle('providers:list', () => options.listProviders());
   ipcMain.handle('providers:getActive', () => options.getActiveProvider());
   ipcMain.handle('providers:setActive', (_event, providerId: string) => options.setActiveProvider(providerId));

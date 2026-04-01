@@ -1,4 +1,6 @@
 import type {
+  CaptureExportArtifact,
+  CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderId,
@@ -15,6 +17,15 @@ declare global {
       listSessions: () => Promise<CaptureSessionRecord[]>;
       listMessages: (sessionId: string) => Promise<CaptureMessageRecord[]>;
       openSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
+      deleteSession: (sessionId: string) => Promise<void>;
+      exportSession: (
+        sessionId: string,
+        format: CaptureExportFormat
+      ) => Promise<CaptureExportArtifact>;
+      exportProviderSessions: (
+        providerId: ProviderId,
+        format: CaptureExportFormat
+      ) => Promise<CaptureExportArtifact>;
       listProviders: () => Promise<ProviderRecord[]>;
       getActiveProvider: () => Promise<ProviderRecord | null>;
       setActiveProvider: (providerId: ProviderId) => Promise<ProviderRecord | null>;

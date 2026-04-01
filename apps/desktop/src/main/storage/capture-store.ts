@@ -10,6 +10,8 @@ import {
 import type {
   CaptureAttemptLogRecord,
   CaptureEnvelope,
+  CaptureExportArtifact,
+  CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderId,
@@ -29,6 +31,7 @@ export class CaptureStore {
   constructor(filePath: string) {
     this.database = new DatabaseSync(filePath);
     this.database.exec("PRAGMA journal_mode = WAL;");
+    this.database.exec('PRAGMA foreign_keys = ON;');
     ensureCaptureStoreSchema(this.database);
     this.migrateLegacyData();
     this.conversationRepository = createConversationRepository(this.database);
@@ -43,6 +46,8 @@ export class CaptureStore {
       remoteConversationId: envelope.remoteConversationId,
       sourceSessionKey: envelope.sourceSessionKey,
       pageUrl: envelope.pageUrl,
+      title: envelope.title,
+      titleSource: envelope.titleSource,
       createdAt: envelope.messages[0]?.createdAt ?? envelope.capturedAt,
       updatedAt: envelope.capturedAt,
     });
@@ -75,6 +80,8 @@ export class CaptureStore {
       remoteConversationId: envelope.remoteConversationId,
       sourceSessionKey: envelope.sourceSessionKey,
       pageUrl: envelope.pageUrl,
+      title: envelope.title,
+      titleSource: envelope.titleSource,
       createdAt: envelope.messages[0]?.createdAt ?? envelope.capturedAt,
       updatedAt: envelope.capturedAt,
     });
@@ -118,6 +125,8 @@ export class CaptureStore {
             remote_conversation_id AS remoteConversationId,
             source_session_key AS sourceSessionKey,
             page_url AS pageUrl,
+            title,
+            title_source AS titleSource,
             message_count AS messageCount,
             created_at AS createdAt,
             updated_at AS updatedAt
@@ -151,6 +160,56 @@ export class CaptureStore {
         `
       )
       .all(sessionId) as unknown as CaptureMessageRecord[];
+  }
+
+  deleteSession(sessionId: string): void {
+    const result = this.database
+      .prepare(
+        `
+          DELETE FROM conversations
+          WHERE id = ?
+        `
+      )
+      .run(sessionId) as { changes?: number };
+
+    if (!result.changes) {
+      throw new Error(`Unknown session: ${sessionId}.`);
+    }
+  }
+
+  exportSession(sessionId: string, format: CaptureExportFormat): CaptureExportArtifact {
+    const session = this.getSessionById(sessionId);
+
+    if (!session) {
+      throw new Error(`Unknown session: ${sessionId}.`);
+    }
+
+    const messages = this.listMessages(sessionId);
+
+    return buildSessionExportArtifact(session, messages, format);
+  }
+
+  exportProviderSessions(
+    providerId: ProviderId,
+    format: CaptureExportFormat
+  ): CaptureExportArtifact {
+    const provider = this.listProviders().find((entry) => entry.id === providerId) ?? null;
+
+    if (!provider) {
+      throw new Error(`Unknown provider: ${providerId}.`);
+    }
+
+    const sessions = this.listSessions().filter((session) => session.provider === providerId);
+
+    return buildProviderExportArtifact(
+      providerId,
+      provider.name,
+      sessions.map((session) => ({
+        session,
+        messages: this.listMessages(session.id),
+      })),
+      format
+    );
   }
 
   listProviders(): ProviderRecord[] {
@@ -228,6 +287,30 @@ export class CaptureStore {
 
   close(): void {
     this.database.close();
+  }
+
+  private getSessionById(sessionId: string): CaptureSessionRecord | null {
+    return (
+      (this.database
+        .prepare(
+          `
+            SELECT
+              id,
+              provider,
+              remote_conversation_id AS remoteConversationId,
+              source_session_key AS sourceSessionKey,
+              page_url AS pageUrl,
+              title,
+              title_source AS titleSource,
+              message_count AS messageCount,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+            FROM conversations
+            WHERE id = ?
+          `
+        )
+        .get(sessionId) as CaptureSessionRecord | undefined) ?? null
+    );
   }
 
   private recordCaptureEvents(
@@ -381,4 +464,136 @@ export class CaptureStore {
       throw error;
     }
   }
+}
+
+function buildSessionExportArtifact(
+  session: CaptureSessionRecord,
+  messages: CaptureMessageRecord[],
+  format: CaptureExportFormat
+): CaptureExportArtifact {
+  const title = resolveSessionTitle(session);
+  const extension = format === 'json' ? 'json' : 'md';
+
+  return {
+    scope: 'session',
+    format,
+    sessionId: session.id,
+    providerId: session.provider,
+    fileName: `amberkeeper-${session.provider}-${toFileSegment(title)}.${extension}`,
+    mimeType: format === 'json' ? 'application/json' : 'text/markdown',
+    content:
+      format === 'json'
+        ? JSON.stringify(
+            {
+              exportedAt: new Date().toISOString(),
+              session,
+              messages,
+            },
+            null,
+            2
+          )
+        : renderSessionMarkdown(session, messages),
+  };
+}
+
+function buildProviderExportArtifact(
+  providerId: ProviderId,
+  providerName: string,
+  entries: Array<{ session: CaptureSessionRecord; messages: CaptureMessageRecord[] }>,
+  format: CaptureExportFormat
+): CaptureExportArtifact {
+  const extension = format === 'json' ? 'json' : 'md';
+
+  return {
+    scope: 'provider',
+    format,
+    providerId,
+    fileName: `amberkeeper-${providerId}-knowledge-base-export.${extension}`,
+    mimeType: format === 'json' ? 'application/json' : 'text/markdown',
+    content:
+      format === 'json'
+        ? JSON.stringify(
+            {
+              exportedAt: new Date().toISOString(),
+              provider: {
+                id: providerId,
+                name: providerName,
+              },
+              sessionCount: entries.length,
+              sessions: entries.map((entry) => ({
+                session: entry.session,
+                messages: entry.messages,
+              })),
+            },
+            null,
+            2
+          )
+        : renderProviderMarkdown(providerName, entries),
+  };
+}
+
+function renderProviderMarkdown(
+  providerName: string,
+  entries: Array<{ session: CaptureSessionRecord; messages: CaptureMessageRecord[] }>
+): string {
+  const sections = entries.map((entry) => renderSessionMarkdown(entry.session, entry.messages));
+
+  return [`# ${providerName} 知识库导出`, '', `- 导出时间：${new Date().toISOString()}`, `- 会话数量：${entries.length}`, '', ...sections]
+    .join('\n')
+    .trim();
+}
+
+function renderSessionMarkdown(
+  session: CaptureSessionRecord,
+  messages: CaptureMessageRecord[]
+): string {
+  const title = resolveSessionTitle(session);
+  const metadata = [
+    `- 会话 ID：${session.id}`,
+    `- Provider：${session.provider}`,
+    `- 远端会话 ID：${session.remoteConversationId ?? '未解析'}`,
+    `- 标题来源：${session.titleSource ?? 'fallback'}`,
+    `- 更新时间：${session.updatedAt}`,
+    `- 来源页面：${session.pageUrl}`,
+    `- 消息数：${messages.length}`,
+  ];
+
+  const messageLines =
+    messages.length === 0
+      ? ['> 当前会话还没有已持久化消息。']
+      : messages.flatMap((message, index) => [
+          `### ${index + 1}. ${message.role === 'assistant' ? '助手' : '用户'}`,
+          '',
+          `- 时间：${message.createdAt}`,
+          message.model ? `- 模型：${message.model}` : null,
+          '',
+          message.content,
+          '',
+        ]);
+
+  return [`## ${title}`, '', ...metadata, '', ...messageLines.filter(Boolean as unknown as <T>(value: T | null) => value is T)]
+    .join('\n')
+    .trim();
+}
+
+function resolveSessionTitle(session: Pick<CaptureSessionRecord, 'id' | 'title' | 'remoteConversationId'>): string {
+  const title = session.title?.trim();
+  if (title) {
+    return title;
+  }
+
+  const remoteConversationId = session.remoteConversationId?.trim();
+  if (remoteConversationId) {
+    return remoteConversationId;
+  }
+
+  return session.id;
+}
+
+function toFileSegment(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64) || 'session';
 }

@@ -36,6 +36,8 @@ export function persistCompletedTurn(db: DatabaseSync, turn: CompletedTurn): str
     remoteConversationId: turn.conversationId,
     sourceSessionKey: turn.sourceSessionKey,
     pageUrl: turn.pageUrl,
+    title: turn.title,
+    titleSource: turn.titleSource,
     createdAt: turn.messages[0]?.createdAt ?? turn.capturedAt,
     updatedAt: turn.capturedAt,
   });
@@ -93,6 +95,8 @@ export function toCaptureEnvelope(turn: CompletedTurn): CaptureEnvelope {
     capturedAt: turn.capturedAt,
     sourceSessionKey: turn.sourceSessionKey,
     remoteConversationId: turn.conversationId,
+    title: turn.title,
+    titleSource: turn.titleSource,
     messages: turn.messages,
   };
 }

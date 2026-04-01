@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
+import type { SessionTitleSource } from '@amberkeeper/shared-types';
 import { ensureCaptureCorePersistenceSchema } from './schema';
 
 export function createConversationRepository(db: DatabaseSync) {
@@ -11,34 +12,47 @@ export function createConversationRepository(db: DatabaseSync) {
       remoteConversationId?: string | null;
       sourceSessionKey: string;
       pageUrl: string;
+      title?: string | null;
+      titleSource?: SessionTitleSource;
       createdAt: string;
       updatedAt: string;
     }): string {
       const remoteConversationId = input.remoteConversationId ?? null;
+      const incomingTitle = normalizeTitle(input.title);
+      const incomingTitleSource = incomingTitle ? (input.titleSource ?? 'provider') : 'fallback';
 
       if (remoteConversationId) {
         const existingResolved = db
           .prepare(
             `
-              SELECT id, created_at AS createdAt
+              SELECT id, created_at AS createdAt, title, title_source AS titleSource
               FROM conversations
               WHERE provider = ? AND remote_conversation_id = ?
             `
           )
           .get(input.provider, remoteConversationId) as
-            | { id?: string; createdAt?: string }
+            | { id?: string; createdAt?: string; title?: string | null; titleSource?: SessionTitleSource | null }
             | undefined;
 
         if (existingResolved?.id) {
+          const nextTitle = resolveStoredTitle({
+            existingTitle: existingResolved.title,
+            existingTitleSource: existingResolved.titleSource,
+            incomingTitle,
+            incomingTitleSource,
+          });
+
           db.prepare(
             `
               UPDATE conversations
-              SET source_session_key = ?, page_url = ?, created_at = ?, updated_at = ?
+              SET source_session_key = ?, page_url = ?, title = ?, title_source = ?, created_at = ?, updated_at = ?
               WHERE id = ?
             `
           ).run(
             input.sourceSessionKey,
             input.pageUrl,
+            nextTitle.title,
+            nextTitle.titleSource,
             chooseConversationCreatedAt(existingResolved.createdAt, input.createdAt),
             input.updatedAt,
             existingResolved.id
@@ -50,25 +64,34 @@ export function createConversationRepository(db: DatabaseSync) {
         const fallback = db
           .prepare(
             `
-              SELECT id, created_at AS createdAt
+              SELECT id, created_at AS createdAt, title, title_source AS titleSource
               FROM conversations
               WHERE provider = ? AND source_session_key = ? AND remote_conversation_id IS NULL
             `
           )
           .get(input.provider, input.sourceSessionKey) as
-            | { id?: string; createdAt?: string }
+            | { id?: string; createdAt?: string; title?: string | null; titleSource?: SessionTitleSource | null }
             | undefined;
 
         if (fallback?.id) {
+          const nextTitle = resolveStoredTitle({
+            existingTitle: fallback.title,
+            existingTitleSource: fallback.titleSource,
+            incomingTitle,
+            incomingTitleSource,
+          });
+
           db.prepare(
             `
               UPDATE conversations
-              SET remote_conversation_id = ?, page_url = ?, created_at = ?, updated_at = ?
+              SET remote_conversation_id = ?, page_url = ?, title = ?, title_source = ?, created_at = ?, updated_at = ?
               WHERE id = ?
             `
           ).run(
             remoteConversationId,
             input.pageUrl,
+            nextTitle.title,
+            nextTitle.titleSource,
             chooseConversationCreatedAt(fallback.createdAt, input.createdAt),
             input.updatedAt,
             fallback.id
@@ -89,24 +112,33 @@ export function createConversationRepository(db: DatabaseSync) {
       const fallback = db
         .prepare(
           `
-            SELECT id, created_at AS createdAt
+            SELECT id, created_at AS createdAt, title, title_source AS titleSource
             FROM conversations
             WHERE provider = ? AND source_session_key = ? AND ifnull(remote_conversation_id, '') = ifnull(?, '')
           `
         )
         .get(input.provider, input.sourceSessionKey, remoteConversationId) as
-          | { id?: string; createdAt?: string }
+          | { id?: string; createdAt?: string; title?: string | null; titleSource?: SessionTitleSource | null }
           | undefined;
 
       if (fallback?.id) {
+        const nextTitle = resolveStoredTitle({
+          existingTitle: fallback.title,
+          existingTitleSource: fallback.titleSource,
+          incomingTitle,
+          incomingTitleSource,
+        });
+
         db.prepare(
           `
             UPDATE conversations
-            SET page_url = ?, created_at = ?, updated_at = ?
+            SET page_url = ?, title = ?, title_source = ?, created_at = ?, updated_at = ?
             WHERE id = ?
           `
         ).run(
           input.pageUrl,
+          nextTitle.title,
+          nextTitle.titleSource,
           chooseConversationCreatedAt(fallback.createdAt, input.createdAt),
           input.updatedAt,
           fallback.id
@@ -124,9 +156,11 @@ export function createConversationRepository(db: DatabaseSync) {
             remote_conversation_id,
             source_session_key,
             page_url,
+            title,
+            title_source,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `
       ).run(
         conversationId,
@@ -134,6 +168,8 @@ export function createConversationRepository(db: DatabaseSync) {
         remoteConversationId,
         input.sourceSessionKey,
         input.pageUrl,
+        incomingTitle,
+        incomingTitleSource,
         input.createdAt,
         input.updatedAt
       );
@@ -149,6 +185,47 @@ export function createConversationRepository(db: DatabaseSync) {
         `
       ).run(messageCount, updatedAt, conversationId);
     },
+  };
+}
+
+function normalizeTitle(input: string | null | undefined): string | null {
+  const title = input?.trim();
+  return title ? title : null;
+}
+
+function resolveStoredTitle(input: {
+  existingTitle?: string | null;
+  existingTitleSource?: SessionTitleSource | null;
+  incomingTitle: string | null;
+  incomingTitleSource: SessionTitleSource;
+}): { title: string | null; titleSource: SessionTitleSource } {
+  const existingTitle = normalizeTitle(input.existingTitle);
+  const existingTitleSource = input.existingTitleSource ?? 'fallback';
+
+  if (!input.incomingTitle) {
+    return {
+      title: existingTitle,
+      titleSource: existingTitle ? existingTitleSource : 'fallback',
+    };
+  }
+
+  if (!existingTitle) {
+    return {
+      title: input.incomingTitle,
+      titleSource: input.incomingTitleSource,
+    };
+  }
+
+  if (input.incomingTitleSource === 'provider') {
+    return {
+      title: input.incomingTitle,
+      titleSource: 'provider',
+    };
+  }
+
+  return {
+    title: existingTitle,
+    titleSource: existingTitleSource,
   };
 }
 
