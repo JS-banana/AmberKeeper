@@ -86,11 +86,13 @@ function UtilityWorkbench(props: {
 
   return (
     <section
-      className={
-        currentSurface === 'library'
-          ? 'utility-workbench utility-workbench--library'
-          : 'utility-workbench'
-      }
+      className={[
+        'utility-workbench',
+        'utility-workbench--sidebar',
+        currentSurface === 'library' ? 'utility-workbench--library' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <nav className="utility-workbench__nav" aria-label="设置与历史">
         {menuItems.map((item) => {
@@ -101,6 +103,7 @@ function UtilityWorkbench(props: {
               key={item.id}
               type="button"
               aria-pressed={isActive}
+              aria-current={isActive ? 'page' : undefined}
               className={isActive ? 'utility-workbench__tab active' : 'utility-workbench__tab'}
               onClick={() => {
                 props.onSelectSurface(item.id);

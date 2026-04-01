@@ -53,15 +53,8 @@ export function SettingsPage(props: {
 
   return (
     <section className="utility-page utility-page--scroll">
-      <header className="utility-page__header">
-        <div>
-          <p className="utility-page__eyebrow">设置</p>
-          <h1>服务管理</h1>
-        </div>
-        <p className="utility-page__copy">
-          参考 anyChat 的服务管理体验：拖拽整行调整顺序，使用图标快速启停与打开服务；
-          历史会话已收回到设置域中的“历史会话”入口查看。
-        </p>
+      <header className="utility-page__header utility-page__header--compact">
+        <h1>服务管理</h1>
       </header>
 
       <ol className="settings-list" aria-label="内置应用列表">
@@ -112,12 +105,12 @@ export function SettingsPage(props: {
                 void reorderProvider(sourceProviderId, provider.id);
               }}
             >
+              <span className="settings-drag-handle" aria-hidden="true">
+                <GripIcon />
+              </span>
+
               <div className="settings-item__meta">
                 <div className="settings-item__title">
-                  <span className="settings-drag-handle" aria-hidden="true">
-                    <GripIcon />
-                  </span>
-
                   <div className="settings-item__summary">
                     <div className="settings-item__headline">
                       <strong>{provider.name}</strong>
@@ -137,8 +130,6 @@ export function SettingsPage(props: {
                         </span>
                       </div>
                     </div>
-
-                    <p>{provider.homeUrl}</p>
                   </div>
                 </div>
 
@@ -158,10 +149,6 @@ export function SettingsPage(props: {
                   </IconButton>
                 </div>
               </div>
-
-              <span className="settings-item__hint">
-                {isDragging ? '拖动到目标位置后松手完成排序' : '拖动整行即可调整服务顺序'}
-              </span>
             </li>
           );
         })}
@@ -181,6 +168,7 @@ function IconButton(props: {
       className={props.active ? 'icon-button icon-button--active' : 'icon-button'}
       type="button"
       aria-label={props.label}
+      title={props.label}
       draggable={false}
       onClick={props.onClick}
     >

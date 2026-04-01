@@ -91,6 +91,41 @@ test('opens the library, hides the native stage, and hydrates the selected sessi
   });
 });
 
+test('renders the utility area with a left nav and compact service rows', async () => {
+  const state = createWorkspaceFixture({ deepseekEnabled: true });
+  installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: true, isPackaged: false },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+
+  const nav = screen.getByRole('navigation', { name: '设置与历史' });
+  expect(nav.closest('.utility-workbench')).toHaveClass('utility-workbench--sidebar');
+  expect(within(nav).getByRole('button', { name: '服务管理' })).toHaveAttribute('aria-current', 'page');
+  expect(within(nav).getByRole('button', { name: '历史会话' })).toBeInTheDocument();
+  expect(within(nav).getByRole('button', { name: '诊断' })).toBeInTheDocument();
+
+  const chatgptItem = within(screen.getByRole('list', { name: '内置应用列表' }))
+    .getAllByRole('listitem')
+    .find((item) => item.getAttribute('data-provider-id') === 'chatgpt');
+
+  expect(chatgptItem).toBeDefined();
+  expect(within(chatgptItem!).queryByText('https://chatgpt.com')).not.toBeInTheDocument();
+  expect(
+    within(chatgptItem!).queryByText(/拖动整行即可调整服务顺序|拖动到目标位置后松手完成排序/)
+  ).not.toBeInTheDocument();
+  expect(within(chatgptItem!).getByRole('button', { name: '打开 ChatGPT' })).toHaveAttribute(
+    'title',
+    '打开 ChatGPT'
+  );
+  expect(within(chatgptItem!).getByRole('button', { name: '停用 ChatGPT' })).toHaveAttribute(
+    'title',
+    '停用 ChatGPT'
+  );
+});
+
 test('shows the library as an all-provider knowledge base instead of scoping to the active provider', async () => {
   const state = createWorkspaceFixture();
   const api = installCaptureApiMock(state, {
