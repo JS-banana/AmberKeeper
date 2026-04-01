@@ -73,13 +73,13 @@ function UtilityWorkbench(props: {
   onSelectSurface: (surface: Exclude<AppSurfaceId, 'chat'>) => void;
   children: ReactNode;
 }) {
-  const menuItems: Array<{ id: Exclude<AppSurfaceId, 'chat'>; label: string }> = [
-    { id: 'settings', label: '服务管理' },
-    { id: 'library', label: '历史会话' },
+  const menuItems: Array<{ id: Exclude<AppSurfaceId, 'chat'>; label: string; icon: ReactNode }> = [
+    { id: 'settings', label: '服务管理', icon: <WorkbenchGlyph kind="settings" /> },
+    { id: 'library', label: '历史记录', icon: <WorkbenchGlyph kind="library" /> },
   ];
 
   if (props.diagnosticsEnabled) {
-    menuItems.push({ id: 'diagnostics', label: '诊断' });
+    menuItems.push({ id: 'diagnostics', label: '诊断', icon: <WorkbenchGlyph kind="diagnostics" /> });
   }
 
   const currentSurface = props.activeSurface === 'chat' ? 'settings' : props.activeSurface;
@@ -109,7 +109,10 @@ function UtilityWorkbench(props: {
                 props.onSelectSurface(item.id);
               }}
             >
-              {item.label}
+              <span className="utility-workbench__tab-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span className="utility-workbench__tab-label">{item.label}</span>
             </button>
           );
         })}
@@ -167,5 +170,66 @@ function renderUtilitySurface(input: {
       return <DiagnosticsPage />;
     case 'chat':
       return null;
+  }
+}
+
+function WorkbenchGlyph(props: {
+  kind: Exclude<AppSurfaceId, 'chat'>;
+}) {
+  switch (props.kind) {
+    case 'settings':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="utility-workbench__glyph">
+          <path
+            d="M5 7.25h6M15.5 7.25H19M5 12h3M11.5 12H19M5 16.75h8M16.5 16.75H19"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <circle cx="13.25" cy="7.25" r="1.95" fill="none" stroke="currentColor" strokeWidth="1.7" />
+          <circle cx="9.25" cy="12" r="1.95" fill="none" stroke="currentColor" strokeWidth="1.7" />
+          <circle
+            cx="14.5"
+            cy="16.75"
+            r="1.95"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          />
+        </svg>
+      );
+    case 'library':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="utility-workbench__glyph">
+          <path
+            d="M7 5.5h10.5A1.5 1.5 0 0 1 19 7v10.5A1.5 1.5 0 0 1 17.5 19H7a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8.5 9.25h7M8.5 12.25h7M8.5 15.25h4.25"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case 'diagnostics':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="utility-workbench__glyph">
+          <path
+            d="M6 16.75h12M8.25 13.5h2.5v3.25h-2.5zM11.75 10h2.5v6.75h-2.5zM15.25 6.5h2.5v10.25h-2.5z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
   }
 }
