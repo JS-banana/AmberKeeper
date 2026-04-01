@@ -43,9 +43,8 @@ function buildProvider(input: Partial<ProviderRecord> & Pick<ProviderRecord, 'id
     name: input.name,
     enabled: input.enabled ?? true,
     homeUrl: input.homeUrl ?? `https://${input.id}.com`,
-    captureSelector: input.captureSelector ?? '[data-provider-root]',
-    iconUrl: input.iconUrl ?? null,
-    sortOrder: input.sortOrder ?? 0,
+    builtin: input.builtin ?? true,
+    active: input.active ?? false,
     createdAt: input.createdAt ?? '2026-03-01T00:00:00.000Z',
     updatedAt: input.updatedAt ?? '2026-03-01T00:00:00.000Z',
   };
