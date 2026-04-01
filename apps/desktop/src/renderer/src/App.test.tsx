@@ -72,7 +72,7 @@ test('opens the library in all-record mode, hides the native stage, and hydrates
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
   expect(screen.getByText('2 条记录 · 1 个服务')).toBeInTheDocument();
@@ -108,7 +108,7 @@ test('renders the utility area with a left nav and compact service rows', async 
   const nav = screen.getByRole('navigation', { name: '设置与历史' });
   expect(nav.closest('.utility-workbench')).toHaveClass('utility-workbench--sidebar');
   expect(within(nav).getByRole('button', { name: '服务管理' })).toHaveAttribute('aria-current', 'page');
-  expect(within(nav).getByRole('button', { name: '历史会话' })).toBeInTheDocument();
+  expect(within(nav).getByRole('button', { name: '历史记录' })).toBeInTheDocument();
   expect(within(nav).getByRole('button', { name: '诊断' })).toBeInTheDocument();
 
   const chatgptItem = within(screen.getByRole('list', { name: '内置应用列表' }))
@@ -116,18 +116,18 @@ test('renders the utility area with a left nav and compact service rows', async 
     .find((item) => item.getAttribute('data-provider-id') === 'chatgpt');
 
   expect(chatgptItem).toBeDefined();
-  expect(within(chatgptItem!).queryByText('https://chatgpt.com')).not.toBeInTheDocument();
+  expect(within(chatgptItem!).getByText('https://chatgpt.com')).toBeInTheDocument();
   expect(
     within(chatgptItem!).queryByText(/拖动整行即可调整服务顺序|拖动到目标位置后松手完成排序/)
   ).not.toBeInTheDocument();
-  expect(within(chatgptItem!).getByRole('button', { name: '打开 ChatGPT' })).toHaveAttribute(
-    'title',
-    '打开 ChatGPT'
-  );
+  expect(within(chatgptItem!).queryByRole('button', { name: '打开 ChatGPT' })).not.toBeInTheDocument();
   expect(within(chatgptItem!).getByRole('button', { name: '停用 ChatGPT' })).toHaveAttribute(
     'title',
     '停用 ChatGPT'
   );
+  expect(within(chatgptItem!).queryByText('当前使用')).not.toBeInTheDocument();
+  expect(within(chatgptItem!).queryByText('已启用')).not.toBeInTheDocument();
+  expect(within(chatgptItem!).queryByText('已停用')).not.toBeInTheDocument();
 });
 
 test('shows the library as an all-provider knowledge base instead of scoping to the active provider', async () => {
@@ -145,7 +145,7 @@ test('shows the library as an all-provider knowledge base instead of scoping to 
   });
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
   expect(screen.getByText('3 条记录 · 3 个服务')).toBeInTheDocument();
@@ -179,7 +179,7 @@ test('keeps all-provider history visible even when the active provider has no se
   });
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
   expect(screen.getByText('3 条记录 · 4 个服务')).toBeInTheDocument();
@@ -217,7 +217,7 @@ test('uses semantic fallback titles in the knowledge base when provider page tit
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(await screen.findByRole('button', { name: '历史会话' }));
+  fireEvent.click(await screen.findByRole('button', { name: '历史记录' }));
   fireEvent.click(await screen.findByRole('button', { name: '查看 DeepSeek 记录' }));
 
   expect(
@@ -238,7 +238,7 @@ test('allows enabling and reordering built-in providers from settings', async ()
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
 
-  expect(await screen.findByRole('heading', { name: '服务管理' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: '服务管理' })).not.toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
@@ -301,7 +301,7 @@ test('allows enabling and reordering built-in providers from settings', async ()
     ]);
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
   fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
 
   const settingsList = screen.getByRole('list', { name: '内置应用列表' });
@@ -325,7 +325,7 @@ test('supports provider export and session delete actions from the knowledge bas
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   fireEvent.change(screen.getByRole('combobox', { name: '选择要导出的服务' }), {
     target: { value: 'chatgpt' },
@@ -368,7 +368,7 @@ test('lets operators manually refresh the history list so new sessions surface',
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
   const initialListSessionCalls = api.listSessions.mock.calls.length;
@@ -411,7 +411,7 @@ test('refreshes sessions after capture-driven runtime status updates', async () 
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
   const initialListSessionCalls = api.listSessions.mock.calls.length;
@@ -455,7 +455,7 @@ test('shows provider-specific history with a scrollable list and active record s
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
   fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
 
   const list = await screen.findByRole('list', { name: '历史记录列表' });
