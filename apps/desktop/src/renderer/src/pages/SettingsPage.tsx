@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type DragEvent, type ReactNode } from 'react';
 import type { ProviderMoveDirection, ProviderRecord } from '@amberkeeper/shared-types';
 
 export function SettingsPage(props: {
@@ -14,6 +14,12 @@ export function SettingsPage(props: {
   const [draggingProviderId, setDraggingProviderId] = useState<ProviderRecord['id'] | null>(null);
   const [dropTargetProviderId, setDropTargetProviderId] = useState<ProviderRecord['id'] | null>(null);
   const [reordering, setReordering] = useState(false);
+
+  function startDragging(providerId: ProviderRecord['id'], event: DragEvent<HTMLElement>) {
+    event.dataTransfer.setData('text/provider-id', providerId);
+    event.dataTransfer.effectAllowed = 'move';
+    setDraggingProviderId(providerId);
+  }
 
   async function reorderProvider(
     sourceProviderId: ProviderRecord['id'],
@@ -53,107 +59,112 @@ export function SettingsPage(props: {
           <h1>应用设置</h1>
         </div>
         <p className="utility-page__copy">
-          AmberKeeper 当前只提供已完成抓取链路适配的内置应用。这里优先处理应用启停与顺序管理，
-          会话档案统一放在左侧的知识库入口中查看。
+          AmberKeeper 当前只提供已完成抓取链路适配的内置应用。这里优先处理服务启停与排序，
+          历史会话入口已收回到当前设置域的二级导航中。
         </p>
       </header>
 
       <ol className="settings-list" aria-label="内置应用列表">
-        {props.providers.map((provider) => (
-          <li
-            key={provider.id}
-            className={
-              dropTargetProviderId === provider.id
-                ? 'settings-item settings-item--drop-target'
-                : 'settings-item'
-            }
-            data-provider-id={provider.id}
-            onDragOver={(event) => {
-              event.preventDefault();
-              if (!reordering) {
-                setDropTargetProviderId(provider.id);
-              }
-            }}
-            onDragLeave={() => {
-              if (dropTargetProviderId === provider.id) {
+        {props.providers.map((provider) => {
+          const isDragging = draggingProviderId === provider.id;
+          const isDropTarget = dropTargetProviderId === provider.id;
+
+          return (
+            <li
+              key={provider.id}
+              className={[
+                'settings-item',
+                isDropTarget ? 'settings-item--drop-target' : '',
+                isDragging ? 'settings-item--dragging' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              data-provider-id={provider.id}
+              draggable={!reordering}
+              onDragStart={(event) => {
+                startDragging(provider.id, event);
+              }}
+              onDragEnd={() => {
+                setDraggingProviderId(null);
                 setDropTargetProviderId(null);
-              }
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              const sourceProviderId = event.dataTransfer.getData(
-                'text/provider-id'
-              ) as ProviderRecord['id'];
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!reordering) {
+                  setDropTargetProviderId(provider.id);
+                }
+              }}
+              onDragLeave={() => {
+                if (dropTargetProviderId === provider.id) {
+                  setDropTargetProviderId(null);
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const sourceProviderId = event.dataTransfer.getData(
+                  'text/provider-id'
+                ) as ProviderRecord['id'];
 
-              if (!sourceProviderId) {
-                return;
-              }
+                if (!sourceProviderId) {
+                  return;
+                }
 
-              void reorderProvider(sourceProviderId, provider.id);
-            }}
-          >
-            <div className="settings-item__meta">
-              <div className="settings-item__title">
-                <button
-                  className="settings-drag-handle"
-                  type="button"
-                  aria-label={`拖动排序 ${provider.name}`}
-                  draggable={!reordering}
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData('text/provider-id', provider.id);
-                    event.dataTransfer.effectAllowed = 'move';
-                    setDraggingProviderId(provider.id);
-                  }}
-                  onDragEnd={() => {
-                    setDraggingProviderId(null);
-                    setDropTargetProviderId(null);
-                  }}
-                >
-                  <GripIcon />
-                </button>
-                <div>
-                  <strong>{provider.name}</strong>
-                  <p>{provider.homeUrl}</p>
+                void reorderProvider(sourceProviderId, provider.id);
+              }}
+            >
+              <div className="settings-item__meta">
+                <div className="settings-item__title">
+                  <span className="settings-drag-handle" aria-hidden="true">
+                    <GripIcon />
+                  </span>
+
+                  <div className="settings-item__summary">
+                    <div className="settings-item__headline">
+                      <strong>{provider.name}</strong>
+
+                      <div className="settings-item__badges">
+                        {provider.id === props.activeProviderId ? (
+                          <span className="settings-badge">当前使用</span>
+                        ) : null}
+                        <span
+                          className={
+                            provider.enabled
+                              ? 'settings-badge settings-badge--enabled'
+                              : 'settings-badge settings-badge--disabled'
+                          }
+                        >
+                          {provider.enabled ? '已启用' : '已停用'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p>{provider.homeUrl}</p>
+                  </div>
+                </div>
+
+                <div className="settings-item__actions">
+                  <IconButton
+                    label={`打开 ${provider.name}`}
+                    onClick={() => props.onSelectProvider(provider.id)}
+                  >
+                    <ArrowRightIcon />
+                  </IconButton>
+                  <IconButton
+                    label={provider.enabled ? `停用 ${provider.name}` : `启用 ${provider.name}`}
+                    active={provider.enabled}
+                    onClick={() => props.onToggleProvider(provider.id, !provider.enabled)}
+                  >
+                    {provider.enabled ? <VisibleIcon /> : <HiddenIcon />}
+                  </IconButton>
                 </div>
               </div>
 
-              <div className="settings-item__badges">
-                {provider.id === props.activeProviderId ? <span className="settings-badge">当前使用</span> : null}
-                <span
-                  className={
-                    provider.enabled
-                      ? 'settings-badge settings-badge--enabled'
-                      : 'settings-badge settings-badge--disabled'
-                  }
-                >
-                  {provider.enabled ? '已启用' : '已停用'}
-                </span>
-              </div>
-            </div>
-
-            <div className="settings-item__actions">
-              <IconButton
-                label={`打开 ${provider.name}`}
-                onClick={() => props.onSelectProvider(provider.id)}
-              >
-                <ArrowRightIcon />
-              </IconButton>
-              <IconButton
-                label={provider.enabled ? `停用 ${provider.name}` : `启用 ${provider.name}`}
-                active={provider.enabled}
-                onClick={() => props.onToggleProvider(provider.id, !provider.enabled)}
-              >
-                {provider.enabled ? <VisibleIcon /> : <HiddenIcon />}
-              </IconButton>
-            </div>
-
-            <p className="settings-item__hint">
-              {draggingProviderId === provider.id
-                ? '拖动到目标位置后松手完成排序'
-                : '拖动左侧手柄即可调整服务顺序'}
-            </p>
-          </li>
-        ))}
+              <span className="settings-item__hint">
+                {isDragging ? '拖动到目标位置后松手完成排序' : '拖动整行即可调整服务顺序'}
+              </span>
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
@@ -170,6 +181,7 @@ function IconButton(props: {
       className={props.active ? 'icon-button icon-button--active' : 'icon-button'}
       type="button"
       aria-label={props.label}
+      draggable={false}
       onClick={props.onClick}
     >
       {props.children}

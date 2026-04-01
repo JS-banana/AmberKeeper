@@ -71,7 +71,8 @@ test('opens the library, hides the native stage, and hydrates the selected sessi
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
   expect(screen.getByText(/全部历史会话/i)).toBeInTheDocument();
@@ -104,7 +105,8 @@ test('shows the library as an all-provider knowledge base instead of scoping to 
     expect(api.setActiveProvider).toHaveBeenCalledWith('claude');
   });
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
   expect(screen.getByText('全部历史会话')).toBeInTheDocument();
@@ -131,7 +133,8 @@ test('keeps all-provider history visible even when the active provider has no se
     expect(api.setActiveProvider).toHaveBeenCalledWith('deepseek');
   });
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
   expect(screen.getByText('全部历史会话')).toBeInTheDocument();
@@ -161,9 +164,12 @@ test('allows enabling and reordering built-in providers from settings', async ()
   });
 
   const dataTransfer = createDataTransfer();
-  fireEvent.dragStart(screen.getByRole('button', { name: '拖动排序 Gemini' }), {
-    dataTransfer,
-  });
+  fireEvent.dragStart(
+    within(screen.getByRole('list', { name: '内置应用列表' }))
+      .getAllByRole('listitem')
+      .find((item) => item.getAttribute('data-provider-id') === 'gemini')!,
+    { dataTransfer }
+  );
   fireEvent.drop(
     within(screen.getByRole('list', { name: '内置应用列表' }))
       .getAllByRole('listitem')
@@ -184,9 +190,12 @@ test('allows enabling and reordering built-in providers from settings', async ()
     ]);
   });
   const secondDataTransfer = createDataTransfer();
-  fireEvent.dragStart(screen.getByRole('button', { name: '拖动排序 Gemini' }), {
-    dataTransfer: secondDataTransfer,
-  });
+  fireEvent.dragStart(
+    within(screen.getByRole('list', { name: '内置应用列表' }))
+      .getAllByRole('listitem')
+      .find((item) => item.getAttribute('data-provider-id') === 'gemini')!,
+    { dataTransfer: secondDataTransfer }
+  );
   fireEvent.drop(
     within(screen.getByRole('list', { name: '内置应用列表' }))
       .getAllByRole('listitem')
@@ -207,7 +216,7 @@ test('allows enabling and reordering built-in providers from settings', async ()
     ]);
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '打开知识库' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
   fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
 
   const settingsList = screen.getByRole('list', { name: '内置应用列表' });
@@ -230,7 +239,8 @@ test('supports provider export and session delete actions from the knowledge bas
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
 
   fireEvent.change(screen.getByRole('combobox', { name: '选择 provider 导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },

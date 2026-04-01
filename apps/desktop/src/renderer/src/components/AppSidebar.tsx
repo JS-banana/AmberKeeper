@@ -55,27 +55,16 @@ export function AppSidebar(props: {
       <nav className="product-rail__nav" aria-label="工作台入口">
         <button
           type="button"
-          aria-label="打开知识库"
-          aria-pressed={props.activeSurface === 'library'}
-          className={
-            props.activeSurface === 'library'
-              ? 'rail-button rail-button--utility active'
-              : 'rail-button rail-button--utility'
-          }
-          onClick={() => {
-            startTransition(() => {
-              props.onSelectSurface('library');
-            });
-          }}
-        >
-          <RailGlyph kind="library" />
-        </button>
-        <button
-          type="button"
           aria-label="打开设置"
-          aria-pressed={props.activeSurface === 'settings' || props.activeSurface === 'diagnostics'}
+          aria-pressed={
+            props.activeSurface === 'settings' ||
+            props.activeSurface === 'library' ||
+            props.activeSurface === 'diagnostics'
+          }
           className={
-            props.activeSurface === 'settings' || props.activeSurface === 'diagnostics'
+            props.activeSurface === 'settings' ||
+            props.activeSurface === 'library' ||
+            props.activeSurface === 'diagnostics'
               ? 'rail-button rail-button--utility active'
               : 'rail-button rail-button--utility'
           }
@@ -96,25 +85,6 @@ function RailGlyph(props: {
   kind: 'library' | 'settings' | 'diagnostics';
 }) {
   switch (props.kind) {
-    case 'library':
-      return (
-        <svg aria-hidden="true" viewBox="0 0 24 24" className="rail-glyph">
-          <path
-            d="M6 5.25h9.25A2.75 2.75 0 0 1 18 8v10.75H8.75A2.75 2.75 0 0 1 6 16V5.25Z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M9 8.5h6M9 11.75h6M9 15h4.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-          />
-        </svg>
-      );
     case 'settings':
       return (
         <svg aria-hidden="true" viewBox="0 0 24 24" className="rail-glyph">
@@ -142,5 +112,7 @@ function RailGlyph(props: {
           />
         </svg>
       );
+    case 'library':
+      return null;
   }
 }

@@ -68,7 +68,8 @@ function UtilityWorkbench(props: {
   children: ReactNode;
 }) {
   const menuItems: Array<{ id: Exclude<AppSurfaceId, 'chat'>; label: string }> = [
-    { id: 'settings', label: '应用设置' },
+    { id: 'settings', label: '服务管理' },
+    { id: 'library', label: '历史会话' },
   ];
 
   if (props.diagnosticsEnabled) {
@@ -76,31 +77,28 @@ function UtilityWorkbench(props: {
   }
 
   const currentSurface = props.activeSurface === 'chat' ? 'settings' : props.activeSurface;
-  const showNav = currentSurface !== 'library';
 
   return (
     <section className="utility-workbench">
-      {showNav ? (
-        <nav className="utility-workbench__nav" aria-label="工作台菜单">
-          {menuItems.map((item) => {
-            const isActive = currentSurface === item.id;
+      <nav className="utility-workbench__nav" aria-label="设置与历史">
+        {menuItems.map((item) => {
+          const isActive = currentSurface === item.id;
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                aria-pressed={isActive}
-                className={isActive ? 'utility-workbench__tab active' : 'utility-workbench__tab'}
-                onClick={() => {
-                  props.onSelectSurface(item.id);
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-      ) : null}
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={isActive}
+              className={isActive ? 'utility-workbench__tab active' : 'utility-workbench__tab'}
+              onClick={() => {
+                props.onSelectSurface(item.id);
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
 
       <div className="utility-workbench__body">{props.children}</div>
     </section>
