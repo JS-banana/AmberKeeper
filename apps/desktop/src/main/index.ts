@@ -5,7 +5,14 @@ import {
   type ProviderSignal,
   type RuntimeSignal,
 } from '@amberkeeper/capture-core';
-import type { CaptureSessionRecord, ProviderId, ProviderRecord, RuntimeStatus } from '@amberkeeper/shared-types';
+import type {
+  CaptureSessionRecord,
+  ProviderId,
+  ProviderMoveDirection,
+  ProviderRecord,
+  RuntimeStatus,
+  ShellInfo,
+} from '@amberkeeper/shared-types';
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,7 +38,7 @@ import { CaptureStore } from './storage/capture-store';
 import { createMainWindow, createProviderStageController } from './windows/main-window';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PANEL_WIDTH = 420;
+const PANEL_WIDTH = 88;
 const DOM_CAPTURE_POLL_INTERVAL_MS = 400;
 const DOM_CAPTURE_POLL_ATTEMPTS = 24;
 
@@ -70,6 +77,7 @@ let activeProviderId: ProviderId | null = null;
 let currentUrl = '';
 let lastCaptureAt: string | null = null;
 let domCaptureInFlight = false;
+let nativeStageVisible = true;
 
 const trackedRequests = new Map<string, TrackedRequest>();
 const seenObservationKeys: string[] = [];
@@ -95,6 +103,7 @@ function createDesktopWindow(): void {
     activeProviderId = null;
     currentUrl = getPersistedActiveProviderHomeUrl();
     domCaptureInFlight = false;
+    nativeStageVisible = true;
     trackedRequests.clear();
   });
 
@@ -116,7 +125,7 @@ function createDesktopWindow(): void {
           providerId,
           view,
         })),
-        nextActiveProviderId
+        nativeStageVisible ? nextActiveProviderId : null
       );
 
       browserSession = activeRuntime?.browserSession ?? null;
@@ -1006,6 +1015,40 @@ function setProviderEnabled(providerId: ProviderId, enabled: boolean): ProviderR
   return provider;
 }
 
+function moveProvider(
+  providerId: ProviderId,
+  direction: ProviderMoveDirection
+): ProviderRecord[] | null {
+  if (!captureStore) {
+    return null;
+  }
+
+  const providers = captureStore.moveProvider(providerId, direction);
+  syncRuntimeRegistryFromStore();
+
+  return providers;
+}
+
+function getShellInfo(): ShellInfo {
+  return {
+    diagnosticsEnabled: !app.isPackaged || process.env.AMBERKEEPER_ENABLE_DIAGNOSTICS === '1',
+    isPackaged: app.isPackaged,
+  };
+}
+
+function setNativeStageVisible(visible: boolean): void {
+  nativeStageVisible = visible;
+  const runtimes = runtimeRegistry?.listResolvedRuntimes() ?? [];
+
+  stageController?.sync(
+    runtimes.map(({ providerId, view }) => ({
+      providerId,
+      view,
+    })),
+    nativeStageVisible ? activeProviderId : null
+  );
+}
+
 function getActiveRuntimeWithAdapter():
   | (ProviderRuntimeContext & { adapter: NonNullable<ReturnType<typeof getProviderAdapter>> })
   | null {
@@ -1135,6 +1178,10 @@ registerAppLifecycle({
       setActiveProvider: (providerId) => setActiveProvider(providerId as ProviderId),
       setProviderEnabled: (providerId, enabled) =>
         setProviderEnabled(providerId as ProviderId, enabled),
+      moveProvider: (providerId, direction) =>
+        moveProvider(providerId as ProviderId, direction as ProviderMoveDirection),
+      getShellInfo,
+      setNativeStageVisible,
       getRuntimeStatus,
       triggerDomSnapshot: async () => {
         const snapshot = await runDomSnapshot();

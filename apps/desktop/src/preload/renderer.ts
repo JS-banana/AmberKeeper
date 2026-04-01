@@ -3,8 +3,10 @@ import type {
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderId,
+  ProviderMoveDirection,
   ProviderRecord,
   RuntimeStatus,
+  ShellInfo,
 } from '@amberkeeper/shared-types';
 
 type RuntimeCallback = (status: RuntimeStatus) => void;
@@ -21,6 +23,11 @@ contextBridge.exposeInMainWorld('captureApi', {
     ipcRenderer.invoke('providers:setActive', providerId) as Promise<ProviderRecord | null>,
   setProviderEnabled: (providerId: ProviderId, enabled: boolean) =>
     ipcRenderer.invoke('providers:setEnabled', providerId, enabled) as Promise<ProviderRecord | null>,
+  moveProvider: (providerId: ProviderId, direction: ProviderMoveDirection) =>
+    ipcRenderer.invoke('providers:move', providerId, direction) as Promise<ProviderRecord[]>,
+  getShellInfo: () => ipcRenderer.invoke('shell:getInfo') as Promise<ShellInfo>,
+  setNativeStageVisible: (visible: boolean) =>
+    ipcRenderer.invoke('shell:setNativeStageVisible', visible) as Promise<void>,
   getRuntimeStatus: () => ipcRenderer.invoke('capture:getRuntimeStatus') as Promise<RuntimeStatus>,
   triggerDomSnapshot: () =>
     ipcRenderer.invoke('capture:triggerDomSnapshot') as Promise<{ message: string; detail: string }>,

@@ -1,0 +1,64 @@
+{
+  "pid": 82588,
+  "parent_pid": 22402,
+  "started_at": "2026-04-01T04:24:05.027Z",
+  "cwd": "/Users/sunss/my-code/myAPP/amberkeeper",
+  "notify_script": "/Users/sunss/.nvm/versions/node/v22.20.0/lib/node_modules/oh-my-codex/dist/scripts/notify-hook.js",
+  "poll_ms": 75,
+  "pid_file": null,
+  "max_lifetime_ms": 0,
+  "tracked_files": 1,
+  "seen_turns": 0,
+  "dispatch_drain": {
+    "enabled": true,
+    "max_per_tick": 5,
+    "run_count": 1,
+    "leader_only": true,
+    "last_tick_at": "2026-04-01T04:24:05.046Z",
+    "last_result": {
+      "processed": 0,
+      "skipped": 0,
+      "failed": 0
+    },
+    "last_error": null
+  },
+  "leader_nudge": {
+    "enabled": true,
+    "leader_only": true,
+    "stale_threshold_ms": 180000,
+    "precomputed_leader_stale": true,
+    "last_tick_at": "2026-04-01T04:24:05.046Z",
+    "last_error": null,
+    "run_count": 1
+  },
+  "ralph_continue_steer": {
+    "enabled": true,
+    "cadence_ms": 60000,
+    "message": "Ralph loop active continue",
+    "active": true,
+    "last_state_check_at": "2026-04-01T04:24:07.258Z",
+    "last_sent_at": "",
+    "cooldown_anchor_at": "2026-04-01T03:28:52.153Z",
+    "last_reason": "progress_missing",
+    "last_error": null,
+    "state_path": "/Users/sunss/my-code/myAPP/amberkeeper/.omx/state/sessions/omx-1775014131665-0iwucb/ralph-state.json",
+    "pane_id": "",
+    "pane_current_command": "",
+    "current_phase": "fixing",
+    "shared_timestamp_path": "/Users/sunss/my-code/myAPP/amberkeeper/.omx/state/ralph-last-steer-at",
+    "shared_last_sent_at": "",
+    "singleton_lock_path": "/Users/sunss/my-code/myAPP/amberkeeper/.omx/state/ralph-continue-steer.lock"
+  },
+  "fallback_auto_nudge": {
+    "enabled": true,
+    "stall_ms": 5000,
+    "last_tick_at": "2026-04-01T04:24:06.342Z",
+    "last_turn_at": "2026-04-01T04:17:42.208Z",
+    "last_turn_count": 43,
+    "last_message": "已完成 **$deep-interview → $plan**，规划产物已落盘。\n\n### 产物\n- `/.omx/context/data-management-ui-20260401T033520",
+    "last_reason": "eligible_but_not_sent",
+    "last_error": null,
+    "last_nudged_signature": "",
+    "last_nudged_at": ""
+  }
+}

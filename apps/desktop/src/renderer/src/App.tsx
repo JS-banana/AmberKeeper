@@ -1,61 +1,143 @@
-import { startTransition, useState } from 'react';
+import { startTransition, useEffect, useState, type ReactNode } from 'react';
+import { AppSidebar, type AppSurfaceId } from './components/AppSidebar';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
-import { WorkspacePage } from './pages/WorkspacePage';
-
-type SurfaceId = 'workspace' | 'diagnostics';
+import { LibraryPage } from './pages/LibraryPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { useWorkspaceStore } from './stores/workspace-store';
 
 export function App() {
-  const [activeSurface, setActiveSurface] = useState<SurfaceId>('workspace');
+  const { state, activeProvider, selectedSession, actions } = useWorkspaceStore();
+  const [activeSurface, setActiveSurface] = useState<AppSurfaceId>('chat');
+  const diagnosticsEnabled = state.shellInfo?.diagnosticsEnabled ?? false;
+  const showChatSurface = activeSurface === 'chat';
 
-  const showWorkspace = activeSurface === 'workspace';
+  useEffect(() => {
+    void window.captureApi.setNativeStageVisible(showChatSurface);
+  }, [showChatSurface]);
+
+  useEffect(() => {
+    if (!diagnosticsEnabled && activeSurface === 'diagnostics') {
+      startTransition(() => setActiveSurface('chat'));
+    }
+  }, [activeSurface, diagnosticsEnabled]);
 
   return (
-    <div className="app-shell">
-      <aside className="shell-sidebar">
-        <header className="shell-header">
-          <div>
-            <p className="shell-kicker">AmberKeeper Desktop</p>
-            <h1 className="shell-title">Workspace and Diagnostics</h1>
-          </div>
-          <nav className="surface-switcher" aria-label="Surface switcher">
-            <button
-              aria-pressed={showWorkspace}
-              className={showWorkspace ? 'surface-button active' : 'surface-button'}
-              type="button"
-              onClick={() => {
-                startTransition(() => setActiveSurface('workspace'));
-              }}
-            >
-              Workspace
-            </button>
-            <button
-              aria-pressed={!showWorkspace}
-              className={!showWorkspace ? 'surface-button active' : 'surface-button'}
-              type="button"
-              onClick={() => {
-                startTransition(() => setActiveSurface('diagnostics'));
-              }}
-            >
-              Diagnostics
-            </button>
-          </nav>
-        </header>
+    <div className={showChatSurface ? 'product-shell product-shell--chat' : 'product-shell product-shell--utility'}>
+      <AppSidebar
+        providers={state.providers}
+        activeProviderId={state.activeProviderId}
+        activeSurface={activeSurface}
+        onSelectProvider={(providerId) => {
+          startTransition(() => setActiveSurface('chat'));
+          void actions.selectProvider(providerId);
+        }}
+        onSelectSurface={(surface) => {
+          startTransition(() => setActiveSurface(surface));
+        }}
+      />
 
-        <div className="shell-panel">
-          {showWorkspace ? <WorkspacePage /> : <DiagnosticsPage />}
-        </div>
-      </aside>
-
-      <main className="native-stage" aria-hidden="true">
-        <div className="native-stage__overlay">
-          <p className="native-stage__eyebrow">Native Chat View</p>
-          <h2>The active provider lives in the Electron native view on this stage.</h2>
-          <p>
-            The React shell controls product framing and diagnostics, while the provider page
-            renders through `WebContentsView`.
-          </p>
-        </div>
+      <main className={showChatSurface ? 'product-main product-main--stage' : 'product-main'}>
+        {showChatSurface ? (
+          <div className="native-stage-shell" aria-hidden="true" />
+        ) : (
+          <UtilityWorkbench
+            activeSurface={activeSurface}
+            diagnosticsEnabled={diagnosticsEnabled}
+            onSelectSurface={(surface) => {
+              startTransition(() => setActiveSurface(surface));
+            }}
+          >
+            {renderUtilitySurface({
+              activeSurface,
+              activeProvider,
+              state,
+              selectedSession,
+              actions,
+            })}
+          </UtilityWorkbench>
+        )}
       </main>
     </div>
   );
+}
+
+function UtilityWorkbench(props: {
+  activeSurface: AppSurfaceId;
+  diagnosticsEnabled: boolean;
+  onSelectSurface: (surface: Exclude<AppSurfaceId, 'chat'>) => void;
+  children: ReactNode;
+}) {
+  const menuItems: Array<{ id: Exclude<AppSurfaceId, 'chat'>; label: string }> = [
+    { id: 'library', label: '会话库' },
+    { id: 'settings', label: '应用设置' },
+  ];
+
+  if (props.diagnosticsEnabled) {
+    menuItems.push({ id: 'diagnostics', label: '诊断' });
+  }
+
+  const currentSurface = props.activeSurface === 'chat' ? 'settings' : props.activeSurface;
+
+  return (
+    <section className="utility-workbench">
+      <nav className="utility-workbench__nav" aria-label="工作台菜单">
+        {menuItems.map((item) => {
+          const isActive = currentSurface === item.id;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={isActive}
+              className={isActive ? 'utility-workbench__tab active' : 'utility-workbench__tab'}
+              onClick={() => {
+                props.onSelectSurface(item.id);
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="utility-workbench__body">{props.children}</div>
+    </section>
+  );
+}
+
+function renderUtilitySurface(input: {
+  activeSurface: AppSurfaceId;
+  activeProvider: ReturnType<typeof useWorkspaceStore>['activeProvider'];
+  state: ReturnType<typeof useWorkspaceStore>['state'];
+  selectedSession: ReturnType<typeof useWorkspaceStore>['selectedSession'];
+  actions: ReturnType<typeof useWorkspaceStore>['actions'];
+}) {
+  switch (input.activeSurface) {
+    case 'library':
+      return (
+        <LibraryPage
+          activeProvider={input.activeProvider}
+          sessions={input.state.sessions}
+          selectedSession={input.selectedSession}
+          selectedSessionId={input.state.selectedSessionId}
+          messages={input.state.messages}
+          loading={input.state.loading}
+          onSelectSession={input.actions.selectSession}
+        />
+      );
+    case 'settings':
+      return (
+        <SettingsPage
+          providers={input.state.providers}
+          activeProviderId={input.state.activeProviderId}
+          onSelectProvider={input.actions.selectProvider}
+          onToggleProvider={input.actions.setProviderEnabled}
+          onMoveProvider={input.actions.moveProvider}
+        />
+      );
+    case 'diagnostics':
+      return <DiagnosticsPage />;
+    case 'chat':
+      return null;
+  }
 }

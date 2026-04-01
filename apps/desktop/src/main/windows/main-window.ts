@@ -25,6 +25,7 @@ export function createMainWindow(options: {
     minWidth: 1100,
     minHeight: 720,
     backgroundColor: '#0b1020',
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: options.rendererPreloadPath,
       contextIsolation: true,

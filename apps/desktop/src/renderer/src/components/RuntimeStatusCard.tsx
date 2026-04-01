@@ -10,22 +10,22 @@ export function RuntimeStatusCard(props: {
   return (
     <article className="panel-card runtime-status-card">
       <div className="section-header section-header--tight">
-        <h3>Runtime Status</h3>
+        <h3>运行状态</h3>
         <button className="primary-button" type="button" onClick={onTriggerSnapshot}>
-          Trigger DOM Snapshot
+          触发 DOM 快照
         </button>
       </div>
       <div className="status-grid">
-        <StatusItem label="Debugger" value={status.debuggerAttached ? 'Attached' : 'Detached'} />
-        <StatusItem label="Pending" value={String(status.pendingRequestCount)} />
-        <StatusItem label="Last Capture" value={status.lastCaptureAt ?? 'None yet'} />
+        <StatusItem label="调试器" value={status.debuggerAttached ? '已连接' : '未连接'} />
+        <StatusItem label="待处理请求" value={String(status.pendingRequestCount)} />
+        <StatusItem label="最近捕获" value={status.lastCaptureAt ?? '尚无记录'} />
       </div>
       <div className="runtime-path">
-        <span>Current URL</span>
+        <span>当前地址</span>
         <p className="mono">{status.currentUrl}</p>
       </div>
       <p className="feedback feedback--status">
-        {snapshotFeedback || 'CDP network capture is the primary path.'}
+        {snapshotFeedback || '当前仍以 CDP network capture 作为主采集链路。'}
       </p>
     </article>
   );

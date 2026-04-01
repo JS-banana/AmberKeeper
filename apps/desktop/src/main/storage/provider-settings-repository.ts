@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { ProviderId, ProviderRecord } from '@amberkeeper/shared-types';
+import type { ProviderId, ProviderMoveDirection, ProviderRecord } from '@amberkeeper/shared-types';
 import {
   BUILT_IN_BROWSER_SESSION_CONFIGS,
   type BrowserSessionConfig,
@@ -9,6 +9,7 @@ type ProviderRow = {
   id: ProviderId;
   name: string;
   homeUrl: string;
+  sortOrder: number;
   enabled: number;
   builtin: number;
   active: number;
@@ -19,25 +20,25 @@ type ProviderRow = {
 export function createProviderSettingsRepository(db: DatabaseSync) {
   seedBuiltInProviders(db);
   const listProviders = (): ProviderRecord[] => {
-    return sortProviders(
-      db
-        .prepare(
-          `
-            SELECT
-              id,
-              name,
-              home_url AS homeUrl,
-              enabled,
-              builtin,
-              active,
-              created_at AS createdAt,
-              updated_at AS updatedAt
-            FROM providers
-          `
-        )
-        .all()
-        .map((row) => mapProviderRow(row as ProviderRow))
-    );
+    const rows = db
+      .prepare(
+        `
+          SELECT
+            id,
+            name,
+            home_url AS homeUrl,
+            sort_order AS sortOrder,
+            enabled,
+            builtin,
+            active,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM providers
+        `
+      )
+      .all() as ProviderRow[];
+
+    return sortProviders(rows).map((row) => mapProviderRow(row));
   };
 
   return {
@@ -99,6 +100,47 @@ export function createProviderSettingsRepository(db: DatabaseSync) {
         return getProviderById(db, providerId) as ProviderRecord;
       });
     },
+    move(providerId: ProviderId, direction: ProviderMoveDirection): ProviderRecord[] {
+      return runInTransaction(db, () => {
+        const providers = listProviders();
+        const currentIndex = providers.findIndex((provider) => provider.id === providerId);
+        if (currentIndex < 0) {
+          throw new Error(`Unknown provider: ${providerId}.`);
+        }
+
+        const nextIndex =
+          direction === 'up'
+            ? Math.max(currentIndex - 1, 0)
+            : Math.min(currentIndex + 1, providers.length - 1);
+        if (nextIndex === currentIndex) {
+          return providers;
+        }
+
+        const reordered = [...providers];
+        const [provider] = reordered.splice(currentIndex, 1);
+        reordered.splice(nextIndex, 0, provider);
+
+        const updatedAt = new Date().toISOString();
+        const updateOrder = db.prepare(
+          `
+            UPDATE providers
+            SET
+              sort_order = ?,
+              updated_at = CASE
+                WHEN sort_order <> ? THEN ?
+                ELSE updated_at
+              END
+            WHERE id = ?
+          `
+        );
+
+        reordered.forEach((entry, index) => {
+          updateOrder.run(index, index, updatedAt, entry.id);
+        });
+
+        return listProviders();
+      });
+    },
   };
 }
 
@@ -110,12 +152,13 @@ function seedBuiltInProviders(db: DatabaseSync): void {
         id,
         name,
         home_url,
+        sort_order,
         enabled,
         builtin,
         active,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   );
   const updateMetadata = db.prepare(
@@ -139,6 +182,7 @@ function seedBuiltInProviders(db: DatabaseSync): void {
         config.id,
         config.name,
         config.homeUrl,
+        index,
         1,
         1,
         index === 0 ? 1 : 0,
@@ -155,30 +199,68 @@ function seedBuiltInProviders(db: DatabaseSync): void {
       );
     });
 
+    initializeProviderSortOrder(db, now);
     normalizeActiveProvider(db, now);
   });
 }
 
-function normalizeActiveProvider(db: DatabaseSync, updatedAt: string): void {
-  const providers = sortProviders(
-    db
-      .prepare(
-        `
-          SELECT
-            id,
-            name,
-            home_url AS homeUrl,
-            enabled,
-            builtin,
-            active,
-            created_at AS createdAt,
-            updated_at AS updatedAt
-          FROM providers
-        `
-      )
-      .all()
-      .map((row) => mapProviderRow(row as ProviderRow))
+function initializeProviderSortOrder(db: DatabaseSync, updatedAt: string): void {
+  const summary = db
+    .prepare(
+      `
+        SELECT
+          MIN(sort_order) AS minSortOrder,
+          MAX(sort_order) AS maxSortOrder,
+          COUNT(*) AS totalProviders
+        FROM providers
+      `
+    )
+    .get() as
+    | {
+        minSortOrder?: number | null;
+        maxSortOrder?: number | null;
+        totalProviders?: number | null;
+      }
+    | undefined;
+
+  if (!summary?.totalProviders || summary.minSortOrder !== 0 || summary.maxSortOrder !== 0) {
+    return;
+  }
+
+  const updateOrder = db.prepare(
+    `
+      UPDATE providers
+      SET
+        sort_order = ?,
+        updated_at = ?
+      WHERE id = ?
+    `
   );
+
+  BUILT_IN_BROWSER_SESSION_CONFIGS.forEach((config, index) => {
+    updateOrder.run(index, updatedAt, config.id);
+  });
+}
+
+function normalizeActiveProvider(db: DatabaseSync, updatedAt: string): void {
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          id,
+          name,
+          home_url AS homeUrl,
+          sort_order AS sortOrder,
+          enabled,
+          builtin,
+          active,
+          created_at AS createdAt,
+          updated_at AS updatedAt
+        FROM providers
+      `
+    )
+    .all() as ProviderRow[];
+  const providers = sortProviders(rows).map((row) => mapProviderRow(row));
   const enabledProviders = providers.filter((provider) => provider.enabled);
 
   if (enabledProviders.length === 0) {
@@ -220,6 +302,7 @@ function getProviderById(db: DatabaseSync, providerId: ProviderId): ProviderReco
           id,
           name,
           home_url AS homeUrl,
+          sort_order AS sortOrder,
           enabled,
           builtin,
           active,
@@ -248,6 +331,14 @@ function mapProviderRow(row: ProviderRow): ProviderRecord {
 }
 
 function sortProviders<T extends { id: ProviderId }>(providers: T[]): T[] {
+  const providersWithOrder = providers as Array<T & { sortOrder?: number }>;
+  const hasCustomOrder = providersWithOrder.some((provider) => typeof provider.sortOrder === 'number');
+  if (hasCustomOrder) {
+    return [...providersWithOrder].sort((left, right) => {
+      return (left.sortOrder ?? Number.MAX_SAFE_INTEGER) - (right.sortOrder ?? Number.MAX_SAFE_INTEGER);
+    });
+  }
+
   const order = new Map<ProviderId, number>(
     BUILT_IN_BROWSER_SESSION_CONFIGS.map((config, index) => [config.id, index] satisfies [
       BrowserSessionConfig['id'],

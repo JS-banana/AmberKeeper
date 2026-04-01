@@ -68,4 +68,20 @@ describe('provider-settings', () => {
     );
     expect(store.getActiveProvider()?.id).toBe('chatgpt');
   });
+
+  test('persists custom provider order across restarts', () => {
+    const firstStore = new CaptureStore(dbPath);
+
+    firstStore.moveProvider('gemini', 'up');
+    firstStore.moveProvider('gemini', 'up');
+
+    const secondStore = new CaptureStore(dbPath);
+
+    expect(secondStore.listProviders().map((provider) => provider.id)).toEqual([
+      'chatgpt',
+      'gemini',
+      'claude',
+      'deepseek',
+    ]);
+  });
 });

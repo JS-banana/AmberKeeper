@@ -1,0 +1,39 @@
+# Context Snapshot — data-management-ui
+
+- Task statement: Continue improving AmberKeeper desktop UI, especially settings/data-management UX for browsing and managing cached multi-chat conversation data; deeply analyze information architecture, session browsing, preview usability, delete/export management, and execution planning.
+- Desired outcome: A clarified, execution-ready product/design brief for data management + session browsing UX, then a plan for staged delivery.
+- Stated solution: Use deep interview first, reference an anyChat settings screenshot, consider design-assisted thinking, and then plan execution.
+- Probable intent hypothesis: Reduce current library/settings UX friction so users can reliably understand, inspect, find, preview, manage, and trust historical chat captures across multiple providers and sessions.
+- Known facts/evidence:
+  - Current utility surfaces are Library + Settings (+ optional Diagnostics) in `apps/desktop/src/renderer/src/App.tsx`.
+  - Current settings page only manages built-in providers via enable/disable/reorder in `apps/desktop/src/renderer/src/pages/SettingsPage.tsx`.
+  - Current library page is a 2-pane session list + message pane in `apps/desktop/src/renderer/src/pages/LibraryPage.tsx`.
+  - Session list currently shows only `remoteConversationId ?? id` and message count in `apps/desktop/src/renderer/src/components/ConversationList.tsx`.
+  - Message pane currently shows page URL + full message bubbles without search/filter/preview/export/delete in `apps/desktop/src/renderer/src/components/ConversationMessagePane.tsx`.
+  - Data model currently exposes sessions/messages/providers/runtime status through preload bridge in `apps/desktop/src/preload/renderer.ts`.
+  - Storage layer currently supports list sessions/messages and provider settings, but no obvious delete/export IPC yet in `apps/desktop/src/main/storage/capture-store.ts` and `apps/desktop/src/main/ipc/capture-ipc.ts`.
+- Constraints:
+  - Existing project is brownfield Electron desktop.
+  - No implementation should start inside deep-interview mode.
+  - Need to think across provider-based capture history, session detail viewing, and future management actions.
+- Unknowns/open questions:
+  - Primary user job: audit/archive/search/reopen/export/debug conversations?
+  - Whether data management belongs inside Settings, Library, or a dedicated Archive/Data surface.
+  - Expected scale: tens vs hundreds vs thousands of sessions/messages.
+  - Which management actions are must-have first: delete, bulk delete, export, pin, rename, tags, search, provider/date filters.
+  - Whether session titles/snippets can be derived or must remain provider IDs/URLs for now.
+  - Whether preview should optimize for read-only review, reopen-in-provider, or operational debugging.
+- Decision-boundary unknowns:
+  - Can OMX restructure IA (e.g. split Settings from Data Management) without further confirmation?
+  - Can OMX define MVP vs later-phase actions autonomously?
+  - Can destructive actions be designed but deferred from MVP?
+- Likely codebase touchpoints:
+  - `apps/desktop/src/renderer/src/App.tsx`
+  - `apps/desktop/src/renderer/src/pages/SettingsPage.tsx`
+  - `apps/desktop/src/renderer/src/pages/LibraryPage.tsx`
+  - `apps/desktop/src/renderer/src/components/ConversationList.tsx`
+  - `apps/desktop/src/renderer/src/components/ConversationMessagePane.tsx`
+  - `apps/desktop/src/renderer/src/stores/workspace-store.ts`
+  - `apps/desktop/src/preload/renderer.ts`
+  - `apps/desktop/src/main/storage/capture-store.ts`
+  - `apps/desktop/src/main/ipc/capture-ipc.ts`

@@ -6,7 +6,7 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "node --import ./scripts/polyfill-stdout.mjs ./node_modules/electron-vite/bin/electron-vite.js build",
     "preview": "electron-vite preview",
     "test": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run",
     "gemini:dirty-data:dry-run": "node scripts/gemini-dirty-data-dry-run.mjs",

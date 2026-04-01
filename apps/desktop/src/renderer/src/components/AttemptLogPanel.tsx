@@ -6,12 +6,12 @@ export function AttemptLogPanel(props: { attempts: CaptureAttemptLogRecord[] }) 
   return (
     <article className="panel-card">
       <div className="section-header section-header--tight">
-        <h3>Recent Attempts</h3>
+        <h3>最近尝试</h3>
         <span className="panel-count">{attempts.length}</span>
       </div>
       <ul className="attempt-list">
         {attempts.length === 0 ? (
-          <li className="empty-state">No capture attempts recorded yet.</li>
+          <li className="empty-state">暂时还没有捕获尝试记录。</li>
         ) : (
           attempts.map((attempt) => (
             <li key={attempt.id} className={`attempt-item attempt-${attempt.status}`}>

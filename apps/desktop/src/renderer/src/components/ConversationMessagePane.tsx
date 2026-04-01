@@ -8,7 +8,7 @@ export function ConversationMessagePane(props: {
   return (
     <article className="workspace-card workspace-card--messages">
       <div className="section-header section-header--tight">
-        <h2>Messages</h2>
+        <h2>消息</h2>
         <span className="panel-count">{props.messages.length}</span>
       </div>
 
@@ -19,19 +19,19 @@ export function ConversationMessagePane(props: {
         </div>
       ) : (
         <div className="workspace-empty">
-          <p>Select a session to inspect its messages.</p>
+          <p>选择左侧会话后，可在这里查看消息内容。</p>
         </div>
       )}
 
       {props.session && props.loading ? (
         <div className="workspace-empty">
-          <p>Loading messages…</p>
+          <p>正在加载消息…</p>
         </div>
       ) : null}
 
       {props.session && !props.loading && props.messages.length === 0 ? (
         <div className="workspace-empty">
-          <p>No messages captured for this session yet.</p>
+          <p>当前会话还没有捕获到消息。</p>
         </div>
       ) : null}
 
@@ -45,7 +45,7 @@ export function ConversationMessagePane(props: {
               }
             >
               <div className="message-bubble__meta">
-                <span>{message.role}</span>
+                <span>{message.role === 'assistant' ? '助手' : '用户'}</span>
                 <span>{message.createdAt}</span>
               </div>
               <p>{message.content}</p>

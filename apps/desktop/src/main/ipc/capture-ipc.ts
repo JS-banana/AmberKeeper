@@ -8,6 +8,9 @@ export function registerCaptureIpc(options: {
   getActiveProvider: () => unknown;
   setActiveProvider: (providerId: string) => unknown;
   setProviderEnabled: (providerId: string, enabled: boolean) => unknown;
+  moveProvider: (providerId: string, direction: 'up' | 'down') => unknown;
+  getShellInfo: () => unknown;
+  setNativeStageVisible: (visible: boolean) => void;
   getRuntimeStatus: () => unknown;
   triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
   onPageContext: (payload: { url?: string }) => void;
@@ -29,6 +32,13 @@ export function registerCaptureIpc(options: {
   ipcMain.handle('providers:setEnabled', (_event, providerId: string, enabled: boolean) =>
     options.setProviderEnabled(providerId, enabled)
   );
+  ipcMain.handle('providers:move', (_event, providerId: string, direction: 'up' | 'down') =>
+    options.moveProvider(providerId, direction)
+  );
+  ipcMain.handle('shell:getInfo', () => options.getShellInfo());
+  ipcMain.handle('shell:setNativeStageVisible', (_event, visible: boolean) => {
+    options.setNativeStageVisible(visible);
+  });
   ipcMain.handle('capture:getRuntimeStatus', () => options.getRuntimeStatus());
   ipcMain.handle('capture:triggerDomSnapshot', () => options.triggerDomSnapshot());
   ipcMain.on('chat:page-context', (_event, payload: { url?: string }) => {

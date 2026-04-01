@@ -2,8 +2,10 @@ import type {
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderId,
+  ProviderMoveDirection,
   ProviderRecord,
   RuntimeStatus,
+  ShellInfo,
 } from '@amberkeeper/shared-types';
 import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
 
@@ -17,6 +19,9 @@ declare global {
       getActiveProvider: () => Promise<ProviderRecord | null>;
       setActiveProvider: (providerId: ProviderId) => Promise<ProviderRecord | null>;
       setProviderEnabled: (providerId: ProviderId, enabled: boolean) => Promise<ProviderRecord | null>;
+      moveProvider: (providerId: ProviderId, direction: ProviderMoveDirection) => Promise<ProviderRecord[]>;
+      getShellInfo: () => Promise<ShellInfo>;
+      setNativeStageVisible: (visible: boolean) => Promise<void>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
       onRuntimeStatus: (callback: (status: RuntimeStatus) => void) => () => void;
@@ -37,6 +42,11 @@ declare global {
           };
     };
   }
+}
+
+declare module '*.png' {
+  const src: string;
+  export default src;
 }
 
 export {};

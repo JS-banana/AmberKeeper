@@ -13,6 +13,7 @@ import type {
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderId,
+  ProviderMoveDirection,
   ProviderRecord,
 } from '@amberkeeper/shared-types';
 import { createProviderSettingsRepository } from './provider-settings-repository';
@@ -166,6 +167,10 @@ export class CaptureStore {
 
   setProviderEnabled(providerId: ProviderId, enabled: boolean): ProviderRecord {
     return this.providerSettingsRepository.setEnabled(providerId, enabled);
+  }
+
+  moveProvider(providerId: ProviderId, direction: ProviderMoveDirection): ProviderRecord[] {
+    return this.providerSettingsRepository.move(providerId, direction);
   }
 
   logAttempt(input: {

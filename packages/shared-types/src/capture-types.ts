@@ -60,6 +60,13 @@ export interface ProviderRecord {
   updatedAt: string;
 }
 
+export type ProviderMoveDirection = 'up' | 'down';
+
+export interface ShellInfo {
+  diagnosticsEnabled: boolean;
+  isPackaged: boolean;
+}
+
 export interface CaptureAttemptLogRecord {
   id: string;
   source: CaptureSource | 'runtime';

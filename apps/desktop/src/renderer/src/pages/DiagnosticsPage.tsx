@@ -7,17 +7,16 @@ import { useDiagnosticsStore } from '../stores/diagnostics-store';
 export function DiagnosticsPage() {
   const store = useDiagnosticsStore();
   const sessionLabel = store.selectedSession
-    ? store.selectedSession.remoteConversationId ?? 'Fallback Session'
-    : 'Pick a session after the first capture arrives.';
+    ? store.selectedSession.remoteConversationId ?? '回退会话'
+    : '请先在捕获后选择一个会话。';
 
   return (
     <section className="diagnostics-page">
       <header className="page-header page-header--diagnostics">
-        <p className="eyebrow eyebrow--diagnostics">Diagnostics</p>
-        <h1>Capture lab and reconciliation console</h1>
+        <p className="eyebrow eyebrow--diagnostics">诊断</p>
+        <h1>抓取调试台与对账控制台</h1>
         <p className="page-copy">
-          This surface keeps runtime state, event logs, and captured conversations visible while
-          the capture pipeline evolves.
+          这里保留运行状态、事件日志和已捕获会话，供后续继续调试接入新的聊天应用。
         </p>
       </header>
 

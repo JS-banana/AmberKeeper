@@ -8,13 +8,13 @@ export function ConversationList(props: {
   return (
     <article className="workspace-card workspace-card--sessions">
       <div className="section-header section-header--tight">
-        <h2>Sessions</h2>
+        <h2>会话</h2>
         <span className="panel-count">{props.sessions.length}</span>
       </div>
 
       {props.sessions.length === 0 ? (
         <div className="workspace-empty">
-          <p>No sessions for the current provider yet.</p>
+          <p>当前应用还没有可查看的会话。</p>
         </div>
       ) : (
         <ul className="conversation-list">
@@ -36,7 +36,7 @@ export function ConversationList(props: {
                 >
                   <span className="conversation-item__title">{title}</span>
                   <span className="conversation-item__meta">
-                    {session.messageCount} message{session.messageCount === 1 ? '' : 's'}
+                    {session.messageCount} 条消息
                   </span>
                 </button>
               </li>

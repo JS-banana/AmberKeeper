@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS providers (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   home_url TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   enabled INTEGER NOT NULL DEFAULT 1,
   builtin INTEGER NOT NULL DEFAULT 1,
   active INTEGER NOT NULL DEFAULT 0,
@@ -38,6 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_providers_active
 export function ensureCaptureStoreSchema(db: DatabaseSync): void {
   ensureCaptureCorePersistenceSchema(db);
   db.exec(PROVIDERS_SCHEMA);
+  ensureProvidersSortOrderColumn(db);
   db.exec(CAPTURE_ATTEMPT_LOGS_SCHEMA);
 }
 
@@ -53,4 +55,20 @@ export function hasTable(db: DatabaseSync, tableName: string): boolean {
     .get(tableName) as { name?: string } | undefined;
 
   return Boolean(row?.name);
+}
+
+function ensureProvidersSortOrderColumn(db: DatabaseSync): void {
+  const columns = db
+    .prepare(
+      `
+        PRAGMA table_info(providers)
+      `
+    )
+    .all() as Array<{ name?: string }>;
+
+  if (columns.some((column) => column.name === 'sort_order')) {
+    return;
+  }
+
+  db.exec('ALTER TABLE providers ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;');
 }

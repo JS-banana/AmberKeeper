@@ -5,6 +5,8 @@ import type {
   ProviderId,
   ProviderRecord,
   RuntimeStatus,
+  ShellInfo,
+  ProviderMoveDirection,
 } from '@amberkeeper/shared-types';
 
 interface WorkspaceState {
@@ -14,6 +16,7 @@ interface WorkspaceState {
   selectedSessionId: string | null;
   messages: CaptureMessageRecord[];
   runtimeStatus: RuntimeStatus | null;
+  shellInfo: ShellInfo | null;
   loading: boolean;
   error: string | null;
 }
@@ -25,6 +28,7 @@ const INITIAL_STATE: WorkspaceState = {
   selectedSessionId: null,
   messages: [],
   runtimeStatus: null,
+  shellInfo: null,
   loading: true,
   error: null,
 };
@@ -42,11 +46,12 @@ export function useWorkspaceStore() {
     });
 
     try {
-      const [providers, activeProvider, sessions, runtimeStatus] = await Promise.all([
+      const [providers, activeProvider, sessions, runtimeStatus, shellInfo] = await Promise.all([
         window.captureApi.listProviders(),
         window.captureApi.getActiveProvider(),
         window.captureApi.listSessions(),
         window.captureApi.getRuntimeStatus(),
+        window.captureApi.getShellInfo(),
       ]);
       const activeProviderId =
         activeProvider?.id ?? providers.find((provider) => provider.active)?.id ?? null;
@@ -69,6 +74,7 @@ export function useWorkspaceStore() {
           selectedSessionId: nextSelectedSessionId,
           messages,
           runtimeStatus,
+          shellInfo,
           loading: false,
           error: null,
         });
@@ -101,6 +107,20 @@ export function useWorkspaceStore() {
   const setProviderEnabled = useEffectEvent(async (providerId: ProviderId, enabled: boolean) => {
     try {
       await window.captureApi.setProviderEnabled(providerId, enabled);
+      await refresh(null);
+    } catch (error) {
+      startTransition(() => {
+        setState((current) => ({
+          ...current,
+          error: formatError(error),
+        }));
+      });
+    }
+  });
+
+  const moveProvider = useEffectEvent(async (providerId: ProviderId, direction: ProviderMoveDirection) => {
+    try {
+      await window.captureApi.moveProvider(providerId, direction);
       await refresh(null);
     } catch (error) {
       startTransition(() => {
@@ -177,6 +197,7 @@ export function useWorkspaceStore() {
       refresh,
       selectProvider,
       setProviderEnabled,
+      moveProvider,
       selectSession,
     },
   };
