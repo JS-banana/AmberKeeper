@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
-  CaptureExportArtifact,
   CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
@@ -20,11 +19,11 @@ contextBridge.exposeInMainWorld('captureApi', {
   openSession: (sessionId: string) =>
     ipcRenderer.invoke('capture:openSession', sessionId) as Promise<{ message: string; detail: string }>,
   deleteSession: (sessionId: string) =>
-    ipcRenderer.invoke('capture:deleteSession', sessionId) as Promise<void>,
+    ipcRenderer.invoke('capture:deleteSession', sessionId) as Promise<{ message: string; detail: string }>,
   exportSession: (sessionId: string, format: CaptureExportFormat) =>
-    ipcRenderer.invoke('capture:exportSession', sessionId, format) as Promise<CaptureExportArtifact>,
+    ipcRenderer.invoke('capture:exportSession', sessionId, format) as Promise<{ message: string; detail: string }>,
   exportProviderSessions: (providerId: ProviderId, format: CaptureExportFormat) =>
-    ipcRenderer.invoke('capture:exportProviderSessions', providerId, format) as Promise<CaptureExportArtifact>,
+    ipcRenderer.invoke('capture:exportProviderSessions', providerId, format) as Promise<{ message: string; detail: string }>,
   listProviders: () => ipcRenderer.invoke('providers:list') as Promise<ProviderRecord[]>,
   getActiveProvider: () => ipcRenderer.invoke('providers:getActive') as Promise<ProviderRecord | null>,
   setActiveProvider: (providerId: ProviderId) =>

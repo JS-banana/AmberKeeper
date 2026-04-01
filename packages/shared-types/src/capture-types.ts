@@ -30,6 +30,7 @@ export interface CaptureEnvelope {
 export interface CaptureSessionRecord {
   id: string;
   provider: ProviderId;
+  title?: string | null;
   remoteConversationId: string | null;
   sourceSessionKey: string;
   pageUrl: string;
@@ -39,6 +40,8 @@ export interface CaptureSessionRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+export type CaptureExportFormat = 'json' | 'markdown';
 
 export interface CaptureMessageRecord {
   id: string;
