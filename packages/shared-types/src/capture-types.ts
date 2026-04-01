@@ -35,6 +35,7 @@ export interface CaptureSessionRecord {
   sourceSessionKey: string;
   pageUrl: string;
   titleSource?: SessionTitleSource | null;
+  previewText?: string | null;
   messageCount: number;
   createdAt: string;
   updatedAt: string;

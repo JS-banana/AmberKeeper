@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   CaptureExportFormat,
   CaptureMessageRecord,
@@ -12,6 +12,7 @@ type CaptureActionResult = { message: string; detail: string };
 
 export function LibraryPage(props: {
   activeProvider: ProviderRecord | null;
+  providers: ProviderRecord[];
   sessions: CaptureSessionRecord[];
   selectedSession: CaptureSessionRecord | null;
   selectedSessionId: string | null;
@@ -28,22 +29,29 @@ export function LibraryPage(props: {
     format: CaptureExportFormat
   ) => Promise<CaptureActionResult>;
 }) {
+  const exportProviderOptions = props.providers.filter((provider) => provider.enabled);
+  const [providerExportTarget, setProviderExportTarget] = useState<ProviderRecord['id'] | ''>(
+    props.selectedSession?.provider ?? props.activeProvider?.id ?? exportProviderOptions[0]?.id ?? ''
+  );
   const [providerExportFormat, setProviderExportFormat] =
     useState<CaptureExportFormat>('json');
   const [providerActionBusy, setProviderActionBusy] = useState(false);
   const [providerFeedback, setProviderFeedback] = useState<string | null>(null);
 
+  useEffect(() => {
+    const nextTarget =
+      props.selectedSession?.provider ?? props.activeProvider?.id ?? exportProviderOptions[0]?.id ?? '';
+    setProviderExportTarget((current) => (current ? current : nextTarget));
+  }, [exportProviderOptions, props.activeProvider?.id, props.selectedSession?.provider]);
+
   async function handleProviderExport() {
-    if (!props.activeProvider) {
+    if (!providerExportTarget) {
       return;
     }
 
     setProviderActionBusy(true);
     try {
-      const result = await props.onExportProviderSessions(
-        props.activeProvider.id,
-        providerExportFormat
-      );
+      const result = await props.onExportProviderSessions(providerExportTarget, providerExportFormat);
       setProviderFeedback(result.detail || result.message);
     } catch (error) {
       setProviderFeedback(error instanceof Error ? error.message : String(error));
@@ -60,23 +68,36 @@ export function LibraryPage(props: {
           <h1>历史会话档案</h1>
         </div>
         <p className="utility-page__copy">
-          {props.activeProvider
-            ? `当前按 provider 浏览 ${props.activeProvider.name} 的历史缓存。先把单个应用内的档案管理做好，再逐步扩展跨 provider 聚合。`
-            : '当前还没有可用的应用，暂时无法进入 provider-first 知识库视图。'}
+          当前展示所有 provider 的历史会话档案。你可以跨应用查看本地缓存，再按需导出某个 provider 的归档数据。
         </p>
       </header>
 
       <div className="library-page__provider">
         <div className="library-page__provider-copy">
-          <strong>{props.activeProvider?.name ?? '未选择应用'}</strong>
+          <strong>全部历史会话</strong>
           <span>
-            {props.activeProvider
-              ? `${props.sessions.length} 条会话 · provider-first MVP`
-              : '请选择一个已启用的应用以浏览会话档案'}
+            {props.sessions.length} 条会话 · {exportProviderOptions.length} 个 provider
           </span>
         </div>
 
         <div className="library-page__provider-actions">
+          <label className="field-select">
+            <span>导出 provider</span>
+            <select
+              aria-label="选择要导出的 provider"
+              value={providerExportTarget}
+              disabled={exportProviderOptions.length === 0 || providerActionBusy}
+              onChange={(event) => {
+                setProviderExportTarget(event.currentTarget.value as ProviderRecord['id']);
+              }}
+            >
+              {exportProviderOptions.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="field-select">
             <span>导出格式</span>
             <select
@@ -94,12 +115,13 @@ export function LibraryPage(props: {
           <button
             className="primary-button"
             type="button"
-            disabled={!props.activeProvider || providerActionBusy}
+            disabled={!providerExportTarget || providerActionBusy}
             onClick={() => {
               void handleProviderExport();
             }}
           >
-            {providerActionBusy ? '正在导出…' : '导出当前 provider'}
+            <ExportIcon />
+            {providerActionBusy ? '正在导出…' : '导出所选 provider'}
           </button>
         </div>
       </div>
@@ -125,5 +147,20 @@ export function LibraryPage(props: {
         />
       </div>
     </section>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="button-icon">
+      <path
+        d="M12 4.5v10m0 0 4-4m-4 4-4-4M5.5 16.5v1.25A1.75 1.75 0 0 0 7.25 19.5h9.5a1.75 1.75 0 0 0 1.75-1.75V16.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

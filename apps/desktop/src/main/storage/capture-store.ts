@@ -127,6 +127,22 @@ export class CaptureStore {
             page_url AS pageUrl,
             title,
             title_source AS titleSource,
+            COALESCE(
+              (
+                SELECT content
+                FROM messages
+                WHERE conversation_id = conversations.id AND role = 'user'
+                ORDER BY created_at ASC
+                LIMIT 1
+              ),
+              (
+                SELECT content
+                FROM messages
+                WHERE conversation_id = conversations.id
+                ORDER BY created_at ASC
+                LIMIT 1
+              )
+            ) AS previewText,
             message_count AS messageCount,
             created_at AS createdAt,
             updated_at AS updatedAt
@@ -297,14 +313,30 @@ export class CaptureStore {
             SELECT
               id,
               provider,
-              remote_conversation_id AS remoteConversationId,
-              source_session_key AS sourceSessionKey,
-              page_url AS pageUrl,
-              title,
-              title_source AS titleSource,
-              message_count AS messageCount,
-              created_at AS createdAt,
-              updated_at AS updatedAt
+            remote_conversation_id AS remoteConversationId,
+            source_session_key AS sourceSessionKey,
+            page_url AS pageUrl,
+            title,
+            title_source AS titleSource,
+            COALESCE(
+              (
+                SELECT content
+                FROM messages
+                WHERE conversation_id = conversations.id AND role = 'user'
+                ORDER BY created_at ASC
+                LIMIT 1
+              ),
+              (
+                SELECT content
+                FROM messages
+                WHERE conversation_id = conversations.id
+                ORDER BY created_at ASC
+                LIMIT 1
+              )
+            ) AS previewText,
+            message_count AS messageCount,
+            created_at AS createdAt,
+            updated_at AS updatedAt
             FROM conversations
             WHERE id = ?
           `

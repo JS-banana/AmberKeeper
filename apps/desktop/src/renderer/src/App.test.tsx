@@ -71,11 +71,10 @@ test('opens the library, hides the native stage, and hydrates the selected sessi
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(await screen.findByRole('button', { name: '知识库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(screen.getByText(/provider-first MVP/i)).toBeInTheDocument();
+  expect(screen.getByText(/全部历史会话/i)).toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
@@ -91,7 +90,7 @@ test('opens the library, hides the native stage, and hydrates the selected sessi
   });
 });
 
-test('shows the library as a provider-scoped knowledge base for the active provider', async () => {
+test('shows the library as an all-provider knowledge base instead of scoping to the active provider', async () => {
   const state = createWorkspaceFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -108,20 +107,17 @@ test('shows the library as a provider-scoped knowledge base for the active provi
   fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(
-    screen.getByText(
-      '当前按 provider 浏览 Claude 的历史缓存。先把单个应用内的档案管理做好，再逐步扩展跨 provider 聚合。'
-    )
-  ).toBeInTheDocument();
+  expect(screen.getByText('全部历史会话')).toBeInTheDocument();
+  expect(screen.getByText('3 条会话 · 3 个 provider')).toBeInTheDocument();
   expect(screen.getAllByText('Claude').length).toBeGreaterThan(0);
-  expect(screen.getByText('1 条会话 · provider-first MVP')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /chatgpt-conv/i })).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /gemini-conv/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /chatgpt-conv/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /gemini-conv/i })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /claude-conv/i }));
   expect(await screen.findByText('Claude answer')).toBeInTheDocument();
 });
 
-test('keeps the library empty state scoped to the active provider when that provider has no sessions', async () => {
+test('keeps all-provider history visible even when the active provider has no sessions', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -138,14 +134,10 @@ test('keeps the library empty state scoped to the active provider when that prov
   fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
 
   expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
-  expect(
-    screen.getByText(
-      '当前按 provider 浏览 DeepSeek 的历史缓存。先把单个应用内的档案管理做好，再逐步扩展跨 provider 聚合。'
-    )
-  ).toBeInTheDocument();
-  expect(screen.getByText('DeepSeek')).toBeInTheDocument();
-  expect(screen.getByText('0 条会话 · provider-first MVP')).toBeInTheDocument();
-  expect(screen.getByText('当前 provider 还没有可查看的历史会话。')).toBeInTheDocument();
+  expect(screen.getByText('全部历史会话')).toBeInTheDocument();
+  expect(screen.getByText('3 条会话 · 4 个 provider')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /chatgpt-conv/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
 });
 
 test('allows enabling and reordering built-in providers from settings', async () => {
@@ -168,7 +160,16 @@ test('allows enabling and reordering built-in providers from settings', async ()
     expect(api.setProviderEnabled).toHaveBeenCalledWith('claude', false);
   });
 
-  fireEvent.click(screen.getByRole('button', { name: 'Gemini 上移' }));
+  const dataTransfer = createDataTransfer();
+  fireEvent.dragStart(screen.getByRole('button', { name: '拖动排序 Gemini' }), {
+    dataTransfer,
+  });
+  fireEvent.drop(
+    within(screen.getByRole('list', { name: '内置应用列表' }))
+      .getAllByRole('listitem')
+      .find((item) => item.getAttribute('data-provider-id') === 'deepseek')!,
+    { dataTransfer }
+  );
   await waitFor(() => {
     expect(api.moveProvider).toHaveBeenCalledWith('gemini', 'up');
   });
@@ -182,7 +183,16 @@ test('allows enabling and reordering built-in providers from settings', async ()
       'deepseek',
     ]);
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Gemini 上移' }));
+  const secondDataTransfer = createDataTransfer();
+  fireEvent.dragStart(screen.getByRole('button', { name: '拖动排序 Gemini' }), {
+    dataTransfer: secondDataTransfer,
+  });
+  fireEvent.drop(
+    within(screen.getByRole('list', { name: '内置应用列表' }))
+      .getAllByRole('listitem')
+      .find((item) => item.getAttribute('data-provider-id') === 'claude')!,
+    { dataTransfer: secondDataTransfer }
+  );
   await waitFor(() => {
     expect(api.moveProvider).toHaveBeenNthCalledWith(2, 'gemini', 'up');
   });
@@ -197,8 +207,8 @@ test('allows enabling and reordering built-in providers from settings', async ()
     ]);
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '知识库' }));
-  fireEvent.click(screen.getByRole('button', { name: '应用设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '打开知识库' }));
+  fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
 
   const settingsList = screen.getByRole('list', { name: '内置应用列表' });
   const items = within(settingsList).getAllByRole('listitem');
@@ -220,13 +230,12 @@ test('supports provider export and session delete actions from the knowledge bas
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(await screen.findByRole('button', { name: '知识库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
 
   fireEvent.change(screen.getByRole('combobox', { name: '选择 provider 导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出当前 provider' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出所选 provider' }));
 
   await waitFor(() => {
     expect(api.exportProviderSessions).toHaveBeenCalledWith('chatgpt', 'markdown');
@@ -247,7 +256,7 @@ test('supports provider export and session delete actions from the knowledge bas
   await waitFor(() => {
     expect(api.deleteSession).toHaveBeenCalledWith('chatgpt-recent-session');
   });
-  expect(await screen.findByText('chatgpt-older-conv')).toBeInTheDocument();
+  expect((await screen.findAllByText('chatgpt-older-conv')).length).toBeGreaterThan(0);
 });
 
 test('shows diagnostics only when the shell info enables developer tools', async () => {
@@ -578,6 +587,17 @@ function buildProvider(
     active: input.active ?? false,
     createdAt: '2026-03-19T00:00:00.000Z',
     updatedAt: '2026-03-19T00:00:00.000Z',
+  };
+}
+
+function createDataTransfer() {
+  const data = new Map<string, string>();
+  return {
+    setData: (type: string, value: string) => {
+      data.set(type, value);
+    },
+    getData: (type: string) => data.get(type) ?? '',
+    effectAllowed: 'move',
   };
 }
 

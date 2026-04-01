@@ -109,6 +109,7 @@ export function ConversationMessagePane(props: {
                   void handleExport();
                 }}
               >
+                <ExportIcon />
                 {busyAction === 'export' ? '导出中…' : '导出会话'}
               </button>
               <button
@@ -119,6 +120,7 @@ export function ConversationMessagePane(props: {
                   void handleDelete();
                 }}
               >
+                <TrashIcon />
                 {busyAction === 'delete' ? '删除中…' : '删除会话'}
               </button>
             </div>
@@ -178,5 +180,35 @@ export function ConversationMessagePane(props: {
         </ol>
       ) : null}
     </article>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="button-icon">
+      <path
+        d="M12 4.5v10m0 0 4-4m-4 4-4-4M5.5 16.5v1.25A1.75 1.75 0 0 0 7.25 19.5h9.5a1.75 1.75 0 0 0 1.75-1.75V16.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="button-icon">
+      <path
+        d="M6.5 7.5h11M9.5 7.5v9m5-9v9M10 4.5h4l.5 2H9.5l.5-2Zm-1.25 15h6.5A1.75 1.75 0 0 0 17 17.75V7.5H7v10.25A1.75 1.75 0 0 0 8.75 19.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

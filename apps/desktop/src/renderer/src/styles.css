@@ -555,12 +555,24 @@ button {
 
 .utility-page__header {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   max-width: 54rem;
 }
 
 .utility-page__header h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
   text-wrap: balance;
+}
+
+.utility-page__copy {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--product-muted);
+  max-width: 62rem;
 }
 
 .library-page__provider {
@@ -584,7 +596,8 @@ button {
 }
 
 .library-page__provider strong {
-  font-size: 18px;
+  font-size: 17px;
+  letter-spacing: -0.02em;
 }
 
 .library-page__provider span {
@@ -628,8 +641,17 @@ button {
 
 .settings-item {
   display: grid;
-  gap: 18px;
-  padding: 20px;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid rgba(84, 99, 124, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: var(--product-shadow);
+}
+
+.settings-item--drop-target {
+  border-color: rgba(91, 168, 255, 0.34);
+  background: linear-gradient(145deg, rgba(245, 250, 255, 0.96), rgba(255, 252, 243, 0.96));
 }
 
 .settings-item__meta,
@@ -642,6 +664,28 @@ button {
 .settings-item__meta {
   justify-content: space-between;
   gap: 18px;
+}
+
+.settings-item__title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.settings-item__title strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.25;
+  color: #202b3a;
+}
+
+.settings-item__title p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6c7a8d;
+  word-break: break-word;
 }
 
 .settings-item__badges {
@@ -666,7 +710,64 @@ button {
 
 .settings-item__actions {
   gap: 10px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.settings-item__hint {
+  margin: 0;
+  font-size: 12px;
+  color: #7b889b;
+}
+
+.settings-drag-handle,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(84, 99, 124, 0.12);
+  border-radius: 14px;
+  color: #526072;
+  background: rgba(255, 255, 255, 0.92);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.settings-drag-handle {
+  cursor: grab;
+}
+
+.settings-drag-handle:active {
+  cursor: grabbing;
+}
+
+.icon-button:hover,
+.settings-drag-handle:hover {
+  transform: translateY(-1px);
+  border-color: rgba(91, 168, 255, 0.24);
+  color: #203247;
+}
+
+.icon-button--active {
+  color: #0b7d62;
+  background: rgba(231, 252, 245, 0.96);
+  border-color: rgba(16, 166, 126, 0.22);
+}
+
+.mini-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.button-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  flex: none;
 }
 
 .secondary-button,

@@ -68,7 +68,6 @@ function UtilityWorkbench(props: {
   children: ReactNode;
 }) {
   const menuItems: Array<{ id: Exclude<AppSurfaceId, 'chat'>; label: string }> = [
-    { id: 'library', label: '知识库' },
     { id: 'settings', label: '应用设置' },
   ];
 
@@ -77,28 +76,31 @@ function UtilityWorkbench(props: {
   }
 
   const currentSurface = props.activeSurface === 'chat' ? 'settings' : props.activeSurface;
+  const showNav = currentSurface !== 'library';
 
   return (
     <section className="utility-workbench">
-      <nav className="utility-workbench__nav" aria-label="工作台菜单">
-        {menuItems.map((item) => {
-          const isActive = currentSurface === item.id;
+      {showNav ? (
+        <nav className="utility-workbench__nav" aria-label="工作台菜单">
+          {menuItems.map((item) => {
+            const isActive = currentSurface === item.id;
 
-          return (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={isActive}
-              className={isActive ? 'utility-workbench__tab active' : 'utility-workbench__tab'}
-              onClick={() => {
-                props.onSelectSurface(item.id);
-              }}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </nav>
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={isActive}
+                className={isActive ? 'utility-workbench__tab active' : 'utility-workbench__tab'}
+                onClick={() => {
+                  props.onSelectSurface(item.id);
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
 
       <div className="utility-workbench__body">{props.children}</div>
     </section>
@@ -117,6 +119,7 @@ function renderUtilitySurface(input: {
       return (
         <LibraryPage
           activeProvider={input.activeProvider}
+          providers={input.state.providers}
           sessions={input.state.sessions}
           selectedSession={input.selectedSession}
           selectedSessionId={input.state.selectedSessionId}

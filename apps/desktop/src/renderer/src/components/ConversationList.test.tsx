@@ -9,7 +9,7 @@ afterEach(() => {
   cleanup();
 });
 
-test('renders archive metadata and falls back to remote conversation id when title is missing', () => {
+test('renders archive metadata and falls back to preview text when the stored title is not useful', () => {
   const onSelect = vi.fn();
   render(
     <ConversationList
@@ -22,8 +22,9 @@ test('renders archive metadata and falls back to remote conversation id when tit
         }),
         buildSession({
           id: 'session-fallback',
-          title: null,
-          remoteConversationId: 'legacy-conv',
+          title: '4ffe4cb3-1488-4098-80cd-d99365144411',
+          remoteConversationId: '4ffe4cb3-1488-4098-80cd-d99365144411',
+          previewText: '这是更像标题的首条用户消息',
           updatedAt: '2026-03-18T08:30:00.000Z',
         }),
       ]}
@@ -33,23 +34,25 @@ test('renders archive metadata and falls back to remote conversation id when tit
   );
 
   expect(screen.getByText('产品复盘')).toBeInTheDocument();
-  expect(screen.getByText('legacy-conv')).toBeInTheDocument();
+  expect(screen.getByText('这是更像标题的首条用户消息')).toBeInTheDocument();
   expect(screen.getAllByText(/条消息/)).toHaveLength(2);
   expect(screen.getAllByText(/更新于/)).toHaveLength(2);
 
-  fireEvent.click(screen.getByRole('button', { name: /legacy-conv/i }));
+  fireEvent.click(screen.getByRole('button', { name: /这是更像标题的首条用户消息/i }));
   expect(onSelect).toHaveBeenCalledWith('session-fallback');
 });
 
 function buildSession(
   input: Pick<CaptureSessionRecord, 'id' | 'remoteConversationId' | 'updatedAt'> & {
     title?: string | null;
+    previewText?: string | null;
   }
 ): CaptureSessionRecord {
   return {
     id: input.id,
     provider: 'chatgpt',
     title: input.title ?? null,
+    previewText: input.previewText ?? null,
     remoteConversationId: input.remoteConversationId,
     sourceSessionKey: 'chatgpt-primary',
     pageUrl: 'https://example.com/conversation',

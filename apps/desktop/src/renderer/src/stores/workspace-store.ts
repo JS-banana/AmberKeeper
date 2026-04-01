@@ -58,11 +58,8 @@ export function useWorkspaceStore() {
       ]);
       const activeProviderId =
         activeProvider?.id ?? providers.find((provider) => provider.active)?.id ?? null;
-      const scopedSessions = activeProviderId
-        ? sessions.filter((session) => session.provider === activeProviderId)
-        : [];
       const nextSelectedSessionId = resolveSelectedSessionId(
-        scopedSessions,
+        sessions,
         preferredSessionId ?? state.selectedSessionId
       );
       const messages = nextSelectedSessionId
@@ -73,7 +70,7 @@ export function useWorkspaceStore() {
         setState({
           providers,
           activeProviderId,
-          sessions: scopedSessions,
+          sessions,
           selectedSessionId: nextSelectedSessionId,
           messages,
           runtimeStatus,
@@ -137,6 +134,8 @@ export function useWorkspaceStore() {
 
   const selectSession = useEffectEvent(async (sessionId: string) => {
     try {
+      const targetSession =
+        state.sessions.find((session) => session.id === sessionId) ?? null;
       const messages = await window.captureApi.listMessages(sessionId);
 
       startTransition(() => {
@@ -147,6 +146,10 @@ export function useWorkspaceStore() {
           error: null,
         }));
       });
+
+      if (!targetSession || targetSession.provider !== state.activeProviderId) {
+        return;
+      }
 
       await window.captureApi.openSession(sessionId);
       const refreshedMessages = await window.captureApi.listMessages(sessionId);
