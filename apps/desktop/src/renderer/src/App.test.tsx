@@ -107,6 +107,11 @@ test('renders the utility area with a left nav and compact service rows', async 
 
   const nav = screen.getByRole('navigation', { name: '设置与历史' });
   expect(nav.closest('.utility-workbench')).toHaveClass('utility-workbench--sidebar');
+  for (const label of ['服务管理', '历史会话', '诊断'] as const) {
+    const button = within(nav).getByRole('button', { name: label });
+    expect(button).toBeInTheDocument();
+    expect(button.querySelector('svg')).not.toBeNull();
+  }
   expect(within(nav).getByRole('button', { name: '服务管理' })).toHaveAttribute('aria-current', 'page');
   expect(within(nav).getByRole('button', { name: '历史记录' })).toBeInTheDocument();
   expect(within(nav).getByRole('button', { name: '诊断' })).toBeInTheDocument();
@@ -130,7 +135,7 @@ test('renders the utility area with a left nav and compact service rows', async 
   expect(within(chatgptItem!).queryByText('已停用')).not.toBeInTheDocument();
 });
 
-test('shows the library as an all-provider knowledge base instead of scoping to the active provider', async () => {
+test('shows the library as an explicit 全部/provider knowledge base instead of scoping to the active provider', async () => {
   const state = createWorkspaceFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -243,6 +248,13 @@ test('allows enabling and reordering built-in providers from settings', async ()
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
 
+  const chatgptItem = within(screen.getByRole('list', { name: '内置应用列表' }))
+    .getAllByRole('listitem')
+    .find((item) => item.getAttribute('data-provider-id') === 'chatgpt');
+  expect(chatgptItem).toBeDefined();
+  expect(within(chatgptItem!).getByText('https://chatgpt.com')).toBeInTheDocument();
+  expect(within(chatgptItem!).queryByRole('button', { name: '打开 ChatGPT' })).not.toBeInTheDocument();
+
   fireEvent.click(screen.getByRole('button', { name: '停用 Claude' }));
   await waitFor(() => {
     expect(api.setProviderEnabled).toHaveBeenCalledWith('claude', false);
@@ -315,7 +327,7 @@ test('allows enabling and reordering built-in providers from settings', async ()
   expect(screen.getByRole('button', { name: '启用 Claude' })).toBeInTheDocument();
 });
 
-test('supports provider export and session delete actions from the knowledge base', async () => {
+test('supports provider export and session delete actions from the knowledge base with chinese export labels', async () => {
   const state = createHydrationFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -359,7 +371,31 @@ test('supports provider export and session delete actions from the knowledge bas
   expect((await screen.findAllByText('chatgpt-older-conv')).length).toBeGreaterThan(0);
 });
 
-test('lets operators manually refresh the history list so new sessions surface', async () => {
+test('does not keep cancelled export feedback visible in the all-provider overview', async () => {
+  const state = createHydrationFixture();
+  const api = installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+    exportProviderSessionsResult: {
+      message: 'cancelled',
+      detail: '导出已取消',
+    },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '历史会话' }));
+  fireEvent.click(screen.getByRole('button', { name: /导出/i }));
+
+  await waitFor(() => {
+    expect(api.exportProviderSessions).toHaveBeenCalledWith('chatgpt', 'json');
+  });
+  await waitFor(() => {
+    expect(screen.queryByText('导出已取消')).not.toBeInTheDocument();
+  });
+});
+
+test('lets operators manually refresh provider-scoped history lists so new sessions surface', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -392,7 +428,7 @@ test('lets operators manually refresh the history list so new sessions surface',
     }),
   ];
 
-  fireEvent.click(screen.getByRole('button', { name: '刷新会话' }));
+  fireEvent.click(screen.getByRole('button', { name: /刷新/ }));
 
   await waitFor(() => {
     expect(api.listSessions.mock.calls.length).toBeGreaterThan(initialListSessionCalls);
@@ -402,7 +438,7 @@ test('lets operators manually refresh the history list so new sessions surface',
   expect(await screen.findByRole('button', { name: /DeepSeek launch summary/i })).toBeInTheDocument();
 });
 
-test('refreshes sessions after capture-driven runtime status updates', async () => {
+test('refreshes provider-scoped sessions after capture-driven runtime status updates', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -519,6 +555,8 @@ function installCaptureApiMock(
   input?: {
     shellInfo?: { diagnosticsEnabled: boolean; isPackaged: boolean };
     runtimeStatus?: Partial<RuntimeStatus>;
+    exportSessionResult?: { message: string; detail: string };
+    exportProviderSessionsResult?: { message: string; detail: string };
   }
 ) {
   let runtimeStatusListener: ((status: RuntimeStatus) => void) | null = null;
@@ -611,17 +649,19 @@ function installCaptureApiMock(
   });
 
   const exportSession = vi.fn(
-    async (_sessionId: string, format: CaptureExportFormat) => ({
-      message: 'exported',
-      detail: `session:${format}`,
-    })
+    async (_sessionId: string, format: CaptureExportFormat) =>
+      input?.exportSessionResult ?? {
+        message: 'exported',
+        detail: `session:${format}`,
+      }
   );
 
   const exportProviderSessions = vi.fn(
-    async (_providerId: string, format: CaptureExportFormat) => ({
-      message: 'exported',
-      detail: `provider:${format}`,
-    })
+    async (_providerId: string, format: CaptureExportFormat) =>
+      input?.exportProviderSessionsResult ?? {
+        message: 'exported',
+        detail: `provider:${format}`,
+      }
   );
 
   const setNativeStageVisible = vi.fn(async (_visible: boolean) => undefined);

@@ -44,7 +44,7 @@ test('renders record detail actions with chinese export labels and forwards expo
   expect(screen.getByRole('option', { name: 'JSON 格式' })).toBeInTheDocument();
   expect(screen.getByRole('option', { name: 'Markdown 格式' })).toBeInTheDocument();
 
-  fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
+  fireEvent.change(screen.getByRole('combobox', { name: /会话导出格式|记录导出格式|导出格式/ }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
   fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
