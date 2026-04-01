@@ -213,6 +213,33 @@ describe('capture-store', () => {
     ]);
   });
 
+  test('uses preview-based fallback titles when exporting sessions with provider-generic page titles', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        provider: 'deepseek',
+        pageUrl: 'https://chat.deepseek.com/a/chat/s/deepseek-conv',
+        remoteConversationId: 'deepseek-conv',
+        title: 'DeepSeek - Into the Unknown',
+        messages: [
+          {
+            role: 'user',
+            content: 'Draft launch checklist for the DeepSeek workspace',
+            createdAt: '2026-03-19T10:00:00.000Z',
+          },
+        ],
+      })
+    );
+
+    const artifact = store.exportSession(sessionId, 'markdown');
+
+    expect(artifact.fileName).toBe(
+      'amberkeeper-deepseek-draft-launch-checklist-for-the-deepseek-workspace.md'
+    );
+    expect(artifact.content).toContain('## Draft launch checklist for the DeepSeek workspace');
+    expect(artifact.content).not.toContain('## DeepSeek - Into the Unknown');
+  });
+
   test('migrates legacy capture tables into the new read model', () => {
     const db = new DatabaseSync(dbPath);
     db.exec(`

@@ -18,6 +18,7 @@ import type {
   ProviderMoveDirection,
   ProviderRecord,
 } from '@amberkeeper/shared-types';
+import { resolveSessionTitle } from '../../shared/session-title';
 import { createProviderSettingsRepository } from './provider-settings-repository';
 import { ensureCaptureStoreSchema, hasTable } from './schema';
 
@@ -606,20 +607,6 @@ function renderSessionMarkdown(
   return [`## ${title}`, '', ...metadata, '', ...messageLines.filter(Boolean as unknown as <T>(value: T | null) => value is T)]
     .join('\n')
     .trim();
-}
-
-function resolveSessionTitle(session: Pick<CaptureSessionRecord, 'id' | 'title' | 'remoteConversationId'>): string {
-  const title = session.title?.trim();
-  if (title) {
-    return title;
-  }
-
-  const remoteConversationId = session.remoteConversationId?.trim();
-  if (remoteConversationId) {
-    return remoteConversationId;
-  }
-
-  return session.id;
 }
 
 function toFileSegment(input: string): string {

@@ -143,6 +143,42 @@ test('keeps all-provider history visible even when the active provider has no se
   expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
 });
 
+test('uses semantic fallback titles in the knowledge base when provider page titles are generic', async () => {
+  const state = createWorkspaceFixture({ deepseekEnabled: true });
+  state.sessions.unshift(
+    buildSession({
+      id: 'deepseek-session',
+      provider: 'deepseek',
+      remoteConversationId: 'deepseek-conv',
+      title: 'DeepSeek - Into the Unknown',
+      previewText: 'Draft launch checklist for the DeepSeek workspace',
+    })
+  );
+  state.messages['deepseek-session'] = [
+    buildMessage({
+      id: 'deepseek-message-1',
+      sessionId: 'deepseek-session',
+      provider: 'deepseek',
+      role: 'user',
+      content: 'Draft launch checklist for the DeepSeek workspace',
+    }),
+  ];
+  installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开知识库' }));
+
+  expect(
+    await screen.findByRole('button', {
+      name: /Draft launch checklist for the DeepSeek workspace/i,
+    })
+  ).toBeInTheDocument();
+  expect(screen.queryByText('DeepSeek - Into the Unknown')).not.toBeInTheDocument();
+});
+
 test('allows enabling and reordering built-in providers from settings', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   const api = installCaptureApiMock(state, {
@@ -614,12 +650,14 @@ function createDataTransfer() {
 function buildSession(
   input: Pick<CaptureSessionRecord, 'id' | 'provider' | 'remoteConversationId'> & {
     title?: string | null;
+    previewText?: string | null;
   }
 ): CaptureSessionRecord {
   return {
     id: input.id,
     provider: input.provider,
     title: input.title ?? null,
+    previewText: input.previewText ?? null,
     remoteConversationId: input.remoteConversationId,
     sourceSessionKey: `${input.provider}-primary-view`,
     pageUrl: `https://example.com/${input.remoteConversationId ?? input.id}`,
