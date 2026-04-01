@@ -1,0 +1,33 @@
+# Context Snapshot — service-history-ux-round4
+
+- Task statement: Refine AmberKeeper's utility shell to better match the visual clarity and interaction density shown in the provided anyChat screenshot while fixing concrete history-page usability regressions visible in the current AmberKeeper screenshot.
+- Desired outcome: A tighter left rail + settings shell, cleaner service rows, and a clearer history workspace with an explicit 全部 view, provider filtering that visibly works, Chinese-first labels, scrollable lists, and no noisy cancellation/error feedback.
+- Known facts/evidence:
+  - Utility nav is now left-aligned but still text-only, visually detached, and wider than desired in `apps/desktop/src/renderer/src/App.tsx:75-128` and `apps/desktop/src/renderer/src/styles.css:308-377`.
+  - Service rows still show “当前使用 / 已启用 / 已停用”, keep the open arrow action, and still render a page heading the user now wants removed in `apps/desktop/src/renderer/src/pages/SettingsPage.tsx:54-156`.
+  - Settings drag handle still has its own visual background/border treatment in `styles.css:838-878`, which conflicts with the new request for a neutral, consistent drag lane.
+  - History page still uses the terms “历史会话 / 档案 / 会话档案 / 档案详情”, still surfaces export-cancel feedback, still defaults to the session/detail split instead of an explicit 全部 overview state, and still exposes English export labels in `apps/desktop/src/renderer/src/pages/LibraryPage.tsx:83-193`.
+  - Provider filter currently only includes enabled providers and has no explicit “全部” option in `LibraryPage.tsx:34-53` and `:96-127`, which explains the missing all/provider mode the user requested.
+  - Current provider-tab active styling is weak and the list/detail split remains fixed-width in `styles.css:644-725`.
+  - Session rows are denser now, but still use the archive/session vocabulary and may not obviously scroll because the surrounding library layout still prioritizes the split cards in `ConversationList.tsx`, `ConversationMessagePane.tsx`, and `styles.css:1733-1909`.
+  - Refresh logic is wired through the existing runtime-status channel via `App.tsx:139-154` and `workspace-store.ts:39-291`, so round4 can focus on UI/IA without reopening transport design.
+- Screenshot-derived findings:
+  - anyChat reference image shows clearer left provider icon spacing, more consistent logo sizing, a slimmer attached utility menu, icon+label nav rows, and monochrome trailing action icons.
+  - Current AmberKeeper screenshot shows provider tabs with weak active state, persistent export-cancel error text, a too-wide left history column, and no obvious “全部” workspace mode.
+- Constraints:
+  - No new dependencies.
+  - Keep Electron/React brownfield structure and existing provider icon assets.
+  - Preserve reorder / enable-disable / export / delete / diagnostics capability while changing presentation.
+- Unknowns/open questions:
+  - Whether the “打开 provider” action can be removed entirely from settings without losing a required workflow.
+  - Whether disabled providers should still appear in history filtering or only in settings.
+- Likely touchpoints:
+  - `apps/desktop/src/renderer/src/App.tsx`
+  - `apps/desktop/src/renderer/src/pages/SettingsPage.tsx`
+  - `apps/desktop/src/renderer/src/pages/LibraryPage.tsx`
+  - `apps/desktop/src/renderer/src/components/ConversationList.tsx`
+  - `apps/desktop/src/renderer/src/components/ConversationMessagePane.tsx`
+  - `apps/desktop/src/renderer/src/components/AppSidebar.tsx`
+  - `apps/desktop/src/renderer/src/components/ProviderIcon.tsx`
+  - `apps/desktop/src/renderer/src/styles.css`
+  - `apps/desktop/src/renderer/src/App.test.tsx`
