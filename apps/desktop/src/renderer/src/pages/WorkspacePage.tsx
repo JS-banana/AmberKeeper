@@ -81,6 +81,8 @@ export function WorkspacePage() {
           session={selectedSession}
           messages={state.messages}
           loading={state.loading}
+          onDeleteSession={actions.deleteSession}
+          onExportSession={actions.exportSession}
         />
       </div>
     </section>
