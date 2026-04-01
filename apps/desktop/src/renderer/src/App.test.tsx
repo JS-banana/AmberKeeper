@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import type {
+  CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderRecord,
@@ -30,7 +31,7 @@ test('renders a user-facing chat shell and hides diagnostics in production mode'
   expect(await screen.findByRole('button', { name: '打开 Claude' })).toBeInTheDocument();
   expect(screen.getByRole('navigation', { name: '应用列表' })).toBeInTheDocument();
   expect(screen.getByRole('navigation', { name: '工作台入口' })).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: '会话库' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '知识库' })).not.toBeInTheDocument();
   expect(await screen.findByRole('button', { name: '打开设置' })).not.toHaveAttribute('title');
   expect(await screen.findByRole('button', { name: '打开设置' })).not.toHaveAttribute('data-tooltip');
   expect(screen.queryByText('当前应用')).not.toBeInTheDocument();
@@ -71,9 +72,10 @@ test('opens the library, hides the native stage, and hydrates the selected sessi
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
-  fireEvent.click(await screen.findByRole('button', { name: '会话库' }));
+  fireEvent.click(await screen.findByRole('button', { name: '知识库' }));
 
-  expect(await screen.findByText('聊天记录')).toBeInTheDocument();
+  expect(await screen.findByText('历史会话档案')).toBeInTheDocument();
+  expect(screen.getByText(/provider-first MVP/i)).toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
@@ -138,7 +140,7 @@ test('allows enabling and reordering built-in providers from settings', async ()
     ]);
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '会话库' }));
+  fireEvent.click(screen.getByRole('button', { name: '知识库' }));
   fireEvent.click(screen.getByRole('button', { name: '应用设置' }));
 
   const settingsList = screen.getByRole('list', { name: '内置应用列表' });
@@ -150,6 +152,45 @@ test('allows enabling and reordering built-in providers from settings', async ()
     'deepseek',
   ]);
   expect(screen.getByRole('button', { name: '启用 Claude' })).toBeInTheDocument();
+});
+
+test('supports provider export and session delete actions from the knowledge base', async () => {
+  const state = createHydrationFixture();
+  const api = installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '知识库' }));
+
+  fireEvent.change(screen.getByRole('combobox', { name: '选择 provider 导出格式' }), {
+    target: { value: 'markdown' satisfies CaptureExportFormat },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '导出当前 provider' }));
+
+  await waitFor(() => {
+    expect(api.exportProviderSessions).toHaveBeenCalledWith('chatgpt', 'markdown');
+  });
+
+  fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
+    target: { value: 'markdown' satisfies CaptureExportFormat },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '导出会话' }));
+
+  await waitFor(() => {
+    expect(api.exportSession).toHaveBeenCalledWith('chatgpt-recent-session', 'markdown');
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: '删除会话' }));
+
+  expect(confirmSpy).toHaveBeenCalled();
+  await waitFor(() => {
+    expect(api.deleteSession).toHaveBeenCalledWith('chatgpt-recent-session');
+  });
+  expect(await screen.findByText('chatgpt-older-conv')).toBeInTheDocument();
 });
 
 test('shows diagnostics only when the shell info enables developer tools', async () => {
@@ -270,12 +311,39 @@ function installCaptureApiMock(
     };
   });
 
+  const deleteSession = vi.fn(async (sessionId: string) => {
+    state.sessions = state.sessions.filter((session) => session.id !== sessionId);
+    delete state.messages[sessionId];
+
+    return {
+      message: 'deleted',
+      detail: `${sessionId} removed`,
+    };
+  });
+
+  const exportSession = vi.fn(
+    async (_sessionId: string, format: CaptureExportFormat) => ({
+      message: 'exported',
+      detail: `session:${format}`,
+    })
+  );
+
+  const exportProviderSessions = vi.fn(
+    async (_providerId: string, format: CaptureExportFormat) => ({
+      message: 'exported',
+      detail: `provider:${format}`,
+    })
+  );
+
   const setNativeStageVisible = vi.fn(async (_visible: boolean) => undefined);
 
   window.captureApi = {
     listSessions: async () => state.sessions,
     listMessages: async (sessionId: string) => state.messages[sessionId] ?? [],
     openSession,
+    deleteSession,
+    exportSession,
+    exportProviderSessions,
     listProviders: async () => state.providers,
     getActiveProvider: async () => state.providers.find((provider) => provider.active) ?? null,
     setActiveProvider,
@@ -300,6 +368,9 @@ function installCaptureApiMock(
     setProviderEnabled,
     moveProvider,
     openSession,
+    deleteSession,
+    exportSession,
+    exportProviderSessions,
     setNativeStageVisible,
   };
 }
@@ -454,11 +525,14 @@ function buildProvider(
 }
 
 function buildSession(
-  input: Pick<CaptureSessionRecord, 'id' | 'provider' | 'remoteConversationId'>
+  input: Pick<CaptureSessionRecord, 'id' | 'provider' | 'remoteConversationId'> & {
+    title?: string | null;
+  }
 ): CaptureSessionRecord {
   return {
     id: input.id,
     provider: input.provider,
+    title: input.title ?? null,
     remoteConversationId: input.remoteConversationId,
     sourceSessionKey: `${input.provider}-primary-view`,
     pageUrl: `https://example.com/${input.remoteConversationId ?? input.id}`,

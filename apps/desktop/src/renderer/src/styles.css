@@ -567,6 +567,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   padding: 16px 18px;
   border: 1px solid var(--product-border);
@@ -577,6 +578,11 @@ button {
   box-shadow: var(--product-shadow);
 }
 
+.library-page__provider-copy {
+  display: grid;
+  gap: 6px;
+}
+
 .library-page__provider strong {
   font-size: 18px;
 }
@@ -584,6 +590,25 @@ button {
 .library-page__provider span {
   font-size: 13px;
   color: var(--product-muted);
+}
+
+.library-page__provider-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.library-page__feedback,
+.message-pane__feedback {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #5b4c38;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(153, 127, 76, 0.12);
 }
 
 .library-grid {
@@ -663,6 +688,12 @@ button {
   color: #5b4c38;
   border-color: rgba(153, 127, 76, 0.16);
   background: rgba(255, 255, 255, 0.74);
+}
+
+.secondary-button--danger {
+  color: #8a3f26;
+  border-color: rgba(183, 76, 34, 0.18);
+  background: rgba(255, 242, 236, 0.92);
 }
 
 .primary-button {
@@ -1446,19 +1477,33 @@ button {
 }
 
 .conversation-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   font-size: 12px;
   color: #67768a;
 }
 
 .message-pane__header {
   display: grid;
-  gap: 6px;
+  gap: 14px;
   margin-bottom: 14px;
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(92, 104, 123, 0.16);
 }
 
+.message-pane__headline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .message-pane__header strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 20px;
   color: #202b3a;
 }
 
@@ -1467,6 +1512,86 @@ button {
   font-size: 12px;
   line-height: 1.55;
   word-break: break-word;
+}
+
+.message-pane__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.message-pane__chips span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(84, 99, 124, 0.1);
+}
+
+.message-pane__actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.message-pane__facts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.message-pane__facts div {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(84, 99, 124, 0.08);
+}
+
+.message-pane__facts dt {
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7b889b;
+}
+
+.message-pane__facts dd {
+  margin: 0;
+  color: #243346;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.field-select {
+  display: grid;
+  gap: 6px;
+}
+
+.field-select span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7b889b;
+}
+
+.field-select select {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(153, 127, 76, 0.16);
+  border-radius: 999px;
+  color: #352b20;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.conversation-list__copy {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #7b889b;
 }
 
 .message-bubble {
