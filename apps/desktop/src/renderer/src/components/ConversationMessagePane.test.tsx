@@ -80,7 +80,7 @@ test('does not keep cancelled export feedback visible in the record detail pane'
     />
   );
 
-  fireEvent.click(screen.getByRole('button', { name: '导出当前会话' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
 
   await waitFor(() => {
     expect(onExportSession).toHaveBeenCalledWith('session-1', 'json');
