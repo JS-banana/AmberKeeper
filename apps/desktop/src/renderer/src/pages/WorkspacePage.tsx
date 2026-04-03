@@ -8,15 +8,6 @@ export function WorkspacePage() {
 
   return (
     <section className="workspace-page">
-      <header className="page-header page-header--workspace">
-        <p className="eyebrow eyebrow--workspace">Workspace</p>
-        <h1>Mainstream provider management</h1>
-        <p className="page-copy">
-          Phase 1 keeps the shell narrow: built-in provider switching, enable and disable controls,
-          and per-provider conversation inspection without leaking diagnostics into the product
-          surface.
-        </p>
-      </header>
 
       {state.error ? (
         <div className="workspace-alert" role="alert">

@@ -41,7 +41,7 @@ import { CaptureStore } from './storage/capture-store';
 import { createMainWindow, createProviderStageController } from './windows/main-window';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PANEL_WIDTH = 88;
+const PANEL_WIDTH = 66;
 const DOM_CAPTURE_POLL_INTERVAL_MS = 400;
 const DOM_CAPTURE_POLL_ATTEMPTS = 24;
 

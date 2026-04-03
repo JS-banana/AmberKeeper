@@ -38,23 +38,15 @@ export function ConversationList(props: {
                   props.onSelect(session.id);
                 }}
               >
-                <span className="conversation-item__row">
-                  <span className="conversation-item__identity">
-                    <ProviderIcon
-                      providerId={session.provider}
-                      providerName={getProviderLabel(session.provider)}
-                      homeUrl={session.pageUrl}
-                      className="conversation-item__provider-icon"
-                    />
-                    <span className="conversation-item__title">
-                      {resolveSessionTitle(session)}
-                    </span>
+                <div className="conversation-item__body">
+                  <span className="conversation-item__title" title={resolveSessionTitle(session)}>
+                    {resolveSessionTitle(session)}
                   </span>
-                  <span className="conversation-item__meta">
-                    <span>{session.messageCount} 条</span>
-                    <span>{formatSessionUpdatedAt(session.updatedAt)}</span>
-                  </span>
-                </span>
+                  <div className="conversation-item__meta">
+                    <span className="conversation-item__count">{session.messageCount} 条记录</span>
+                    <span className="conversation-item__date">{formatSessionUpdatedAt(session.updatedAt)}</span>
+                  </div>
+                </div>
               </button>
             </li>
           ))}

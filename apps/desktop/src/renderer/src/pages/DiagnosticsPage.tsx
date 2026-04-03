@@ -12,13 +12,6 @@ export function DiagnosticsPage() {
 
   return (
     <section className="diagnostics-page">
-      <header className="page-header page-header--diagnostics">
-        <p className="eyebrow eyebrow--diagnostics">诊断</p>
-        <h1>抓取调试台与对账控制台</h1>
-        <p className="page-copy">
-          这里保留运行状态、事件日志和已捕获会话，供后续继续调试接入新的聊天应用。
-        </p>
-      </header>
 
       <RuntimeStatusCard
         status={store.runtimeStatus}

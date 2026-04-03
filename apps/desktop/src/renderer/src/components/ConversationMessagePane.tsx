@@ -48,28 +48,7 @@ export function ConversationMessagePane(props: {
     }
   }
 
-  async function handleDelete() {
-    if (!props.session) {
-      return;
-    }
 
-    const confirmed = window.confirm(
-      `确认删除「${resolveSessionTitle(props.session)}」吗？此操作会移除这条记录的本地缓存。`
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    setBusyAction('delete');
-    try {
-      const result = await props.onDeleteSession(props.session.id);
-      setFeedback(result.detail || result.message);
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
 
   return (
     <article className="workspace-card workspace-card--messages">
@@ -97,8 +76,8 @@ export function ConversationMessagePane(props: {
                   <span>{props.session.messageCount} 条消息</span>
                   <span>{formatSessionUpdatedAt(props.session.updatedAt)}</span>
                 </div>
-                <p className="message-pane__meta-inline" title={props.session.remoteConversationId ?? props.session.id}>
-                  {props.session.remoteConversationId ?? props.session.id}
+                <p className="message-pane__meta-inline" title="原始对话来源 URL">
+                  {props.session.pageUrl}
                 </p>
               </div>
 
@@ -127,17 +106,7 @@ export function ConversationMessagePane(props: {
                 >
                   <ExportIcon />
                 </IconActionButton>
-                <IconActionButton
-                  label="删除当前记录"
-                  busy={busyAction === 'delete'}
-                  disabled={busyAction !== null}
-                  danger
-                  onClick={() => {
-                    void handleDelete();
-                  }}
-                >
-                  <DeleteIcon />
-                </IconActionButton>
+
               </div>
             </div>
             {feedback ? (

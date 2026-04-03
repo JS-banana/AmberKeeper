@@ -57,16 +57,15 @@ export function SettingsPage(props: {
         {props.providers.map((provider) => {
           const isDragging = draggingProviderId === provider.id;
           const isDropTarget = dropTargetProviderId === provider.id;
-          const isActive = provider.id === props.activeProviderId;
 
           return (
             <li
               key={provider.id}
               className={[
                 'settings-item',
-                isActive ? 'settings-item--active' : '',
                 isDropTarget ? 'settings-item--drop-target' : '',
                 isDragging ? 'settings-item--dragging' : '',
+                !provider.enabled ? 'settings-item--disabled' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -108,21 +107,14 @@ export function SettingsPage(props: {
               </span>
 
               <div className="settings-item__meta">
-                <button
-                  type="button"
-                  className="settings-item__select"
-                  aria-label={isActive ? `当前服务 ${provider.name}` : `切换到 ${provider.name}`}
-                  aria-pressed={isActive}
-                  draggable={false}
-                  onClick={() => props.onSelectProvider(provider.id)}
-                >
+                <div className="settings-item__select">
                   <div className="settings-item__summary">
                     <div className="settings-item__headline">
                       <strong>{provider.name}</strong>
                     </div>
                     <p className="settings-item__subtitle">{provider.homeUrl}</p>
                   </div>
-                </button>
+                </div>
 
                 <div className="settings-item__actions">
                   <IconButton
