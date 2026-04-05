@@ -10,7 +10,7 @@ export function AppSidebar(props: {
   activeProviderId: ProviderId | null;
   activeSurface: AppSurfaceId;
   onSelectProvider: (providerId: ProviderId) => void;
-  onSelectSurface: (surface: AppSurfaceId) => void;
+  onOpenUtility: () => void;
 }) {
   const enabledProviders = props.providers.filter((provider) => provider.enabled);
 
@@ -55,7 +55,7 @@ export function AppSidebar(props: {
       <nav className="product-rail__nav" aria-label="工作台入口">
         <button
           type="button"
-          aria-label="打开设置"
+          aria-label="打开工作台"
           aria-pressed={props.activeSurface !== 'chat'}
           className={
             props.activeSurface !== 'chat'
@@ -64,7 +64,7 @@ export function AppSidebar(props: {
           }
           onClick={() => {
             startTransition(() => {
-              props.onSelectSurface('settings');
+              props.onOpenUtility();
             });
           }}
         >

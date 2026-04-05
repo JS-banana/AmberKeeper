@@ -37,13 +37,23 @@ describe('provider-runtime-registry', () => {
     const claudeRuntime = registry.resolveRuntime('claude');
     const deepseekRuntime = registry.resolveRuntime('deepseek');
     const geminiRuntime = registry.resolveRuntime('gemini');
+    const grokRuntime = registry.resolveRuntime('grok');
+    const kimiRuntime = registry.resolveRuntime('kimi');
+    const qianwenRuntime = registry.resolveRuntime('qianwen');
+    const doubaoRuntime = registry.resolveRuntime('doubao');
+    const xiaomiRuntime = registry.resolveRuntime('xiaomi-aistudio');
 
     expect(chatgptRuntime?.providerId).toBe('chatgpt');
     expect(claudeRuntime.providerId).toBe('claude');
     expect(deepseekRuntime.providerId).toBe('deepseek');
     expect(geminiRuntime.providerId).toBe('gemini');
-    expect(createdRuntimes.size).toBe(4);
-    expect(attachedViews.size).toBe(4);
+    expect(grokRuntime.providerId).toBe('grok');
+    expect(kimiRuntime.providerId).toBe('kimi');
+    expect(qianwenRuntime.providerId).toBe('qianwen');
+    expect(doubaoRuntime.providerId).toBe('doubao');
+    expect(xiaomiRuntime.providerId).toBe('xiaomi-aistudio');
+    expect(createdRuntimes.size).toBe(9);
+    expect(attachedViews.size).toBe(9);
 
     registry.setActiveProvider('gemini');
 
@@ -125,6 +135,56 @@ function buildProviders(): ProviderRecord[] {
       id: 'gemini',
       name: 'Gemini',
       homeUrl: 'https://gemini.google.com/app',
+      enabled: true,
+      builtin: true,
+      active: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'grok',
+      name: 'Grok',
+      homeUrl: 'https://grok.com',
+      enabled: true,
+      builtin: true,
+      active: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'kimi',
+      name: 'Kimi',
+      homeUrl: 'https://kimi.moonshot.cn',
+      enabled: true,
+      builtin: true,
+      active: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'qianwen',
+      name: 'Qianwen',
+      homeUrl: 'https://www.qianwen.com',
+      enabled: true,
+      builtin: true,
+      active: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'doubao',
+      name: 'Doubao',
+      homeUrl: 'https://www.doubao.com/chat',
+      enabled: true,
+      builtin: true,
+      active: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'xiaomi-aistudio',
+      name: 'Xiaomi AI Studio',
+      homeUrl: 'https://aistudio.xiaomimimo.com',
       enabled: true,
       builtin: true,
       active: false,

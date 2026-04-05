@@ -52,6 +52,9 @@ test('renders record detail actions with chinese export labels and forwards expo
   await waitFor(() => {
     expect(onExportSession).toHaveBeenCalledWith('session-1', 'markdown');
   });
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: '删除当前记录' })).toBeEnabled();
+  });
 
   fireEvent.click(screen.getByRole('button', { name: '删除当前记录' }));
 

@@ -11,7 +11,7 @@ afterEach(() => {
 
 test('shows only enabled providers in the rail and keeps the settings entry active for utility surfaces', () => {
   const onSelectProvider = vi.fn();
-  const onSelectSurface = vi.fn();
+  const onOpenUtility = vi.fn();
 
   render(
     <AppSidebar
@@ -22,19 +22,19 @@ test('shows only enabled providers in the rail and keeps the settings entry acti
       activeProviderId="chatgpt"
       activeSurface="settings"
       onSelectProvider={onSelectProvider}
-      onSelectSurface={onSelectSurface}
+      onOpenUtility={onOpenUtility}
     />
   );
 
   expect(screen.getByRole('button', { name: '打开 ChatGPT' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '打开 Claude' })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '打开设置' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: '打开工作台' })).toHaveAttribute('aria-pressed', 'true');
 
   fireEvent.click(screen.getByRole('button', { name: '打开 ChatGPT' }));
   expect(onSelectProvider).toHaveBeenCalledWith('chatgpt');
 
-  fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
-  expect(onSelectSurface).toHaveBeenCalledWith('settings');
+  fireEvent.click(screen.getByRole('button', { name: '打开工作台' }));
+  expect(onOpenUtility).toHaveBeenCalled();
 });
 
 function buildProvider(input: Partial<ProviderRecord> & Pick<ProviderRecord, 'id' | 'name'>): ProviderRecord {

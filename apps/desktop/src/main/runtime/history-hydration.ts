@@ -74,9 +74,6 @@ export function resolveSessionNavigationUrl(
 export function summarizeDeepSeekHydrationDiagnostics(input: {
   historyFetch?: DeepSeekHydrationHistoryFetchSummary | null;
   dom?: DeepSeekHydrationDomSummary | null;
-  relayBridgeType?: string;
-  relaySendType?: string;
-  relayInstalled?: boolean | null;
 }): string {
   return JSON.stringify({
     historyFetch: input.historyFetch
@@ -103,9 +100,6 @@ export function summarizeDeepSeekHydrationDiagnostics(input: {
           })),
         }
       : null,
-    relayBridgeType: input.relayBridgeType ?? '',
-    relaySendType: input.relaySendType ?? '',
-    relayInstalled: input.relayInstalled ?? null,
   });
 }
 
@@ -119,6 +113,16 @@ function buildConversationUrl(providerId: ProviderId, remoteConversationId: stri
       return `https://chat.deepseek.com/a/chat/s/${remoteConversationId}`;
     case 'gemini':
       return `https://gemini.google.com/app/${remoteConversationId}`;
+    case 'grok':
+      return `https://grok.com/c/${remoteConversationId}`;
+    case 'kimi':
+      return `https://www.kimi.com/chat/${remoteConversationId}`;
+    case 'qianwen':
+      return `https://www.qianwen.com/chat/${remoteConversationId}`;
+    case 'doubao':
+      return `https://www.doubao.com/chat/${remoteConversationId}`;
+    case 'xiaomi-aistudio':
+      return `https://aistudio.xiaomimimo.com/#/chat/${remoteConversationId}`;
     default:
       return null;
   }

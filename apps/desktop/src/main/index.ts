@@ -6,9 +6,11 @@ import {
   type RuntimeSignal,
 } from '@amberkeeper/capture-core';
 import type {
+  CaptureEnvelope,
   CaptureExportArtifact,
   CaptureExportFormat,
   CaptureSessionRecord,
+  NormalizedMessage,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
@@ -27,8 +29,17 @@ import {
   type BrowserSessionProviderId,
   type BrowserSessionRuntime,
 } from './runtime/browser-session';
-import { getProviderAdapter } from './runtime/provider-adapters';
+import { createProviderLiveAutomation, evaluateProviderPage } from './runtime/provider-live-automation';
+import { createProviderLiveProbeServer } from './runtime/provider-live-probe-server';
+import { getProviderAdapter, getProviderLiveAutomationSpec } from './runtime/provider-adapters';
 import { createCdpObserver } from './runtime/cdp-observer';
+import {
+  createOldSessionAutoCacheKey,
+  resolveAutoCachedTitle,
+  resolveDiscoveryAutoCacheCandidate,
+  shouldAcceptAutoCacheSnapshot,
+  shouldPersistAutoCachedMessages,
+} from './runtime/old-session-auto-cache';
 import {
   normalizeHydratedDomMessages,
   resolveSessionNavigationUrl,
@@ -59,9 +70,15 @@ type TrackedRequest = {
 
 type ProviderRuntimeContext = {
   providerId: BrowserSessionProviderId;
+  homeUrl: string;
   view: BrowserSessionRuntime['view'];
   loadInitialUrl: () => Promise<void>;
   loadUrl: (url: string) => Promise<void>;
+  evaluateJavaScript: <T = unknown>(code: string, userGesture?: boolean) => Promise<T>;
+  runDomSnapshot: () => Promise<{ message: string; detail: string }>;
+  readStructuredDomSnapshot: (
+    fallbackUrl: string
+  ) => Promise<{ url: string; title: string; messages: Array<{ role?: string; content?: string }> }>;
   browserSession: BrowserSessionRuntime;
   cdpObserver: ReturnType<typeof createCdpObserver> | null;
   currentUrl: string;
@@ -76,6 +93,8 @@ let runtimeRegistry: ReturnType<typeof createProviderRuntimeRegistry<ProviderRun
 let captureStore: CaptureStore | null = null;
 let captureOrchestrator: ReturnType<typeof createCaptureOrchestrator> | null = null;
 let turnPersistenceService: ReturnType<typeof createTurnPersistenceService> | null = null;
+let providerLiveAutomation: ReturnType<typeof createProviderLiveAutomation> | null = null;
+let providerLiveProbeServer: ReturnType<typeof createProviderLiveProbeServer> | null = null;
 let activeProviderId: ProviderId | null = null;
 let currentUrl = '';
 let lastCaptureAt: string | null = null;
@@ -84,6 +103,7 @@ let nativeStageVisible = true;
 const providerPageTitles = new Map<ProviderId, string>();
 
 const trackedRequests = new Map<string, TrackedRequest>();
+const oldSessionAutoCacheInFlight = new Map<string, Promise<{ message: string; detail: string }>>();
 const seenObservationKeys: string[] = [];
 const seenObservationKeySet = new Set<string>();
 
@@ -109,6 +129,7 @@ function createDesktopWindow(): void {
     domCaptureInFlight = false;
     nativeStageVisible = true;
     trackedRequests.clear();
+    oldSessionAutoCacheInFlight.clear();
   });
 
   runtimeRegistry = createProviderRuntimeRegistry({
@@ -160,6 +181,7 @@ function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext
       if (activeProviderId === provider.id) {
         currentUrl = url;
         publishRuntimeStatus();
+        void maybeAutoCacheRemoteConversation(provider.id, url);
       }
     },
   });
@@ -177,9 +199,13 @@ function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext
     : null;
 
   runtime.providerId = provider.id;
+  runtime.homeUrl = config.homeUrl;
   runtime.view = browserSessionRuntime.view;
   runtime.loadInitialUrl = browserSessionRuntime.loadInitialUrl;
   runtime.loadUrl = browserSessionRuntime.loadUrl;
+  runtime.evaluateJavaScript = browserSessionRuntime.executeJavaScript;
+  runtime.runDomSnapshot = browserSessionRuntime.runDomSnapshot;
+  runtime.readStructuredDomSnapshot = browserSessionRuntime.readStructuredDomSnapshot;
   runtime.browserSession = browserSessionRuntime;
   runtime.cdpObserver = observer;
   runtime.currentUrl = config.homeUrl;
@@ -261,6 +287,12 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
       adapter,
     });
     if (requestConversationSignal) {
+      maybeAutoCacheDiscoveredConversation({
+        classification,
+        providerId: requestConversationSignal.provider,
+        remoteConversationId: requestConversationSignal.conversationId,
+        pageUrl: requestConversationSignal.pageUrl,
+      });
       emitProviderSignals([requestConversationSignal]);
     }
 
@@ -290,6 +322,7 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
 
       if (signals.length > 0) {
         emitProviderSignals(signals);
+        persistRequestCandidateEnvelope(tracked, signals);
       } else {
         recordAttempt({
           source: 'cdp-network',
@@ -339,6 +372,12 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
       adapter,
     });
     if (responseConversationSignal) {
+      maybeAutoCacheDiscoveredConversation({
+        classification: tracked.classification,
+        providerId: responseConversationSignal.provider,
+        remoteConversationId: responseConversationSignal.conversationId,
+        pageUrl: responseConversationSignal.pageUrl,
+      });
       emitProviderSignals([responseConversationSignal]);
     }
 
@@ -372,13 +411,14 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
   }
 
   if (signal.kind === 'responseBodyFailed') {
+    const tracked = trackedRequests.get(getTrackedRequestKey(signal.provider, signal.requestId));
     trackedRequests.delete(getTrackedRequestKey(signal.provider, signal.requestId));
     recordAttempt({
       source: 'cdp-network',
       stage: 'response-body',
       status: 'error',
-      message: 'Failed to retrieve or parse a ChatGPT response body.',
-      detail: formatError(signal.error),
+      message: `Failed to retrieve or parse a ${signal.provider} response body.`,
+      detail: [tracked?.url ?? '', formatError(signal.error)].filter(Boolean).join('\n'),
       createdAt: signal.capturedAt,
     });
     publishRuntimeStatus();
@@ -405,6 +445,14 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
     capturedAt: signal.capturedAt,
     sourceSessionKey: tracked.sourceSessionKey,
   });
+  const historyEnvelope = buildHistoryEnvelopeFromTrackedResponse(tracked, text);
+
+  if (historyEnvelope) {
+    persistAutoCachedEnvelope(historyEnvelope, {
+      trigger: 'network-history-response',
+      triggerUrl: tracked.url,
+    });
+  }
 
   if (response.signals.length > 0) {
     if (
@@ -474,6 +522,64 @@ function summarizeSignalsForDiagnostics(signals: ProviderSignal[]): string {
     null,
     2
   );
+}
+
+function persistRequestCandidateEnvelope(
+  tracked: TrackedRequest,
+  signals: ProviderSignal[]
+): void {
+  if (!captureStore) {
+    return;
+  }
+
+  const conversationId =
+    signals.find((signal) => signal.kind === 'conversationIdResolved')?.conversationId ??
+    signals.find((signal) => signal.kind === 'candidateUserMessage')?.conversationId ??
+    null;
+  const userSignals = signals.filter(
+    (signal): signal is Extract<ProviderSignal, { kind: 'candidateUserMessage' }> =>
+      signal.kind === 'candidateUserMessage' && Boolean(signal.content.trim())
+  );
+
+  if (userSignals.length === 0) {
+    return;
+  }
+
+  const latestUserSignal = userSignals[userSignals.length - 1];
+  const envelope: CaptureEnvelope = {
+    provider: tracked.provider,
+    source: 'cdp-network',
+    pageUrl: tracked.pageUrl,
+    capturedAt: tracked.capturedAt,
+    sourceSessionKey: tracked.sourceSessionKey,
+    remoteConversationId: conversationId ?? undefined,
+    title: resolveActiveRuntimeTitle(tracked.provider),
+    titleSource: resolveActiveRuntimeTitle(tracked.provider) ? 'provider' : 'fallback',
+    messages: [
+      {
+        role: 'user',
+        content: latestUserSignal.content,
+        createdAt: latestUserSignal.createdAt,
+        remoteConversationId: conversationId ?? undefined,
+        remoteMessageId: latestUserSignal.remoteMessageId,
+        model: latestUserSignal.model,
+      },
+    ],
+  };
+
+  captureStore.persistEnvelope(envelope);
+  recordAttempt({
+    source: 'cdp-network',
+    stage: 'request-user-persist',
+    status: 'captured',
+    message: `Persisted request-side user turn for ${tracked.provider}.`,
+    detail: JSON.stringify({
+      remoteConversationId: conversationId,
+      pageUrl: tracked.pageUrl,
+      preview: latestUserSignal.content.slice(0, 160),
+    }),
+    createdAt: tracked.capturedAt,
+  });
 }
 
 async function captureConversationFromDom(pageUrl: string): Promise<void> {
@@ -722,21 +828,142 @@ function getRuntimeStatus(): RuntimeStatus {
   };
 }
 
-async function hydrateSessionHistory(
-  session: CaptureSessionRecord,
-  runtime: ProviderRuntimeContext,
-  targetUrl: string
-): Promise<{ message: string; detail: string }> {
+function maybeAutoCacheRemoteConversation(providerId: ProviderId, targetUrl: string): void {
+  const adapter = getProviderAdapter(providerId);
+  if (!adapter || !captureStore) {
+    return;
+  }
+
+  const remoteConversationId = adapter.extractConversationIdFromUrl(targetUrl)?.trim();
+  if (!remoteConversationId) {
+    return;
+  }
+
+  const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
+  if (!runtime || runtime.providerId !== providerId) {
+    return;
+  }
+
+  void captureConversationHistoryFromDom({
+    providerId,
+    runtime,
+    targetUrl,
+    preferredConversationId: remoteConversationId,
+    existingSessionId: captureStore.findSessionByRemoteConversation(providerId, remoteConversationId)?.id ?? null,
+    stage: 'history-auto-cache',
+    emptyMessage: 'No DOM history was available for the selected remote conversation.',
+  });
+}
+
+function maybeAutoCacheDiscoveredConversation(input: {
+  classification: 'capture' | 'discover' | 'ignore';
+  providerId: ProviderId;
+  remoteConversationId: string | null;
+  pageUrl: string;
+}): void {
+  const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
+  const candidate = resolveDiscoveryAutoCacheCandidate({
+    classification: input.classification,
+    activeProviderId,
+    runtimeProviderId: runtime?.providerId ?? null,
+    signalProviderId: input.providerId,
+    remoteConversationId: input.remoteConversationId,
+    pageUrl: input.pageUrl,
+  });
+  if (!candidate || !captureStore || !runtime) {
+    return;
+  }
+
+  void captureConversationHistoryFromDom({
+    providerId: candidate.providerId,
+    runtime,
+    targetUrl: candidate.targetUrl,
+    preferredConversationId: candidate.remoteConversationId,
+    existingSessionId:
+      captureStore.findSessionByRemoteConversation(
+        candidate.providerId,
+        candidate.remoteConversationId
+      )?.id ?? null,
+    stage: 'history-auto-cache',
+    emptyMessage: 'No DOM history was available for the discovered remote conversation.',
+  });
+}
+
+function captureConversationHistoryFromDom(input: {
+  providerId: ProviderId;
+  runtime: ProviderRuntimeContext;
+  targetUrl: string;
+  preferredConversationId?: string | null;
+  existingSessionId?: string | null;
+  stage: 'history-hydration' | 'history-auto-cache';
+  emptyMessage: string;
+}): Promise<{ message: string; detail: string }> {
+  const adapter = getProviderAdapter(input.providerId);
+  const conversationKey =
+    input.preferredConversationId?.trim() ??
+    adapter?.extractConversationIdFromUrl(input.targetUrl) ??
+    input.targetUrl;
+  const key = createOldSessionAutoCacheKey(
+    input.providerId,
+    conversationKey
+  );
+  const inFlight = oldSessionAutoCacheInFlight.get(key);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const next = runConversationHistoryCaptureFromDom(input).finally(() => {
+    oldSessionAutoCacheInFlight.delete(key);
+  });
+  oldSessionAutoCacheInFlight.set(key, next);
+
+  return next;
+}
+
+async function runConversationHistoryCaptureFromDom(input: {
+  providerId: ProviderId;
+  runtime: ProviderRuntimeContext;
+  targetUrl: string;
+  preferredConversationId?: string | null;
+  existingSessionId?: string | null;
+  stage: 'history-hydration' | 'history-auto-cache';
+  emptyMessage: string;
+}): Promise<{ message: string; detail: string }> {
   recordAttempt({
     source: 'preload-dom',
-    stage: 'history-hydration',
+    stage: input.stage,
     status: 'info',
-    message: 'Started DOM hydration for the selected session.',
-    detail: [`session=${session.id}`, `targetUrl=${targetUrl}`].join('\n'),
+    message:
+      input.stage === 'history-hydration'
+        ? 'Started DOM hydration for the selected session.'
+        : 'Started DOM auto-cache for the active remote session.',
+    detail: [
+      input.preferredConversationId ? `remoteConversationId=${input.preferredConversationId}` : '',
+      `targetUrl=${input.targetUrl}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
     createdAt: new Date().toISOString(),
   });
 
-  const adapter = getProviderAdapter(session.provider);
+  const adapter = getProviderAdapter(input.providerId);
+  const initialRouteConversationId =
+    adapter?.extractConversationIdFromUrl(input.runtime.currentUrl) ??
+    adapter?.extractConversationIdFromUrl(input.targetUrl) ??
+    null;
+  let initialSignature: string | null = null;
+
+  if (
+    input.stage === 'history-auto-cache' &&
+    input.preferredConversationId &&
+    initialRouteConversationId !== input.preferredConversationId
+  ) {
+    const initialSnapshot = await input.runtime.browserSession.readStructuredDomSnapshot(
+      input.runtime.currentUrl || input.targetUrl
+    );
+    initialSignature = createHydrationSignature(initialSnapshot.messages);
+  }
+
   let previousSignature: string | null = null;
   let bestSnapshot:
     | {
@@ -748,25 +975,51 @@ async function hydrateSessionHistory(
     | null = null;
 
   for (let attempt = 0; attempt < DOM_CAPTURE_POLL_ATTEMPTS; attempt += 1) {
-    const snapshot = await runtime.browserSession.readStructuredDomSnapshot(runtime.currentUrl || targetUrl);
-    const conversationId =
-      adapter?.extractConversationIdFromUrl(snapshot.url) ?? session.remoteConversationId ?? null;
+    const snapshot = await input.runtime.browserSession.readStructuredDomSnapshot(
+      input.runtime.currentUrl || input.targetUrl
+    );
+    const resolvedConversationId =
+      adapter?.extractConversationIdFromUrl(snapshot.url) ??
+      adapter?.extractConversationIdFromUrl(input.runtime.currentUrl) ??
+      input.preferredConversationId ??
+      null;
     const normalized = normalizeHydratedDomMessages(snapshot.messages, {
       capturedAt: new Date().toISOString(),
-      conversationId,
+      conversationId: resolvedConversationId,
     });
 
     if (normalized.length > 0) {
+      const signature = createHydrationSignature(snapshot.messages);
+      if (
+        !shouldAcceptAutoCacheSnapshot({
+          stage: input.stage,
+          preferredConversationId: input.preferredConversationId,
+          resolvedConversationId,
+          initialSignature,
+          nextSignature: signature,
+        })
+      ) {
+        await wait(DOM_CAPTURE_POLL_INTERVAL_MS);
+        continue;
+      }
+
       bestSnapshot = {
-        url: snapshot.url || targetUrl,
+        url: snapshot.url || input.targetUrl,
         title: snapshot.title ?? '',
-        conversationId,
+        conversationId: resolvedConversationId,
         messages: snapshot.messages,
       };
 
-      const signature = createHydrationSignature(snapshot.messages);
       if (signature === previousSignature) {
-        return persistHydratedSessionSnapshot(session, runtime, bestSnapshot, targetUrl);
+        return persistHydratedConversationSnapshot({
+          providerId: input.providerId,
+          existingSessionId: input.existingSessionId ?? null,
+          runtime: input.runtime,
+          snapshot: bestSnapshot,
+          targetUrl: input.targetUrl,
+          preferredConversationId: input.preferredConversationId ?? null,
+          stage: input.stage,
+        });
       }
 
       previousSignature = signature;
@@ -776,24 +1029,47 @@ async function hydrateSessionHistory(
   }
 
   if (bestSnapshot) {
-    return persistHydratedSessionSnapshot(session, runtime, bestSnapshot, targetUrl);
+    return persistHydratedConversationSnapshot({
+      providerId: input.providerId,
+      existingSessionId: input.existingSessionId ?? null,
+      runtime: input.runtime,
+      snapshot: bestSnapshot,
+      targetUrl: input.targetUrl,
+      preferredConversationId: input.preferredConversationId ?? null,
+      stage: input.stage,
+    });
+  }
+
+  let domSnapshotDetail = '';
+  try {
+    const domSnapshot = await input.runtime.browserSession.runDomSnapshot();
+    domSnapshotDetail = domSnapshot.detail;
+  } catch (error) {
+    domSnapshotDetail = `runDomSnapshot failed: ${formatError(error)}`;
   }
 
   const deepSeekHistoryDiagnostics =
-    session.provider === 'deepseek'
-      ? await collectDeepSeekHistoryFetchDiagnostics(runtime, session.remoteConversationId)
+    input.providerId === 'deepseek'
+      ? await collectDeepSeekHistoryFetchDiagnostics(
+          input.runtime,
+          input.preferredConversationId ?? null
+        )
       : null;
-
   const createdAt = new Date().toISOString();
+
   recordAttempt({
     source: 'preload-dom',
-    stage: 'history-hydration',
+    stage: input.stage,
     status: 'info',
-    message: 'Opened remote session but found no DOM messages to hydrate.',
+    message:
+      input.stage === 'history-hydration'
+        ? 'Opened remote session but found no DOM messages to hydrate.'
+        : 'Observed remote session route but found no DOM history to cache.',
     detail: [
-      targetUrl,
-      `session=${session.id}`,
+      input.targetUrl,
+      input.preferredConversationId ? `remoteConversationId=${input.preferredConversationId}` : '',
       deepSeekHistoryDiagnostics ? `deepseekHistory=${deepSeekHistoryDiagnostics}` : '',
+      domSnapshotDetail ? `domSnapshot=${domSnapshotDetail}` : '',
     ]
       .filter(Boolean)
       .join('\n'),
@@ -801,9 +1077,25 @@ async function hydrateSessionHistory(
   });
 
   return {
-    message: 'No DOM history was available for the selected session.',
-    detail: targetUrl,
+    message: input.emptyMessage,
+    detail: input.targetUrl,
   };
+}
+
+async function hydrateSessionHistory(
+  session: CaptureSessionRecord,
+  runtime: ProviderRuntimeContext,
+  targetUrl: string
+): Promise<{ message: string; detail: string }> {
+  return captureConversationHistoryFromDom({
+    providerId: session.provider,
+    runtime,
+    targetUrl,
+    preferredConversationId: session.remoteConversationId,
+    existingSessionId: session.id,
+    stage: 'history-hydration',
+    emptyMessage: 'No DOM history was available for the selected session.',
+  });
 }
 
 async function collectDeepSeekHistoryFetchDiagnostics(
@@ -891,9 +1183,6 @@ async function collectDeepSeekHistoryFetchDiagnostics(
                 ...sampleNodes('[role="listitem"]'),
               ].slice(0, 6),
             },
-            relayBridgeType: typeof window.amberkeeperPageNetworkRelay,
-            relaySendType: typeof window.amberkeeperPageNetworkRelay?.send,
-            relayInstalled: window.__amberkeeperPageNetworkCaptureInstalled ?? null,
           };
         })();
       `,
@@ -912,81 +1201,222 @@ async function collectDeepSeekHistoryFetchDiagnostics(
         mainHtmlSample?: string;
         selectorCounts?: Record<string, number>;
       } | null;
-      relayBridgeType?: string;
-      relaySendType?: string;
-      relayInstalled?: boolean | null;
     } | null;
 
     return summarizeDeepSeekHydrationDiagnostics({
       historyFetch: diagnostics?.historyFetch ?? null,
       dom: diagnostics?.dom ?? null,
-      relayBridgeType: diagnostics?.relayBridgeType ?? '',
-      relaySendType: diagnostics?.relaySendType ?? '',
-      relayInstalled: diagnostics?.relayInstalled ?? null,
     });
   } catch (error) {
     return `executeJavaScript failed: ${formatError(error)}`;
   }
 }
 
-function persistHydratedSessionSnapshot(
-  session: CaptureSessionRecord,
-  runtime: ProviderRuntimeContext,
+function persistHydratedConversationSnapshot(input: {
+  providerId: ProviderId;
+  existingSessionId?: string | null;
+  runtime: ProviderRuntimeContext;
   snapshot: {
     url: string;
     title: string;
     conversationId: string | null;
     messages: Array<{ role?: string; content?: string }>;
-  },
-  targetUrl: string
-): { message: string; detail: string } {
+  };
+  targetUrl: string;
+  preferredConversationId?: string | null;
+  stage: 'history-hydration' | 'history-auto-cache';
+}): { message: string; detail: string } {
   const capturedAt = new Date().toISOString();
-  const messages = normalizeHydratedDomMessages(snapshot.messages, {
+  const conversationId = input.snapshot.conversationId ?? input.preferredConversationId ?? null;
+  const messages = normalizeHydratedDomMessages(input.snapshot.messages, {
     capturedAt,
-    conversationId: snapshot.conversationId,
+    conversationId,
   });
 
   if (messages.length === 0) {
     recordAttempt({
       source: 'preload-dom',
-      stage: 'history-hydration',
+      stage: input.stage,
       status: 'info',
       message: 'Opened remote session but normalized history was empty.',
-      detail: `${targetUrl}\nsession=${session.id}`,
+      detail: `${input.targetUrl}\nremoteConversationId=${conversationId ?? ''}`,
       createdAt: capturedAt,
     });
 
     return {
-      message: 'The selected session did not expose any normalized history yet.',
-      detail: targetUrl,
+      message:
+        input.stage === 'history-hydration'
+          ? 'The selected session did not expose any normalized history yet.'
+          : 'The active remote session did not expose any normalized history yet.',
+      detail: input.targetUrl,
     };
   }
 
-  captureStore?.replaceSessionEnvelope(session.id, {
-    provider: session.provider,
-    source: 'preload-dom',
-    pageUrl: snapshot.url || targetUrl,
-    capturedAt,
-    sourceSessionKey: runtime.browserSession.config.sourceSessionKey,
-    remoteConversationId: snapshot.conversationId ?? session.remoteConversationId ?? undefined,
-    title: snapshot.title?.trim() || session.title,
-    titleSource: snapshot.title?.trim() ? 'provider' : session.titleSource ?? 'fallback',
-    messages,
+  const resolvedTitle = resolveAutoCachedTitle({
+    stage: input.stage,
+    snapshotTitle: input.snapshot.title,
   });
-  lastCaptureAt = capturedAt;
-
-  recordAttempt({
+  const envelope: CaptureEnvelope = {
+    provider: input.providerId,
     source: 'preload-dom',
-    stage: 'history-hydration',
+    pageUrl: input.snapshot.url || input.targetUrl,
+    capturedAt,
+    sourceSessionKey: input.runtime.browserSession.config.sourceSessionKey,
+    remoteConversationId: conversationId ?? undefined,
+    title: resolvedTitle,
+    titleSource: resolvedTitle ? 'provider' : 'fallback',
+    messages,
+  };
+  const sessionId = persistAutoCachedEnvelope(envelope, {
+    existingSessionId: input.existingSessionId ?? null,
+    trigger: input.stage,
+    triggerUrl: input.snapshot.url || input.targetUrl,
+  });
+
+  if (!sessionId) {
+    return {
+      message: 'The remote conversation is already cached with the latest stable snapshot.',
+      detail: input.snapshot.url || input.targetUrl,
+    };
+  }
+
+  const actionLabel = input.existingSessionId ? 'Hydrated' : 'Cached';
+  return {
+    message: `${actionLabel} ${messages.length} message(s) from the remote session.`,
+    detail: input.snapshot.url || input.targetUrl,
+  };
+}
+
+function persistAutoCachedEnvelope(
+  envelope: CaptureEnvelope,
+  input: {
+    existingSessionId?: string | null;
+    trigger: 'history-hydration' | 'history-auto-cache' | 'network-history-response';
+    triggerUrl: string;
+  }
+): string | null {
+  if (!captureStore) {
+    return null;
+  }
+
+  const existingSession = resolveExistingSessionForEnvelope(envelope, input.existingSessionId ?? null);
+  if (
+    existingSession &&
+    existingSession.pageUrl === envelope.pageUrl &&
+    (existingSession.title ?? null) === (envelope.title ?? null) &&
+    !shouldPersistAutoCachedMessages(captureStore.listMessages(existingSession.id), envelope.messages)
+  ) {
+    return null;
+  }
+
+  const sessionId = existingSession
+    ? captureStore.replaceSessionEnvelope(existingSession.id, envelope)
+    : captureStore.persistEnvelope(envelope);
+
+  lastCaptureAt = envelope.capturedAt;
+  recordAttempt({
+    source: envelope.source,
+    stage: input.trigger === 'history-hydration' ? 'history-hydration' : 'history-auto-cache',
     status: 'captured',
-    message: `Hydrated ${messages.length} message(s) from the selected session.`,
-    detail: `${snapshot.url || targetUrl}\nsession=${session.id}`,
-    createdAt: capturedAt,
+    message: `${existingSession ? 'Updated' : 'Cached'} ${envelope.messages.length} message(s) from the remote session.`,
+    detail: [
+      input.triggerUrl,
+      `session=${sessionId}`,
+      envelope.remoteConversationId ? `remoteConversationId=${envelope.remoteConversationId}` : '',
+      `trigger=${input.trigger}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    createdAt: envelope.capturedAt,
+  });
+
+  return sessionId;
+}
+
+function resolveExistingSessionForEnvelope(
+  envelope: CaptureEnvelope,
+  existingSessionId: string | null
+): CaptureSessionRecord | null {
+  if (!captureStore) {
+    return null;
+  }
+
+  if (existingSessionId) {
+    return captureStore.listSessions().find((session) => session.id === existingSessionId) ?? null;
+  }
+
+  const remoteConversationId = envelope.remoteConversationId?.trim();
+  if (!remoteConversationId) {
+    return null;
+  }
+
+  return captureStore.findSessionByRemoteConversation(envelope.provider, remoteConversationId);
+}
+
+function buildHistoryEnvelopeFromTrackedResponse(
+  tracked: TrackedRequest,
+  body: string
+): CaptureEnvelope | null {
+  const adapter = getProviderAdapter(tracked.provider);
+  const historyCapture = adapter?.extractHistoryCapture?.({
+    url: tracked.url,
+    method: tracked.method,
+    body,
+    pageUrl: tracked.pageUrl,
+    capturedAt: tracked.capturedAt,
+    sourceSessionKey: tracked.sourceSessionKey,
+  });
+
+  if (!historyCapture) {
+    return null;
+  }
+
+  return buildProviderHistoryEnvelope({
+    tracked,
+    messages: historyCapture.messages,
+    conversationId: historyCapture.conversationId ?? null,
+  });
+}
+
+function buildProviderHistoryEnvelope(input: {
+  tracked: TrackedRequest;
+  messages: NormalizedMessage[];
+  conversationId: string | null;
+}): CaptureEnvelope | null {
+  if (input.messages.length === 0) {
+    return null;
+  }
+
+  const remoteConversationId =
+    input.messages.find((message) => message.remoteConversationId)?.remoteConversationId ??
+    input.conversationId ??
+    null;
+  if (!remoteConversationId) {
+    return null;
+  }
+
+  const activeTitle = resolveAutoCachedTitle({
+    stage: 'network-history-response',
+    snapshotTitle: resolveActiveRuntimeTitle(input.tracked.provider),
   });
 
   return {
-    message: `Hydrated ${messages.length} message(s) from the selected session.`,
-    detail: snapshot.url || targetUrl,
+    provider: input.tracked.provider,
+    source: 'cdp-network',
+    pageUrl: input.tracked.pageUrl,
+    capturedAt: input.tracked.capturedAt,
+    sourceSessionKey: input.tracked.sourceSessionKey,
+    remoteConversationId,
+    title: activeTitle,
+    titleSource: activeTitle ? 'provider' : 'fallback',
+    messages: input.messages.map((message, index) => ({
+      ...message,
+      createdAt:
+        message.createdAt === new Date(0).toISOString()
+          ? new Date(new Date(input.tracked.capturedAt).getTime() + index).toISOString()
+          : message.createdAt,
+      remoteConversationId: message.remoteConversationId ?? remoteConversationId,
+    })),
   };
 }
 
@@ -1214,35 +1644,6 @@ function recordUniqueObservation(
   recordAttempt(input);
 }
 
-function handleRelayedNetworkPayload(payload: {
-  url?: string;
-  method?: string;
-  status?: number | null;
-  body?: string;
-  pageUrl?: string;
-  capturedAt?: string;
-}): void {
-  if (!payload.url || !payload.method || typeof payload.body !== 'string') {
-    return;
-  }
-
-  recordAttempt({
-    source: 'runtime',
-    stage: 'page-network-relay',
-    status: 'info',
-    message: 'Relayed page-owned network response body.',
-    detail: [
-      payload.url,
-      `status=${payload.status ?? ''}`,
-      payload.pageUrl ? `pageUrl=${payload.pageUrl}` : '',
-      payload.body.slice(0, 2000),
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    createdAt: payload.capturedAt ?? new Date().toISOString(),
-  });
-}
-
 function formatError(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
@@ -1310,12 +1711,84 @@ registerAppLifecycle({
 
         publishRuntimeStatus();
       },
-      onRelayedNetworkPayload: handleRelayedNetworkPayload,
     });
 
+    providerLiveAutomation = createProviderLiveAutomation({
+      activateProvider: async (providerId) => {
+        setActiveProvider(providerId);
+        await wait(900);
+      },
+      resolveRuntime: (providerId) => {
+        const runtime = runtimeRegistry?.resolveRuntime(providerId) ?? null;
+        if (!runtime || runtime.providerId !== providerId) {
+          return null;
+        }
+
+        return {
+          providerId: runtime.providerId,
+          currentUrl: runtime.currentUrl,
+          homeUrl: runtime.browserSession.config.homeUrl,
+          loadUrl: runtime.loadUrl,
+          browserSession: runtime.browserSession,
+          view: runtime.view,
+        };
+      },
+      getAutomationSpec: getProviderLiveAutomationSpec,
+      listProviderSessions: (providerId) =>
+        captureStore?.listSessions().filter((session) => session.provider === providerId) ?? [],
+      listAttemptLogs: (limit) => captureStore?.listAttemptLogs(limit) ?? [],
+    });
     createDesktopWindow();
+
+    providerLiveProbeServer = createProviderLiveProbeServer({
+      manifestPath: path.join(app.getPath('userData'), 'provider-live-probe-server.json'),
+      runProbe: async (request: import('@amberkeeper/shared-types').ProviderLiveProbeRequest) => {
+        if (!providerLiveAutomation) {
+          throw new Error('Provider live automation is not ready yet.');
+        }
+
+        return providerLiveAutomation.runProbe(request);
+      },
+      evaluatePage: async (request: import('@amberkeeper/shared-types').ProviderPageEvalRequest) => {
+        if (!providerLiveAutomation) {
+          throw new Error('Provider live automation is not ready yet.');
+        }
+
+        return providerLiveAutomation.evaluatePage(request);
+      },
+    });
+
+    if (getShellInfo().diagnosticsEnabled) {
+      void providerLiveProbeServer
+        .start()
+        .then((manifest) => {
+          recordAttempt({
+            source: 'runtime',
+            stage: 'live-probe-server',
+            status: 'info',
+            message: 'Started local provider live probe server.',
+            detail: JSON.stringify(manifest),
+            createdAt: new Date().toISOString(),
+          });
+        })
+        .catch((error) => {
+          recordAttempt({
+            source: 'runtime',
+            stage: 'live-probe-server',
+            status: 'error',
+            message: 'Failed to start local provider live probe server.',
+            detail: formatError(error),
+            createdAt: new Date().toISOString(),
+          });
+        });
+    }
+    app.on('before-quit', () => {
+      void providerLiveProbeServer?.stop().catch(() => undefined);
+    });
   },
   onWindowAllClosed: () => {
+    void providerLiveProbeServer?.stop().catch(() => undefined);
+    providerLiveProbeServer = null;
     captureStore?.close();
     if (process.platform !== 'darwin') {
       app.quit();

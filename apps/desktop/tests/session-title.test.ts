@@ -27,6 +27,56 @@ describe('resolveSessionTitle', () => {
       )
     ).toBe('Draft launch checklist for the DeepSeek workspace');
   });
+
+  test('falls back to preview text for provider-generic Gemini page titles', () => {
+    expect(
+      resolveSessionTitle(
+        buildSession({
+          provider: 'gemini',
+          title: 'Google Gemini',
+          remoteConversationId: 'gemini-conv',
+          previewText: 'Plan the Q3 research agenda for multimodal agents',
+        })
+      )
+    ).toBe('Plan the Q3 research agenda for multimodal agents');
+  });
+
+  test('strips Gemini preview chrome prefixes like You said from fallback titles', () => {
+    expect(
+      resolveSessionTitle(
+        buildSession({
+          provider: 'gemini',
+          title: 'Google Gemini',
+          remoteConversationId: 'gemini-conv',
+          previewText: 'You said 我问你，现在主流模型中，哪个擅长写作',
+        })
+      )
+    ).toBe('我问你，现在主流模型中，哪个擅长写作');
+  });
+
+  test('treats provider-generic new provider titles as non-meaningful', () => {
+    expect(
+      resolveSessionTitle(
+        buildSession({
+          provider: 'grok',
+          title: 'Grok',
+          remoteConversationId: 'grok-conv',
+          previewText: 'Summarize launch blockers for the Grok rollout',
+        })
+      )
+    ).toBe('Summarize launch blockers for the Grok rollout');
+
+    expect(
+      resolveSessionTitle(
+        buildSession({
+          provider: 'xiaomi-aistudio',
+          title: 'Xiaomi AI Studio',
+          remoteConversationId: 'xiaomi-conv',
+          previewText: 'Rehydrate the Xiaomi workspace history',
+        })
+      )
+    ).toBe('Rehydrate the Xiaomi workspace history');
+  });
 });
 
 function buildSession(

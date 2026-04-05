@@ -1,0 +1,17 @@
+{
+  "name": "@amberkeeper/provider-qianwen",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "test": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run"
+  },
+  "dependencies": {
+    "@amberkeeper/capture-core": "workspace:*",
+    "@amberkeeper/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.17"
+  }
+}

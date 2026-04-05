@@ -93,6 +93,35 @@ export const claudeAdapter = {
       streamStatus: input.body.includes('[DONE]') ? ('COMPLETE' as const) : null,
     };
   },
+  extractHistoryCapture(input: {
+    url: string;
+    method: string;
+    body: string;
+    pageUrl: string;
+    capturedAt: string;
+    sourceSessionKey: string;
+  }) {
+    if (input.method !== 'GET') {
+      return null;
+    }
+
+    const messages = withConversationIdFallback(
+      parseClaudeHistoryResponse(input.body),
+      extractClaudeConversationIdFromUrl(input.url)
+    );
+    if (messages.length === 0) {
+      return null;
+    }
+
+    return {
+      conversationId:
+        messages.find((message) => typeof message.remoteConversationId === 'string')
+          ?.remoteConversationId ??
+        extractClaudeConversationIdFromUrl(input.url) ??
+        extractClaudeConversationIdFromUrl(input.pageUrl),
+      messages,
+    };
+  },
   interpretDomSnapshot(input: {
     pageUrl: string;
     capturedAt: string;

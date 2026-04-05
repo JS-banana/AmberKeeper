@@ -1,4 +1,14 @@
-export const BUILTIN_PROVIDER_IDS = ['chatgpt', 'claude', 'deepseek', 'gemini'] as const;
+export const BUILTIN_PROVIDER_IDS = [
+  'chatgpt',
+  'claude',
+  'deepseek',
+  'gemini',
+  'grok',
+  'kimi',
+  'qianwen',
+  'doubao',
+  'xiaomi-aistudio',
+] as const;
 
 export type ProviderId = (typeof BUILTIN_PROVIDER_IDS)[number];
 
@@ -90,6 +100,107 @@ export interface RuntimeStatus {
   lastCaptureAt: string | null;
   pendingRequestCount: number;
   recentAttempts: CaptureAttemptLogRecord[];
+}
+
+export type ProviderLiveProbeKind = 'new-message' | 'history-click';
+
+export type ProviderLiveProbeOutcome =
+  | 'passed'
+  | 'failed-no-local-insert'
+  | 'failed-no-history-target'
+  | 'failed-no-composer'
+  | 'blocked-login-or-antibot'
+  | 'blocked-selector-drift'
+  | 'blocked-timeout'
+  | 'probe-action-failed';
+
+export type ProviderLiveProbeVerdict = ProviderLiveProbeOutcome;
+
+export interface ProviderLiveProbeRequest {
+  providerId: ProviderId;
+  kind: ProviderLiveProbeKind;
+  promptText?: string;
+  historyItemIndex?: number;
+  resetToHome?: boolean;
+  timeoutMs?: number;
+}
+
+export interface ProviderLiveProbeHistoryItem {
+  index: number;
+  label: string;
+  href?: string | null;
+  conversationId?: string | null;
+}
+
+export interface ProviderLiveProbeMessageDelta {
+  sessionId: string;
+  beforeMessageCount: number;
+  afterMessageCount: number;
+  remoteConversationId: string | null;
+}
+
+export interface ProviderLiveProbeSessionDelta {
+  beforeSessionCount: number;
+  afterSessionCount: number;
+  newSessionIds: string[];
+  updatedSessionIds: string[];
+  remoteConversationIdsBefore: string[];
+  remoteConversationIdsAfter: string[];
+  messageDeltas: ProviderLiveProbeMessageDelta[];
+}
+
+export interface ProviderLiveProbeActionResult {
+  ok: boolean;
+  reason?: string;
+  selector?: string | null;
+  submitSelector?: string | null;
+  historyItem?: ProviderLiveProbeHistoryItem | null;
+  availableHistoryItems?: ProviderLiveProbeHistoryItem[];
+  pageTextSample?: string | null;
+  diagnostics?: Record<string, boolean | number | string | null>;
+}
+
+export interface ProviderLiveProbeEvidence {
+  beforeUrl?: string;
+  afterUrl?: string;
+  preUrl?: string;
+  postUrl?: string;
+  promptText?: string;
+  startedAt?: string;
+  selectedHistoryItem?: ProviderLiveProbeHistoryItem | null;
+  availableHistoryItems?: ProviderLiveProbeHistoryItem[];
+  domSnapshotMessage?: string;
+  domSnapshotDetail?: string;
+  sessionDelta: ProviderLiveProbeSessionDelta;
+  attemptLogs: CaptureAttemptLogRecord[];
+  action: ProviderLiveProbeActionResult;
+  notes: string[];
+}
+
+export interface ProviderLiveProbeResult {
+  providerId: ProviderId;
+  kind: ProviderLiveProbeKind;
+  outcome?: ProviderLiveProbeOutcome;
+  verdict?: ProviderLiveProbeVerdict;
+  ok: boolean;
+  message: string;
+  remoteConversationId: string | null;
+  selectedSessionId?: string | null;
+  completedAt?: string;
+  elapsedMs?: number;
+  evidence: ProviderLiveProbeEvidence;
+}
+
+export interface ProviderPageEvalRequest {
+  providerId: ProviderId;
+  script: string;
+  activate?: boolean;
+}
+
+export interface ProviderPageEvalResult {
+  providerId: ProviderId;
+  pageUrl: string;
+  result: unknown;
 }
 
 export interface CaptureExportArtifact {

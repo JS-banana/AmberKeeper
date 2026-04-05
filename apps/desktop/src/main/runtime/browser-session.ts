@@ -44,6 +44,41 @@ export const BUILT_IN_BROWSER_SESSION_CONFIGS: readonly BrowserSessionConfig[] =
     partition: 'persist:anychat-gemini',
     sourceSessionKey: 'gemini-primary-view',
   },
+  {
+    id: 'grok',
+    name: 'Grok',
+    homeUrl: 'https://grok.com',
+    partition: 'persist:anychat-grok',
+    sourceSessionKey: 'grok-primary-view',
+  },
+  {
+    id: 'kimi',
+    name: 'Kimi',
+    homeUrl: 'https://www.kimi.com/',
+    partition: 'persist:anychat-kimi',
+    sourceSessionKey: 'kimi-primary-view',
+  },
+  {
+    id: 'qianwen',
+    name: 'Qianwen',
+    homeUrl: 'https://www.qianwen.com',
+    partition: 'persist:anychat-qianwen',
+    sourceSessionKey: 'qianwen-primary-view',
+  },
+  {
+    id: 'doubao',
+    name: 'Doubao',
+    homeUrl: 'https://www.doubao.com/chat',
+    partition: 'persist:anychat-doubao',
+    sourceSessionKey: 'doubao-primary-view',
+  },
+  {
+    id: 'xiaomi-aistudio',
+    name: 'Xiaomi AI Studio',
+    homeUrl: 'https://aistudio.xiaomimimo.com/#/c',
+    partition: 'persist:anychat-xiaomi-aistudio',
+    sourceSessionKey: 'xiaomi-aistudio-primary-view',
+  },
 ] as const;
 
 const PROVIDER_CONFIGS: Record<BrowserSessionProviderId, BrowserSessionConfig> = {
@@ -75,6 +110,41 @@ const PROVIDER_CONFIGS: Record<BrowserSessionProviderId, BrowserSessionConfig> =
     partition: 'persist:anychat-gemini',
     sourceSessionKey: 'gemini-primary-view',
   },
+  grok: {
+    id: 'grok',
+    name: 'Grok',
+    homeUrl: 'https://grok.com',
+    partition: 'persist:anychat-grok',
+    sourceSessionKey: 'grok-primary-view',
+  },
+  kimi: {
+    id: 'kimi',
+    name: 'Kimi',
+    homeUrl: 'https://www.kimi.com/',
+    partition: 'persist:anychat-kimi',
+    sourceSessionKey: 'kimi-primary-view',
+  },
+  qianwen: {
+    id: 'qianwen',
+    name: 'Qianwen',
+    homeUrl: 'https://www.qianwen.com',
+    partition: 'persist:anychat-qianwen',
+    sourceSessionKey: 'qianwen-primary-view',
+  },
+  doubao: {
+    id: 'doubao',
+    name: 'Doubao',
+    homeUrl: 'https://www.doubao.com/chat',
+    partition: 'persist:anychat-doubao',
+    sourceSessionKey: 'doubao-primary-view',
+  },
+  'xiaomi-aistudio': {
+    id: 'xiaomi-aistudio',
+    name: 'Xiaomi AI Studio',
+    homeUrl: 'https://aistudio.xiaomimimo.com/#/c',
+    partition: 'persist:anychat-xiaomi-aistudio',
+    sourceSessionKey: 'xiaomi-aistudio-primary-view',
+  },
 };
 
 export function resolveBrowserSessionConfig(providerId: BrowserSessionProviderId): BrowserSessionConfig {
@@ -90,6 +160,7 @@ export interface BrowserSessionRuntime {
   view: WebContentsView;
   loadInitialUrl: () => Promise<void>;
   loadUrl: (url: string) => Promise<void>;
+  executeJavaScript: <TResult = unknown>(code: string, userGesture?: boolean) => Promise<TResult>;
   runDomSnapshot: () => Promise<{ message: string; detail: string }>;
   readStructuredDomSnapshot: (
     fallbackUrl: string
@@ -149,8 +220,10 @@ export function createBrowserSessionRuntime(options: {
     loadUrl: async (url: string) => {
       await navigate(url);
     },
+    executeJavaScript: async <TResult = unknown>(code: string, userGesture = true) =>
+      (await view.webContents.executeJavaScript(code, userGesture)) as TResult,
     runDomSnapshot: async () => {
-      const raw = (await view.webContents.executeJavaScript(
+      const raw = await view.webContents.executeJavaScript(
         `
           (async () => {
             const capture = window.amberkeeperChatCapture;
@@ -161,11 +234,11 @@ export function createBrowserSessionRuntime(options: {
           })();
         `,
         true
-      )) as { message?: string; detail?: string } | undefined;
+      );
 
       return {
-        message: raw?.message ?? 'DOM snapshot completed.',
-        detail: raw?.detail ?? '',
+        message: (raw as { message?: string } | undefined)?.message ?? 'DOM snapshot completed.',
+        detail: (raw as { detail?: string } | undefined)?.detail ?? '',
       };
     },
     readStructuredDomSnapshot: async (fallbackUrl: string) => {

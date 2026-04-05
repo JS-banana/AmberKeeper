@@ -5,6 +5,11 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   claude: 'Claude',
   deepseek: 'DeepSeek',
   gemini: 'Gemini',
+  grok: 'Grok',
+  kimi: 'Kimi',
+  qianwen: 'Qianwen',
+  doubao: 'Doubao',
+  'xiaomi-aistudio': 'Xiaomi AI Studio',
 };
 
 const GENERIC_SESSION_TITLES = new Set([
@@ -13,6 +18,12 @@ const GENERIC_SESSION_TITLES = new Set([
   'deepseek',
   'deepseek - into the unknown',
   'gemini',
+  'google gemini',
+  'grok',
+  'kimi',
+  'qianwen',
+  'doubao',
+  'xiaomi ai studio',
   'new chat',
   'new conversation',
   'untitled',
@@ -36,7 +47,10 @@ export function resolveSessionTitle(session: SessionTitleInput): string {
     return title;
   }
 
-  const previewText = session.previewText?.replace(/\s+/g, ' ').trim() ?? '';
+  const previewText = normalizePreviewText(
+    session.provider,
+    session.previewText?.replace(/\s+/g, ' ').trim() ?? ''
+  );
   if (previewText) {
     return previewText.slice(0, 72);
   }
@@ -87,4 +101,16 @@ function isMeaningfulSessionTitle(
 
 function normalizeTitle(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function normalizePreviewText(providerId: ProviderId, previewText: string): string {
+  if (!previewText) {
+    return '';
+  }
+
+  if (providerId !== 'gemini') {
+    return previewText;
+  }
+
+  return previewText.replace(/^(?:you said[:\s]*)+/i, '').trim();
 }

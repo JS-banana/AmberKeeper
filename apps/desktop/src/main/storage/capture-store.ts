@@ -75,32 +75,74 @@ export class CaptureStore {
     return conversationId;
   }
 
-  replaceSessionEnvelope(_sessionId: string, envelope: CaptureEnvelope): string {
-    const conversationId = this.conversationRepository.resolve({
-      provider: envelope.provider,
-      remoteConversationId: envelope.remoteConversationId,
-      sourceSessionKey: envelope.sourceSessionKey,
-      pageUrl: envelope.pageUrl,
-      title: envelope.title,
-      titleSource: envelope.titleSource,
-      createdAt: envelope.messages[0]?.createdAt ?? envelope.capturedAt,
-      updatedAt: envelope.capturedAt,
-    });
+  replaceSessionEnvelope(sessionId: string, envelope: CaptureEnvelope): string {
+    const existingSession = this.getSessionById(sessionId);
 
-    this.messageRepository.deleteByConversation(conversationId);
+    if (!existingSession) {
+      throw new Error(`Unknown session: ${sessionId}.`);
+    }
+
+    if (existingSession.provider !== envelope.provider) {
+      throw new Error(
+        `Session ${sessionId} belongs to ${existingSession.provider}, not ${envelope.provider}.`
+      );
+    }
+
+    const remoteConversationId = envelope.remoteConversationId ?? existingSession.remoteConversationId ?? null;
+    const nextTitle = envelope.title ?? existingSession.title ?? null;
+    const nextTitleSource = envelope.titleSource ?? existingSession.titleSource ?? 'fallback';
+
+    if (remoteConversationId) {
+      const conflictingSessionId = this.findSessionIdByRemoteConversation(
+        existingSession.provider,
+        remoteConversationId
+      );
+
+      if (conflictingSessionId && conflictingSessionId !== sessionId) {
+        throw new Error(
+          `Session ${sessionId} cannot be replaced with remote conversation ${remoteConversationId} because it already belongs to ${conflictingSessionId}.`
+        );
+      }
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE conversations
+          SET
+            remote_conversation_id = ?,
+            source_session_key = ?,
+            page_url = ?,
+            title = ?,
+            title_source = ?,
+            updated_at = ?
+          WHERE id = ?
+        `
+      )
+      .run(
+        remoteConversationId,
+        envelope.sourceSessionKey,
+        envelope.pageUrl,
+        nextTitle,
+        nextTitleSource,
+        envelope.capturedAt,
+        sessionId
+      );
+
+    this.messageRepository.deleteByConversation(sessionId);
 
     const insertedMessages = this.messageRepository.insertMany({
-      conversationId,
+      conversationId: sessionId,
       provider: envelope.provider,
-      remoteConversationId: envelope.remoteConversationId,
+      remoteConversationId,
       source: envelope.source,
       capturedAt: envelope.capturedAt,
       messages: envelope.messages,
     });
-    const messageCount = this.messageRepository.countByConversation(conversationId);
+    const messageCount = this.messageRepository.countByConversation(sessionId);
 
     this.conversationRepository.updateMessageCount(
-      conversationId,
+      sessionId,
       messageCount,
       envelope.capturedAt
     );
@@ -109,7 +151,7 @@ export class CaptureStore {
       messageCount,
     });
 
-    return conversationId;
+    return sessionId;
   }
 
   persistTurn(turn: CompletedTurn): string {
@@ -177,6 +219,14 @@ export class CaptureStore {
         `
       )
       .all(sessionId) as unknown as CaptureMessageRecord[];
+  }
+
+  findSessionByRemoteConversation(
+    provider: ProviderId,
+    remoteConversationId: string
+  ): CaptureSessionRecord | null {
+    const sessionId = this.findSessionIdByRemoteConversation(provider, remoteConversationId);
+    return sessionId ? this.getSessionById(sessionId) : null;
   }
 
   deleteSession(sessionId: string): void {
@@ -383,6 +433,24 @@ export class CaptureStore {
       }),
       createdAt: envelope.capturedAt,
     });
+  }
+
+  private findSessionIdByRemoteConversation(
+    provider: string,
+    remoteConversationId: string
+  ): string | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT id
+          FROM conversations
+          WHERE provider = ? AND remote_conversation_id = ?
+          LIMIT 1
+        `
+      )
+      .get(provider, remoteConversationId) as { id?: string } | undefined;
+
+    return row?.id ?? null;
   }
 
   private migrateLegacyData(): void {

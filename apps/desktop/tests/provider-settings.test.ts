@@ -28,14 +28,19 @@ describe('provider-settings', () => {
       'claude',
       'deepseek',
       'gemini',
+      'grok',
+      'kimi',
+      'qianwen',
+      'doubao',
+      'xiaomi-aistudio',
     ]);
 
     const configs = providers.map((provider) => resolveBrowserSessionConfig(provider.id));
     const partitions = new Set(configs.map((config) => config.partition));
     const homeUrls = new Set(configs.map((config) => config.homeUrl));
 
-    expect(partitions.size).toBe(4);
-    expect(homeUrls.size).toBe(4);
+    expect(partitions.size).toBe(9);
+    expect(homeUrls.size).toBe(9);
     expect(store.getActiveProvider()?.id).toBe('chatgpt');
   });
 
@@ -62,6 +67,11 @@ describe('provider-settings', () => {
     store.setProviderEnabled('claude', false);
     store.setProviderEnabled('deepseek', false);
     store.setProviderEnabled('gemini', false);
+    store.setProviderEnabled('grok', false);
+    store.setProviderEnabled('kimi', false);
+    store.setProviderEnabled('qianwen', false);
+    store.setProviderEnabled('doubao', false);
+    store.setProviderEnabled('xiaomi-aistudio', false);
 
     expect(() => store.setProviderEnabled('chatgpt', false)).toThrow(
       'At least one provider must remain enabled.'
@@ -82,6 +92,11 @@ describe('provider-settings', () => {
       'gemini',
       'claude',
       'deepseek',
+      'grok',
+      'kimi',
+      'qianwen',
+      'doubao',
+      'xiaomi-aistudio',
     ]);
   });
 });

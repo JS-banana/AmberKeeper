@@ -22,9 +22,24 @@ importers:
       '@amberkeeper/provider-deepseek':
         specifier: workspace:*
         version: link:../../packages/provider-deepseek
+      '@amberkeeper/provider-doubao':
+        specifier: workspace:*
+        version: link:../../packages/provider-doubao
       '@amberkeeper/provider-gemini':
         specifier: workspace:*
         version: link:../../packages/provider-gemini
+      '@amberkeeper/provider-grok':
+        specifier: workspace:*
+        version: link:../../packages/provider-grok
+      '@amberkeeper/provider-kimi':
+        specifier: workspace:*
+        version: link:../../packages/provider-kimi
+      '@amberkeeper/provider-qianwen':
+        specifier: workspace:*
+        version: link:../../packages/provider-qianwen
+      '@amberkeeper/provider-xiaomi-aistudio':
+        specifier: workspace:*
+        version: link:../../packages/provider-xiaomi-aistudio
       '@amberkeeper/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -133,11 +148,82 @@ importers:
         specifier: ^4.0.17
         version: 4.0.17(@types/node@25.0.7)(jiti@1.21.7)(jsdom@27.4.0)
 
+  packages/provider-doubao:
+    dependencies:
+      '@amberkeeper/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(jiti@1.21.7)(jsdom@27.4.0)
+
   packages/provider-gemini:
     dependencies:
       '@amberkeeper/capture-core':
         specifier: workspace:*
         version: link:../capture-core
+      '@amberkeeper/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(jiti@1.21.7)(jsdom@27.4.0)
+
+  packages/provider-grok:
+    dependencies:
+      '@amberkeeper/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(jiti@1.21.7)(jsdom@27.4.0)
+
+  packages/provider-kimi:
+    dependencies:
+      '@amberkeeper/capture-core':
+        specifier: workspace:*
+        version: link:../capture-core
+      '@amberkeeper/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(jiti@1.21.7)(jsdom@27.4.0)
+
+  packages/provider-qianwen:
+    dependencies:
+      '@amberkeeper/capture-core':
+        specifier: workspace:*
+        version: link:../capture-core
+      '@amberkeeper/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(jiti@1.21.7)(jsdom@27.4.0)
+
+  packages/provider-xiaomi-aistudio:
+    dependencies:
       '@amberkeeper/shared-types':
         specifier: workspace:*
         version: link:../shared-types

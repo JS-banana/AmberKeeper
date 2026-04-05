@@ -5,10 +5,12 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node --import ./scripts/polyfill-stdout.mjs ./node_modules/electron-vite/bin/electron-vite.js dev",
     "build": "node --import ./scripts/polyfill-stdout.mjs ./node_modules/electron-vite/bin/electron-vite.js build",
     "preview": "electron-vite preview",
     "test": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run",
+    "live-probe": "node scripts/provider-live-probe.mjs",
+    "page-eval": "node scripts/provider-page-eval.mjs",
     "gemini:dirty-data:dry-run": "node scripts/gemini-dirty-data-dry-run.mjs",
     "gemini:dirty-data:cleanup": "node scripts/gemini-dirty-data-cleanup.mjs"
   },
@@ -16,9 +18,14 @@
     "@amberkeeper/capture-core": "workspace:*",
     "@amberkeeper/provider-claude": "workspace:*",
     "@amberkeeper/provider-deepseek": "workspace:*",
+    "@amberkeeper/provider-doubao": "workspace:*",
     "@amberkeeper/provider-gemini": "workspace:*",
+    "@amberkeeper/provider-grok": "workspace:*",
     "@amberkeeper/provider-chatgpt": "workspace:*",
+    "@amberkeeper/provider-kimi": "workspace:*",
+    "@amberkeeper/provider-qianwen": "workspace:*",
     "@amberkeeper/shared-types": "workspace:*",
+    "@amberkeeper/provider-xiaomi-aistudio": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

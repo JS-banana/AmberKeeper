@@ -22,23 +22,19 @@ export function createMessageRepository(db: DatabaseSync) {
         const contentHash = createHash('sha256').update(message.content).digest('hex');
         const remoteConversationId =
           input.remoteConversationId ?? message.remoteConversationId ?? null;
+        const remoteMessageId = message.remoteMessageId ?? null;
 
-        const existing = db
-          .prepare(
-            `
-              SELECT
-                id,
-                created_at AS createdAt,
-                remote_message_id AS remoteMessageId,
-                model
-              FROM messages
-              WHERE provider = ?
-                AND ifnull(remote_conversation_id, '') = ifnull(?, '')
-                AND role = ?
-                AND content_hash = ?
-            `
-          )
-          .get(input.provider, remoteConversationId, message.role, contentHash) as
+        const existing =
+          findExistingMessage({
+            db,
+            conversationId: input.conversationId,
+            provider: input.provider,
+            remoteConversationId,
+            role: message.role,
+            createdAt: message.createdAt,
+            remoteMessageId,
+            contentHash,
+          }) as
             | {
                 id?: string;
                 createdAt?: string;
@@ -92,7 +88,7 @@ export function createMessageRepository(db: DatabaseSync) {
           message.role,
           message.content,
           contentHash,
-          message.remoteMessageId ?? null,
+          remoteMessageId,
           message.model ?? null,
           input.source,
           message.createdAt,
@@ -142,4 +138,85 @@ function chooseMessageCreatedAt(existingCreatedAt: string | undefined, nextCreat
 
 function isPlaceholderTimestamp(input: string): boolean {
   return input === new Date(0).toISOString();
+}
+
+function findExistingMessage(input: {
+  db: DatabaseSync;
+  conversationId: string;
+  provider: string;
+  remoteConversationId: string | null;
+  role: NormalizedMessage['role'];
+  createdAt: string;
+  remoteMessageId: string | null;
+  contentHash: string;
+}) {
+  if (input.remoteMessageId) {
+    const exactMatch = input.db
+      .prepare(
+        `
+          SELECT
+            id,
+            created_at AS createdAt,
+            remote_message_id AS remoteMessageId,
+            model
+          FROM messages
+          WHERE provider = ?
+            AND ifnull(remote_conversation_id, '') = ifnull(?, '')
+            AND remote_message_id = ?
+        `
+      )
+      .get(input.provider, input.remoteConversationId, input.remoteMessageId);
+
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    return input.db
+      .prepare(
+        `
+          SELECT
+            id,
+            created_at AS createdAt,
+            remote_message_id AS remoteMessageId,
+            model
+          FROM messages
+          WHERE conversation_id = ?
+            AND role = ?
+            AND content_hash = ?
+            AND remote_message_id IS NULL
+          ORDER BY
+            CASE
+              WHEN created_at = ? THEN 0
+              WHEN created_at = ? THEN 1
+              ELSE 2
+            END,
+            created_at ASC
+          LIMIT 1
+        `
+      )
+      .get(
+        input.conversationId,
+        input.role,
+        input.contentHash,
+        new Date(0).toISOString(),
+        input.createdAt
+      );
+  }
+
+  return input.db
+    .prepare(
+      `
+        SELECT
+          id,
+          created_at AS createdAt,
+          remote_message_id AS remoteMessageId,
+          model
+        FROM messages
+        WHERE conversation_id = ?
+          AND role = ?
+          AND created_at = ?
+          AND content_hash = ?
+      `
+    )
+    .get(input.conversationId, input.role, input.createdAt, input.contentHash);
 }

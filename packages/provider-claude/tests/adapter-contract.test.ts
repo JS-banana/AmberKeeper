@@ -174,6 +174,49 @@ describe('claude-adapter', () => {
     );
   });
 
+  test('extracts a full history capture candidate from Claude history GET responses', () => {
+    const candidate = claudeAdapter.extractHistoryCapture?.({
+      url: 'https://claude.ai/api/organizations/org-1/chat_conversations/conv-1?tree=True&rendering_mode=messages',
+      method: 'GET',
+      body: JSON.stringify({
+        uuid: 'conv-1',
+        chat_messages: [
+          {
+            uuid: 'msg-user-1',
+            sender: 'human',
+            created_at: '2026-03-20T00:10:01.000Z',
+            content: [{ type: 'text', text: 'History question' }],
+          },
+          {
+            uuid: 'msg-assistant-1',
+            sender: 'assistant',
+            created_at: '2026-03-20T00:10:02.000Z',
+            content: [{ type: 'text', text: 'History answer' }],
+          },
+        ],
+      }),
+      pageUrl: 'https://claude.ai/chat/conv-1',
+      capturedAt: '2026-03-20T00:10:11.000Z',
+      sourceSessionKey: 'claude-primary-view',
+    });
+
+    expect(candidate).toEqual({
+      conversationId: 'conv-1',
+      messages: [
+        expect.objectContaining({
+          role: 'user',
+          content: 'History question',
+          remoteConversationId: 'conv-1',
+        }),
+        expect.objectContaining({
+          role: 'assistant',
+          content: 'History answer',
+          remoteConversationId: 'conv-1',
+        }),
+      ],
+    });
+  });
+
   test('ignores non-history Claude GET responses instead of trying to parse them as chat history', () => {
     const response = claudeAdapter.interpretResponseBody({
       url: 'https://claude.ai/api/organizations/org-1/projects?include_harmony_projects=true&limit=30',

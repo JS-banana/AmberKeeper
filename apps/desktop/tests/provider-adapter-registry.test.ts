@@ -7,12 +7,22 @@ describe('provider-adapter-registry', () => {
     expect(getProviderAdapter('chatgpt')).toBe(chatgptAdapter);
     expect(getProviderAdapter('claude')).not.toBeNull();
     expect(getProviderAdapter('deepseek')).not.toBeNull();
+    expect(getProviderAdapter('doubao')).not.toBeNull();
     expect(getProviderAdapter('gemini')).not.toBeNull();
+    expect(getProviderAdapter('grok')).not.toBeNull();
+    expect(getProviderAdapter('kimi')).not.toBeNull();
+    expect(getProviderAdapter('qianwen')).not.toBeNull();
+    expect(getProviderAdapter('xiaomi-aistudio')).not.toBeNull();
     expect(listRegisteredProviderAdapters().map((adapter) => adapter.id)).toEqual([
       'chatgpt',
       'claude',
       'deepseek',
       'gemini',
+      'grok',
+      'kimi',
+      'qianwen',
+      'doubao',
+      'xiaomi-aistudio',
     ]);
   });
 

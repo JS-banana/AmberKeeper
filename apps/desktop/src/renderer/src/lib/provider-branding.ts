@@ -65,6 +65,75 @@ const PROVIDER_BRANDING: Record<ProviderId, ProviderBranding> = {
     monogram: 'G',
     remoteIconUrls: ['https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg'],
   },
+  grok: {
+    iconUrl: 'https://grok.com/favicon.ico',
+    brandColor: '#0f172a',
+    badgeTint: 'rgba(15, 23, 42, 0.14)',
+    iconScale: 1,
+    railTint: 'rgba(15, 23, 42, 0.08)',
+    railActiveTint: 'rgba(15, 23, 42, 0.16)',
+    monogram: 'G',
+    remoteIconUrls: [
+      'https://grok.com/favicon.ico',
+      'https://www.google.com/s2/favicons?domain=grok.com&sz=64',
+    ],
+  },
+  kimi: {
+    iconUrl: 'https://www.kimi.com/favicon.ico',
+    brandColor: '#5b6dff',
+    badgeTint: 'rgba(91, 109, 255, 0.14)',
+    iconScale: 1,
+    railTint: 'rgba(91, 109, 255, 0.1)',
+    railActiveTint: 'rgba(91, 109, 255, 0.18)',
+    monogram: 'K',
+    remoteIconUrls: [
+      'https://www.kimi.com/favicon.ico',
+      'https://kimi.moonshot.cn/favicon.ico',
+      'https://www.google.com/s2/favicons?domain=www.kimi.com&sz=64',
+      'https://www.google.com/s2/favicons?domain=kimi.moonshot.cn&sz=64',
+    ],
+  },
+  qianwen: {
+    iconUrl:
+      'https://img.alicdn.com/imgextra/i4/O1CN01uar8u91DHWktnF2fl_!!6000000000191-2-tps-110-110.png',
+    brandColor: '#635bff',
+    badgeTint: 'rgba(99, 91, 255, 0.14)',
+    iconScale: 1,
+    railTint: 'rgba(99, 91, 255, 0.1)',
+    railActiveTint: 'rgba(99, 91, 255, 0.18)',
+    monogram: 'Q',
+    remoteIconUrls: [
+      'https://img.alicdn.com/imgextra/i4/O1CN01uar8u91DHWktnF2fl_!!6000000000191-2-tps-110-110.png',
+      'https://www.qianwen.com/favicon.ico',
+      'https://www.google.com/s2/favicons?domain=qianwen.com&sz=64',
+    ],
+  },
+  doubao: {
+    iconUrl: 'https://www.doubao.com/favicon.ico',
+    brandColor: '#ff6a3d',
+    badgeTint: 'rgba(255, 106, 61, 0.14)',
+    iconScale: 1,
+    railTint: 'rgba(255, 106, 61, 0.1)',
+    railActiveTint: 'rgba(255, 106, 61, 0.18)',
+    monogram: 'D',
+    remoteIconUrls: [
+      'https://www.doubao.com/favicon.ico',
+      'https://www.google.com/s2/favicons?domain=doubao.com&sz=64',
+    ],
+  },
+  'xiaomi-aistudio': {
+    iconUrl: 'https://aistudio.xiaomimimo.com/favicon.ico',
+    brandColor: '#ff6900',
+    badgeTint: 'rgba(255, 105, 0, 0.14)',
+    iconScale: 1,
+    railTint: 'rgba(255, 105, 0, 0.1)',
+    railActiveTint: 'rgba(255, 105, 0, 0.18)',
+    monogram: 'X',
+    remoteIconUrls: [
+      'https://aistudio.xiaomimimo.com/favicon.ico',
+      'https://www.google.com/s2/favicons?domain=aistudio.xiaomimimo.com&sz=64',
+    ],
+  },
 };
 
 export function getProviderBranding(providerId: ProviderId): ProviderBranding {

@@ -32,8 +32,8 @@ test('renders a user-facing chat shell and hides diagnostics in production mode'
   expect(screen.getByRole('navigation', { name: '应用列表' })).toBeInTheDocument();
   expect(screen.getByRole('navigation', { name: '工作台入口' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '知识库' })).not.toBeInTheDocument();
-  expect(await screen.findByRole('button', { name: '打开设置' })).not.toHaveAttribute('title');
-  expect(await screen.findByRole('button', { name: '打开设置' })).not.toHaveAttribute('data-tooltip');
+  expect(await screen.findByRole('button', { name: '打开工作台' })).not.toHaveAttribute('title');
+  expect(await screen.findByRole('button', { name: '打开工作台' })).not.toHaveAttribute('data-tooltip');
   expect(screen.queryByText('当前应用')).not.toBeInTheDocument();
 
   await waitFor(() => {
@@ -71,7 +71,7 @@ test('opens the library in all-record mode, hides the native stage, and hydrates
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
@@ -103,14 +103,16 @@ test('renders the utility area with a left nav and compact service rows', async 
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
 
   const nav = screen.getByRole('navigation', { name: '设置与历史' });
   expect(nav.closest('.utility-workbench')).toHaveClass('utility-workbench--sidebar');
-  expect(within(nav).getByRole('button', { name: '服务管理' })).toHaveAttribute('aria-current', 'page');
-  expect(within(nav).getByRole('button', { name: '历史记录' })).toBeInTheDocument();
+  expect(within(nav).getAllByRole('button')[0]).toHaveTextContent('历史记录');
+  expect(within(nav).getByRole('button', { name: '历史记录' })).toHaveAttribute('aria-current', 'page');
+  expect(within(nav).getByRole('button', { name: '服务管理' })).toBeInTheDocument();
   expect(within(nav).getByRole('button', { name: '诊断' })).toBeInTheDocument();
 
+  fireEvent.click(screen.getByRole('button', { name: '服务管理' }));
   const chatgptItem = within(screen.getByRole('list', { name: '内置应用列表' }))
     .getAllByRole('listitem')
     .find((item) => item.getAttribute('data-provider-id') === 'chatgpt');
@@ -144,7 +146,7 @@ test('shows the library as an all-provider knowledge base instead of scoping to 
     expect(api.setActiveProvider).toHaveBeenCalledWith('claude');
   });
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
@@ -178,7 +180,7 @@ test('keeps all-provider history visible even when the active provider has no se
     expect(api.setActiveProvider).toHaveBeenCalledWith('deepseek');
   });
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
@@ -216,7 +218,7 @@ test('uses semantic fallback titles in the knowledge base when provider page tit
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(await screen.findByRole('button', { name: '历史记录' }));
   fireEvent.click(await screen.findByRole('button', { name: '查看 DeepSeek 记录' }));
 
@@ -236,13 +238,14 @@ test('allows enabling and reordering built-in providers from settings', async ()
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
 
   expect(screen.queryByRole('heading', { name: '服务管理' })).not.toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
 
+  fireEvent.click(screen.getByRole('button', { name: '服务管理' }));
   fireEvent.click(screen.getByRole('button', { name: '停用 Claude' }));
   await waitFor(() => {
     expect(api.setProviderEnabled).toHaveBeenCalledWith('claude', false);
@@ -302,7 +305,8 @@ test('allows enabling and reordering built-in providers from settings', async ()
   });
 
   fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
-  fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
+  fireEvent.click(screen.getByRole('button', { name: '打开工作台' }));
+  fireEvent.click(screen.getByRole('button', { name: '服务管理' }));
 
   const settingsList = screen.getByRole('list', { name: '内置应用列表' });
   const items = within(settingsList).getAllByRole('listitem');
@@ -324,7 +328,7 @@ test('supports provider export and session delete actions from the knowledge bas
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   fireEvent.change(screen.getByRole('combobox', { name: '选择要导出的服务' }), {
@@ -367,7 +371,7 @@ test('lets operators manually refresh the history list so new sessions surface',
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
@@ -410,7 +414,7 @@ test('refreshes sessions after capture-driven runtime status updates', async () 
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
 
   expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
@@ -454,7 +458,7 @@ test('shows provider-specific history with a scrollable list and active record s
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
   fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
 
@@ -479,6 +483,36 @@ test('shows provider-specific history with a scrollable list and active record s
   expect(recentRecordButton).toHaveAttribute('aria-pressed', 'false');
 });
 
+test('restores the last utility surface and selected history scope when returning from chat', async () => {
+  const state = createHydrationFixture();
+  installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
+  const utilityNav = screen.getByRole('navigation', { name: '设置与历史' });
+  expect(within(utilityNav).getAllByRole('button')[0]).toHaveTextContent('历史记录');
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
+
+  expect(screen.getByRole('button', { name: '查看 ChatGPT 记录' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: '打开 ChatGPT' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
+
+  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '历史记录' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: '查看 ChatGPT 记录' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+});
+
 test('shows diagnostics only when the shell info enables developer tools', async () => {
   const state = createHydrationFixture();
   installCaptureApiMock(state, {
@@ -487,7 +521,7 @@ test('shows diagnostics only when the shell info enables developer tools', async
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(await screen.findByRole('button', { name: '诊断' }));
 
   expect(await screen.findByText('抓取调试台与对账控制台')).toBeInTheDocument();
@@ -503,7 +537,7 @@ test('renders diagnostics tooling with chinese labels for internal operators', a
 
   render(<App />);
 
-  fireEvent.click(await screen.findByRole('button', { name: '打开设置' }));
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(await screen.findByRole('button', { name: '诊断' }));
 
   expect(await screen.findByRole('heading', { name: '运行状态' })).toBeInTheDocument();

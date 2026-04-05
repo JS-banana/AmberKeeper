@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "ESNext.Disposable"],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@amberkeeper/shared-types": ["../shared-types/src/index.ts"]
+    },
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "tests/**/*.json"]
+}

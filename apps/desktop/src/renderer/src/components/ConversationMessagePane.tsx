@@ -48,6 +48,26 @@ export function ConversationMessagePane(props: {
     }
   }
 
+  async function handleDelete() {
+    if (!props.session) {
+      return;
+    }
+
+    if (!window.confirm('确认删除当前记录吗？此操作只会移除本地缓存。')) {
+      return;
+    }
+
+    setBusyAction('delete');
+    try {
+      const result = await props.onDeleteSession(props.session.id);
+      setFeedback(result.detail || result.message);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
 
 
   return (
@@ -70,6 +90,9 @@ export function ConversationMessagePane(props: {
                     className="message-pane__provider-icon"
                   />
                   <strong>{resolveSessionTitle(props.session)}</strong>
+                  {props.session.remoteConversationId ? (
+                    <span className="visually-hidden">{props.session.remoteConversationId}</span>
+                  ) : null}
                 </div>
                 <div className="message-pane__chips">
                   <span>{getProviderLabel(props.session.provider)}</span>
@@ -105,6 +128,17 @@ export function ConversationMessagePane(props: {
                   }}
                 >
                   <ExportIcon />
+                </IconActionButton>
+                <IconActionButton
+                  label="删除当前记录"
+                  busy={busyAction === 'delete'}
+                  disabled={busyAction !== null}
+                  danger
+                  onClick={() => {
+                    void handleDelete();
+                  }}
+                >
+                  <DeleteIcon />
                 </IconActionButton>
 
               </div>

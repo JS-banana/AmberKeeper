@@ -15,6 +15,8 @@ type HistoryScope = 'all' | ProviderRecord['id'];
 export function LibraryPage(props: {
   activeProvider: ProviderRecord | null;
   providers: ProviderRecord[];
+  historyScope: HistoryScope;
+  onChangeHistoryScope: (scope: HistoryScope) => void;
   sessions: CaptureSessionRecord[];
   selectedSession: CaptureSessionRecord | null;
   selectedSessionId: string | null;
@@ -33,7 +35,6 @@ export function LibraryPage(props: {
   ) => Promise<CaptureActionResult>;
 }) {
   const exportProviderOptions = props.providers.filter((provider) => provider.enabled);
-  const [historyScope, setHistoryScope] = useState<HistoryScope>('all');
   const [providerExportTarget, setProviderExportTarget] = useState<ProviderRecord['id'] | ''>(
     props.selectedSession?.provider ?? props.activeProvider?.id ?? exportProviderOptions[0]?.id ?? ''
   );
@@ -42,17 +43,17 @@ export function LibraryPage(props: {
   const [providerActionBusy, setProviderActionBusy] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const scopedProvider =
-    historyScope === 'all'
+    props.historyScope === 'all'
       ? null
-      : exportProviderOptions.find((provider) => provider.id === historyScope) ?? null;
+      : exportProviderOptions.find((provider) => provider.id === props.historyScope) ?? null;
   const scopedSessions =
-    historyScope === 'all'
+    props.historyScope === 'all'
       ? props.sessions
-      : props.sessions.filter((session) => session.provider === historyScope);
+      : props.sessions.filter((session) => session.provider === props.historyScope);
   const scopedSelectedSession =
-    historyScope === 'all'
+    props.historyScope === 'all'
       ? null
-      : props.selectedSession && props.selectedSession.provider === historyScope
+      : props.selectedSession && props.selectedSession.provider === props.historyScope
         ? props.selectedSession
         : scopedSessions[0] ?? null;
   const scopedMessages =
@@ -67,15 +68,15 @@ export function LibraryPage(props: {
   }, [exportProviderOptions, props.activeProvider?.id, props.selectedSession?.provider]);
 
   useEffect(() => {
-    if (historyScope === 'all') {
+    if (props.historyScope === 'all') {
       return;
     }
 
-    setProviderExportTarget(historyScope);
-  }, [historyScope]);
+    setProviderExportTarget(props.historyScope);
+  }, [props.historyScope]);
 
   useEffect(() => {
-    if (historyScope === 'all') {
+    if (props.historyScope === 'all') {
       return;
     }
 
@@ -88,7 +89,7 @@ export function LibraryPage(props: {
     }
 
     props.onSelectSession(scopedSessions[0].id);
-  }, [historyScope, props.onSelectSession, props.selectedSessionId, scopedSessions]);
+  }, [props.historyScope, props.onSelectSession, props.selectedSessionId, scopedSessions]);
 
   const exportProvider =
     exportProviderOptions.find((provider) => provider.id === providerExportTarget) ?? null;
@@ -120,7 +121,7 @@ export function LibraryPage(props: {
   }
 
   const exportAndSyncTools = (
-    <div className="library-page__toolbar-actions" style={historyScope === 'all' ? { justifyContent: 'flex-start', marginTop: 16 } : undefined}>
+    <div className="library-page__toolbar-actions" style={props.historyScope === 'all' ? { justifyContent: 'flex-start', marginTop: 16 } : undefined}>
       <label className="field-select field-select--compact">
         <span className="visually-hidden">选择要导出的服务</span>
         <select
@@ -154,7 +155,7 @@ export function LibraryPage(props: {
       </label>
 
       <IconActionButton
-        label="刷新记录"
+        label="刷新会话"
         busy={refreshBusy}
         onClick={() => {
           void handleRefresh();
@@ -180,28 +181,29 @@ export function LibraryPage(props: {
 
   return (
     <section className="utility-page utility-page--library">
+      <h1 className="visually-hidden">历史记录</h1>
       <div className="library-page__top">
         <div className="library-page__toolbar">
           <div className="library-page__provider-tabs" aria-label="按服务筛选历史记录">
             <button
               type="button"
               aria-label="查看全部记录"
-              aria-pressed={historyScope === 'all'}
+              aria-pressed={props.historyScope === 'all'}
               title="全部"
               className={
-                historyScope === 'all'
+                props.historyScope === 'all'
                   ? 'library-page__provider-tab library-page__provider-tab--active'
                   : 'library-page__provider-tab'
               }
               disabled={providerActionBusy || refreshBusy}
               onClick={() => {
-                setHistoryScope('all');
+                props.onChangeHistoryScope('all');
               }}
             >
               全部
             </button>
             {exportProviderOptions.map((provider) => {
-              const active = provider.id === historyScope;
+              const active = provider.id === props.historyScope;
 
               return (
                 <button
@@ -217,7 +219,7 @@ export function LibraryPage(props: {
                   }
                   disabled={providerActionBusy || refreshBusy}
                   onClick={() => {
-                    setHistoryScope(provider.id);
+                    props.onChangeHistoryScope(provider.id);
                   }}
                 >
                   <ProviderIcon
@@ -231,11 +233,11 @@ export function LibraryPage(props: {
             })}
           </div>
 
-          {historyScope !== 'all' && exportAndSyncTools}
+          {props.historyScope !== 'all' && exportAndSyncTools}
         </div>
       </div>
 
-      {historyScope === 'all' ? (
+      {props.historyScope === 'all' ? (
         <LibraryOverview
           sessionCount={props.sessions.length}
           providerCount={exportProviderOptions.length}
@@ -271,6 +273,10 @@ function LibraryOverview(props: {
 }) {
   return (
     <section className="library-overview-dashboard" aria-label="全部记录总览">
+      <div className="library-overview-dashboard__tools-header">
+        <h2>全部记录总览</h2>
+        <p>{props.sessionCount} 条记录 · {props.providerCount} 个服务</p>
+      </div>
       <div className="library-overview-dashboard__stats">
         <div className="stat-card stat-card--accent">
           <span className="stat-card__label">已收录记录</span>

@@ -107,14 +107,26 @@ export function SettingsPage(props: {
               </span>
 
               <div className="settings-item__meta">
-                <div className="settings-item__select">
+                <button
+                  type="button"
+                  className="settings-item__select"
+                  aria-pressed={provider.id === props.activeProviderId}
+                  aria-label={
+                    provider.id === props.activeProviderId
+                      ? `当前服务 ${provider.name}`
+                      : `切换到 ${provider.name}`
+                  }
+                  onClick={() => {
+                    props.onSelectProvider(provider.id);
+                  }}
+                >
                   <div className="settings-item__summary">
                     <div className="settings-item__headline">
                       <strong>{provider.name}</strong>
                     </div>
                     <p className="settings-item__subtitle">{provider.homeUrl}</p>
                   </div>
-                </div>
+                </button>
 
                 <div className="settings-item__actions">
                   <IconButton

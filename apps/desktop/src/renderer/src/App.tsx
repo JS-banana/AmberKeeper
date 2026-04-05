@@ -4,10 +4,16 @@ import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useWorkspaceStore } from './stores/workspace-store';
+import type { ProviderRecord } from '@amberkeeper/shared-types';
+
+type UtilitySurfaceId = Exclude<AppSurfaceId, 'chat'>;
+type HistoryScope = 'all' | ProviderRecord['id'];
 
 export function App() {
   const { state, activeProvider, selectedSession, actions } = useWorkspaceStore();
   const [activeSurface, setActiveSurface] = useState<AppSurfaceId>('chat');
+  const [lastUtilitySurface, setLastUtilitySurface] = useState<UtilitySurfaceId>('library');
+  const [libraryHistoryScope, setLibraryHistoryScope] = useState<HistoryScope>('all');
   const diagnosticsEnabled = state.shellInfo?.diagnosticsEnabled ?? false;
   const showChatSurface = activeSurface === 'chat';
 
@@ -19,7 +25,10 @@ export function App() {
     if (!diagnosticsEnabled && activeSurface === 'diagnostics') {
       startTransition(() => setActiveSurface('chat'));
     }
-  }, [activeSurface, diagnosticsEnabled]);
+    if (!diagnosticsEnabled && lastUtilitySurface === 'diagnostics') {
+      startTransition(() => setLastUtilitySurface('library'));
+    }
+  }, [activeSurface, diagnosticsEnabled, lastUtilitySurface]);
 
   return (
     <div className={showChatSurface ? 'product-shell product-shell--chat' : 'product-shell product-shell--utility'}>
@@ -31,8 +40,8 @@ export function App() {
           startTransition(() => setActiveSurface('chat'));
           void actions.selectProvider(providerId);
         }}
-        onSelectSurface={(surface) => {
-          startTransition(() => setActiveSurface(surface));
+        onOpenUtility={() => {
+          startTransition(() => setActiveSurface(lastUtilitySurface));
         }}
       />
 
@@ -50,11 +59,16 @@ export function App() {
             activeSurface={activeSurface}
             diagnosticsEnabled={diagnosticsEnabled}
             onSelectSurface={(surface) => {
-              startTransition(() => setActiveSurface(surface));
+              startTransition(() => {
+                setLastUtilitySurface(surface);
+                setActiveSurface(surface);
+              });
             }}
           >
             {renderUtilitySurface({
               activeSurface,
+              libraryHistoryScope,
+              onChangeLibraryHistoryScope: setLibraryHistoryScope,
               activeProvider,
               state,
               selectedSession,
@@ -74,8 +88,8 @@ function UtilityWorkbench(props: {
   children: ReactNode;
 }) {
   const menuItems: Array<{ id: Exclude<AppSurfaceId, 'chat'>; label: string; icon: ReactNode }> = [
-    { id: 'settings', label: '服务管理', icon: <WorkbenchGlyph kind="settings" /> },
     { id: 'library', label: '历史记录', icon: <WorkbenchGlyph kind="library" /> },
+    { id: 'settings', label: '服务管理', icon: <WorkbenchGlyph kind="settings" /> },
   ];
 
   if (props.diagnosticsEnabled) {
@@ -133,6 +147,8 @@ function UtilityWorkbench(props: {
 
 function renderUtilitySurface(input: {
   activeSurface: AppSurfaceId;
+  libraryHistoryScope: HistoryScope;
+  onChangeLibraryHistoryScope: (scope: HistoryScope) => void;
   activeProvider: ReturnType<typeof useWorkspaceStore>['activeProvider'];
   state: ReturnType<typeof useWorkspaceStore>['state'];
   selectedSession: ReturnType<typeof useWorkspaceStore>['selectedSession'];
@@ -144,6 +160,8 @@ function renderUtilitySurface(input: {
         <LibraryPage
           activeProvider={input.activeProvider}
           providers={input.state.providers}
+          historyScope={input.libraryHistoryScope}
+          onChangeHistoryScope={input.onChangeLibraryHistoryScope}
           sessions={input.state.sessions}
           selectedSession={input.selectedSession}
           selectedSessionId={input.state.selectedSessionId}
