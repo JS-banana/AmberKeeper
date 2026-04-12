@@ -159,9 +159,7 @@ export function LibraryPage(props: {
     <section className="utility-page utility-page--library">
       <h1 className="visually-hidden">数据</h1>
       <div className="library-page__top">
-        <div className="library-page__toolbar">
-          <div
-            className="flex items-center gap-1 overflow-x-auto pb-1"
+        <div className="flex items-center gap-1 overflow-x-auto pb-1"
             aria-label="按服务筛选数据"
           >
             <button
@@ -212,11 +210,13 @@ export function LibraryPage(props: {
               );
             })}
           </div>
-        </div>
       </div>
 
       {cacheDisabledProviders.length > 0 ? (
-        <div className="library-page__feedback" role="status">
+        <div
+          className="mx-0 rounded-2xl px-3.5 py-3 text-sm leading-relaxed text-[#5b4c38] bg-white/70 border border-amber-200/50"
+          role="status"
+        >
           <strong>缓存提示：</strong>
           {cacheDisabledProviders.map((provider) => provider.name).join('、')}
           已关闭后续本地缓存，历史数据仍可在这里查看。界面语言设置仅作用于 AmberKeeper 自身。
