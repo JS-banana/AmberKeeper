@@ -95,6 +95,7 @@ export function SettingsPage(props: {
             return (
               <li
                 key={provider.id}
+                data-provider-id={provider.id}
                 draggable={!reordering}
                 onDragStart={(e) => startDragging(provider.id, e)}
                 onDragEnd={() => { setDraggingProviderId(null); setDropTargetProviderId(null); }}

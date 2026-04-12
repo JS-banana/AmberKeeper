@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useState, type ReactNode } from 'react';
 import { Database, Settings, Info, Activity } from 'lucide-react';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppSidebar, type AppSurfaceId } from './components/AppSidebar';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { AboutPage } from './pages/AboutPage';
@@ -34,6 +35,7 @@ export function App() {
   }, [activeSurface, diagnosticsEnabled, lastUtilitySurface]);
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className={showChatSurface ? 'product-shell product-shell--chat' : 'product-shell product-shell--utility'}>
       <AppSidebar
         providers={state.providers}
@@ -81,6 +83,7 @@ export function App() {
         )}
       </main>
     </div>
+    </TooltipProvider>
   );
 }
 

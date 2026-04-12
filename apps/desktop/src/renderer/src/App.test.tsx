@@ -114,23 +114,19 @@ test('renders the utility area with a left nav and compact service rows', async 
   expect(within(nav).getByRole('button', { name: '诊断' })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: '设置' }));
-  const chatgptItem = within(screen.getByRole('list', { name: '内置应用列表' }))
+  const chatgptItem = within(screen.getByRole('list', { name: '服务列表' }))
     .getAllByRole('listitem')
     .find((item) => item.getAttribute('data-provider-id') === 'chatgpt');
 
   expect(chatgptItem).toBeDefined();
   expect(within(chatgptItem!).getByText('https://chatgpt.com')).toBeInTheDocument();
-  expect(within(chatgptItem!).getByText('缓存')).toBeInTheDocument();
-  expect(within(chatgptItem!).getByRole('switch', { name: 'ChatGPT 本地缓存' })).toHaveAttribute(
-    'aria-checked',
-    'true'
-  );
+  expect(within(chatgptItem!).getByRole('switch', { name: 'ChatGPT 本地缓存' })).toBeChecked();
   expect(
     within(chatgptItem!).queryByText(/拖动整行即可调整服务顺序|拖动到目标位置后松手完成排序/)
   ).not.toBeInTheDocument();
   expect(within(chatgptItem!).queryByRole('button', { name: '打开 ChatGPT' })).not.toBeInTheDocument();
   expect(within(chatgptItem!).getByRole('button', { name: '停用 ChatGPT' })).toHaveAttribute(
-    'title',
+    'aria-label',
     '停用 ChatGPT'
   );
   expect(within(chatgptItem!).queryByText('当前使用')).not.toBeInTheDocument();
@@ -287,13 +283,13 @@ test('allows enabling, cache toggling, and reordering built-in providers from se
 
   const dataTransfer = createDataTransfer();
   fireEvent.dragStart(
-    within(screen.getByRole('list', { name: '内置应用列表' }))
+    within(screen.getByRole('list', { name: '服务列表' }))
       .getAllByRole('listitem')
       .find((item) => item.getAttribute('data-provider-id') === 'gemini')!,
     { dataTransfer }
   );
   fireEvent.drop(
-    within(screen.getByRole('list', { name: '内置应用列表' }))
+    within(screen.getByRole('list', { name: '服务列表' }))
       .getAllByRole('listitem')
       .find((item) => item.getAttribute('data-provider-id') === 'deepseek')!,
     { dataTransfer }
@@ -302,7 +298,7 @@ test('allows enabling, cache toggling, and reordering built-in providers from se
     expect(api.moveProvider).toHaveBeenCalledWith('gemini', 'up');
   });
   await waitFor(() => {
-    const settingsList = screen.getByRole('list', { name: '内置应用列表' });
+    const settingsList = screen.getByRole('list', { name: '服务列表' });
     const items = within(settingsList).getAllByRole('listitem');
     expect(items.map((item) => item.getAttribute('data-provider-id'))).toEqual([
       'chatgpt',
@@ -313,13 +309,13 @@ test('allows enabling, cache toggling, and reordering built-in providers from se
   });
   const secondDataTransfer = createDataTransfer();
   fireEvent.dragStart(
-    within(screen.getByRole('list', { name: '内置应用列表' }))
+    within(screen.getByRole('list', { name: '服务列表' }))
       .getAllByRole('listitem')
       .find((item) => item.getAttribute('data-provider-id') === 'gemini')!,
     { dataTransfer: secondDataTransfer }
   );
   fireEvent.drop(
-    within(screen.getByRole('list', { name: '内置应用列表' }))
+    within(screen.getByRole('list', { name: '服务列表' }))
       .getAllByRole('listitem')
       .find((item) => item.getAttribute('data-provider-id') === 'claude')!,
     { dataTransfer: secondDataTransfer }
@@ -328,7 +324,7 @@ test('allows enabling, cache toggling, and reordering built-in providers from se
     expect(api.moveProvider).toHaveBeenNthCalledWith(2, 'gemini', 'up');
   });
   await waitFor(() => {
-    const refreshedList = screen.getByRole('list', { name: '内置应用列表' });
+    const refreshedList = screen.getByRole('list', { name: '服务列表' });
     const refreshedItems = within(refreshedList).getAllByRole('listitem');
     expect(refreshedItems.map((item) => item.getAttribute('data-provider-id'))).toEqual([
       'chatgpt',
@@ -342,7 +338,7 @@ test('allows enabling, cache toggling, and reordering built-in providers from se
   fireEvent.click(screen.getByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '设置' }));
 
-  const settingsList = screen.getByRole('list', { name: '内置应用列表' });
+  const settingsList = screen.getByRole('list', { name: '服务列表' });
   const items = within(settingsList).getAllByRole('listitem');
   expect(items.map((item) => item.getAttribute('data-provider-id'))).toEqual([
     'chatgpt',
