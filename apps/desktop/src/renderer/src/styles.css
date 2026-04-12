@@ -1,3 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 33% 94%;
+    --foreground: 26 22% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 26 22% 11%;
+    --muted: 36 25% 88%;
+    --muted-foreground: 30 12% 41%;
+    --primary: 32 90% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 36 33% 92%;
+    --secondary-foreground: 26 22% 11%;
+    --accent: 32 95% 41%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 35 20% 84%;
+    --input: 35 20% 84%;
+    --ring: 32 90% 49%;
+    --radius: 0.625rem;
+  }
+}
+
+/* ===== LEGACY STYLES — delete per-section as pages are rewritten ===== */
+
 :root {
   --product-rail-width: 66px;
   --product-sidebar-width: 346px;
@@ -876,10 +905,61 @@ button {
 }
 
 .settings-item__actions {
-  gap: 6px;
+  gap: 10px;
   justify-content: flex-end;
   flex: none;
   padding-right: 2px;
+}
+
+.settings-cache-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.settings-cache-control__label {
+  color: #7b889b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-switch {
+  width: 38px;
+  height: 22px;
+  padding: 2px;
+  border: 1px solid rgba(84, 99, 124, 0.14);
+  border-radius: 999px;
+  background: rgba(84, 99, 124, 0.14);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.settings-switch:hover {
+  transform: translateY(-1px);
+}
+
+.settings-switch--active {
+  border-color: rgba(207, 139, 46, 0.36);
+  background: rgba(207, 139, 46, 0.72);
+}
+
+.settings-switch__thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(32, 43, 58, 0.18);
+  transition: transform 160ms ease;
+}
+
+.settings-switch--active .settings-switch__thumb {
+  transform: translateX(16px);
 }
 
 .settings-drag-handle,
@@ -928,6 +1008,106 @@ button {
 .mini-icon {
   width: 18px;
   height: 18px;
+}
+
+.settings-page {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-section {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-row,
+.settings-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-row {
+  padding: 4px 0;
+}
+
+.settings-row .field-select select {
+  min-width: 180px;
+}
+
+.settings-row h2,
+.settings-section__header h2,
+.about-page__section h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #202b3a;
+}
+
+.about-page__section p,
+.about-page__lead,
+.about-page__list li,
+.about-page__meta-list dd {
+  margin: 0;
+  color: var(--product-muted);
+  line-height: 1.6;
+}
+
+.about-page {
+  display: grid;
+  gap: 24px;
+}
+
+.about-page__hero {
+  display: grid;
+  gap: 12px;
+  padding: 24px 28px;
+  border-radius: 28px;
+  background: linear-gradient(145deg, rgba(255, 250, 244, 0.98), rgba(255, 255, 255, 0.94));
+  border: 1px solid rgba(207, 139, 46, 0.18);
+}
+
+.about-page__eyebrow {
+  margin: 0;
+  color: #c27b2d;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.about-page__hero h1 {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  color: #202b3a;
+}
+
+.about-page__section {
+  display: grid;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(84, 99, 124, 0.12);
+}
+
+.about-page__list,
+.about-page__meta-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.about-page__meta-list div {
+  display: grid;
+  gap: 4px;
+}
+
+.about-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .button-icon {
