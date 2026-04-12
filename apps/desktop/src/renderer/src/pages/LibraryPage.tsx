@@ -1,16 +1,42 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { LayoutGrid, RefreshCw, Download, MessagesSquare, Server, TrendingUp, Database } from 'lucide-react';
 import type {
   CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderRecord,
 } from '@amberkeeper/shared-types';
+import { cn } from '@/lib/cn';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { IconButton } from '@/components/ui/icon-button';
 import { ConversationList } from '../components/ConversationList';
 import { ConversationMessagePane } from '../components/ConversationMessagePane';
 import { ProviderIcon } from '../components/ProviderIcon';
+import { CaptureTrendChart } from '../components/library/CaptureTrendChart';
+import { ProviderShareChart } from '../components/library/ProviderShareChart';
 
 type CaptureActionResult = { message: string; detail: string };
 type HistoryScope = 'all' | ProviderRecord['id'];
+
+function KpiCard(props: { icon: ReactNode; label: string; value: number | string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="flex items-center gap-2 text-xs">
+          <span className="text-primary">{props.icon}</span>
+          {props.label}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold tabular-nums text-foreground">
+          {typeof props.value === 'number' ? props.value.toLocaleString() : props.value}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function LibraryPage(props: {
   activeProvider: ProviderRecord | null;
@@ -34,18 +60,27 @@ export function LibraryPage(props: {
     format: CaptureExportFormat
   ) => Promise<CaptureActionResult>;
 }) {
-  const exportProviderOptions = props.providers.filter((provider) => provider.enabled);
+  const enabledProviders = props.providers.filter((provider) => provider.enabled);
+  const cacheDisabledProviders = enabledProviders.filter((provider) => !provider.cacheEnabled);
+  const cachedCount = enabledProviders.filter((provider) => provider.cacheEnabled).length;
+
+  const todayCount = props.sessions.filter((session) => {
+    const d = new Date(session.createdAt);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  }).length;
+
   const [providerExportTarget, setProviderExportTarget] = useState<ProviderRecord['id'] | ''>(
-    props.selectedSession?.provider ?? props.activeProvider?.id ?? exportProviderOptions[0]?.id ?? ''
+    props.selectedSession?.provider ?? props.activeProvider?.id ?? enabledProviders[0]?.id ?? ''
   );
   const [providerExportFormat, setProviderExportFormat] =
     useState<CaptureExportFormat>('json');
   const [providerActionBusy, setProviderActionBusy] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
-  const scopedProvider =
-    props.historyScope === 'all'
-      ? null
-      : exportProviderOptions.find((provider) => provider.id === props.historyScope) ?? null;
   const scopedSessions =
     props.historyScope === 'all'
       ? props.sessions
@@ -61,11 +96,11 @@ export function LibraryPage(props: {
 
   useEffect(() => {
     const nextTarget =
-      props.selectedSession?.provider ?? props.activeProvider?.id ?? exportProviderOptions[0]?.id ?? '';
+      props.selectedSession?.provider ?? props.activeProvider?.id ?? enabledProviders[0]?.id ?? '';
     setProviderExportTarget((current) =>
-      current && exportProviderOptions.some((provider) => provider.id === current) ? current : nextTarget
+      current && enabledProviders.some((provider) => provider.id === current) ? current : nextTarget
     );
-  }, [exportProviderOptions, props.activeProvider?.id, props.selectedSession?.provider]);
+  }, [enabledProviders, props.activeProvider?.id, props.selectedSession?.provider]);
 
   useEffect(() => {
     if (props.historyScope === 'all') {
@@ -92,7 +127,7 @@ export function LibraryPage(props: {
   }, [props.historyScope, props.onSelectSession, props.selectedSessionId, scopedSessions]);
 
   const exportProvider =
-    exportProviderOptions.find((provider) => provider.id === providerExportTarget) ?? null;
+    enabledProviders.find((provider) => provider.id === providerExportTarget) ?? null;
 
   async function handleProviderExport() {
     if (!providerExportTarget) {
@@ -120,131 +155,169 @@ export function LibraryPage(props: {
     }
   }
 
-  const exportAndSyncTools = (
-    <div className="library-page__toolbar-actions" style={props.historyScope === 'all' ? { justifyContent: 'flex-start', marginTop: 16 } : undefined}>
-      <label className="field-select field-select--compact">
-        <span className="visually-hidden">选择要导出的服务</span>
-        <select
-          aria-label="选择要导出的服务"
-          value={providerExportTarget}
-          disabled={providerActionBusy || exportProviderOptions.length === 0}
-          onChange={(event) => {
-            setProviderExportTarget(event.currentTarget.value as ProviderRecord['id']);
-          }}
-        >
-          {exportProviderOptions.map((provider) => (
-            <option key={provider.id} value={provider.id}>
-              {provider.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field-select field-select--compact">
-        <span className="visually-hidden">选择导出格式</span>
-        <select
-          aria-label="选择导出格式"
-          value={providerExportFormat}
-          disabled={!providerExportTarget || providerActionBusy}
-          onChange={(event) => {
-            setProviderExportFormat(event.currentTarget.value as CaptureExportFormat);
-          }}
-        >
-          <option value="json">JSON 格式</option>
-          <option value="markdown">Markdown 格式</option>
-        </select>
-      </label>
-
-      <IconActionButton
-        label="刷新会话"
-        busy={refreshBusy}
-        onClick={() => {
-          void handleRefresh();
-        }}
-      >
-        <RefreshIcon />
-      </IconActionButton>
-
-      <IconActionButton
-        label={
-          exportProvider ? `导出 ${exportProvider.name} 记录` : '导出服务记录'
-        }
-        busy={providerActionBusy}
-        disabled={!providerExportTarget}
-        onClick={() => {
-          void handleProviderExport();
-        }}
-      >
-        <ExportIcon />
-      </IconActionButton>
-    </div>
-  );
-
   return (
     <section className="utility-page utility-page--library">
-      <h1 className="visually-hidden">历史记录</h1>
+      <h1 className="visually-hidden">数据</h1>
       <div className="library-page__top">
         <div className="library-page__toolbar">
-          <div className="library-page__provider-tabs" aria-label="按服务筛选历史记录">
+          <div
+            className="flex items-center gap-1 overflow-x-auto pb-1"
+            aria-label="按服务筛选数据"
+          >
             <button
               type="button"
               aria-label="查看全部记录"
               aria-pressed={props.historyScope === 'all'}
-              title="全部"
-              className={
-                props.historyScope === 'all'
-                  ? 'library-page__provider-tab library-page__provider-tab--active'
-                  : 'library-page__provider-tab'
-              }
               disabled={providerActionBusy || refreshBusy}
-              onClick={() => {
-                props.onChangeHistoryScope('all');
-              }}
+              onClick={() => props.onChangeHistoryScope('all')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                'disabled:pointer-events-none disabled:opacity-50',
+                props.historyScope === 'all'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-accent/20 hover:text-foreground'
+              )}
             >
+              <LayoutGrid className="size-4" />
               全部
             </button>
-            {exportProviderOptions.map((provider) => {
+            {enabledProviders.map((provider) => {
               const active = provider.id === props.historyScope;
-
               return (
                 <button
                   key={provider.id}
                   type="button"
                   aria-label={`查看 ${provider.name} 记录`}
                   aria-pressed={active}
-                  title={provider.name}
-                  className={
-                    active
-                      ? 'library-page__provider-tab library-page__provider-tab--active'
-                      : 'library-page__provider-tab'
-                  }
                   disabled={providerActionBusy || refreshBusy}
-                  onClick={() => {
-                    props.onChangeHistoryScope(provider.id);
-                  }}
+                  onClick={() => props.onChangeHistoryScope(provider.id)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                    'disabled:pointer-events-none disabled:opacity-50',
+                    active
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-accent/20 hover:text-foreground'
+                  )}
                 >
                   <ProviderIcon
                     providerId={provider.id}
                     providerName={provider.name}
                     homeUrl={provider.homeUrl}
-                    className="library-page__provider-icon"
+                    className="size-4"
                   />
+                  {provider.name}
                 </button>
               );
             })}
           </div>
-
-          {props.historyScope !== 'all' && exportAndSyncTools}
         </div>
       </div>
 
+      {cacheDisabledProviders.length > 0 ? (
+        <div className="library-page__feedback" role="status">
+          <strong>缓存提示：</strong>
+          {cacheDisabledProviders.map((provider) => provider.name).join('、')}
+          已关闭后续本地缓存，历史数据仍可在这里查看。界面语言设置仅作用于 AmberKeeper 自身。
+        </div>
+      ) : null}
+
       {props.historyScope === 'all' ? (
-        <LibraryOverview
-          sessionCount={props.sessions.length}
-          providerCount={exportProviderOptions.length}
-          activeProviderName={props.activeProvider?.name ?? '未选择'}
-        >
-          {exportAndSyncTools}
-        </LibraryOverview>
+        <div className="flex flex-col gap-6 p-2">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <KpiCard
+              icon={<MessagesSquare className="size-4" />}
+              label="总会话数"
+              value={props.sessions.length}
+            />
+            <KpiCard
+              icon={<Server className="size-4" />}
+              label="接入服务"
+              value={enabledProviders.length}
+            />
+            <KpiCard
+              icon={<TrendingUp className="size-4" />}
+              label="今日新增"
+              value={todayCount}
+            />
+            <KpiCard
+              icon={<Database className="size-4" />}
+              label="缓存服务"
+              value={`${cachedCount}/${enabledProviders.length}`}
+            />
+          </div>
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <CaptureTrendChart sessions={props.sessions} />
+            </div>
+            <ProviderShareChart sessions={props.sessions} providers={props.providers} />
+          </div>
+
+          {/* Export Panel */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">数据操作</CardTitle>
+              <CardDescription>按需刷新、导出和管理您的本地 AI 对话数据</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap items-center gap-3">
+                <Select
+                  value={providerExportTarget}
+                  onValueChange={(v) => setProviderExportTarget(v as ProviderRecord['id'])}
+                  disabled={providerActionBusy || enabledProviders.length === 0}
+                >
+                  <SelectTrigger className="w-40" aria-label="选择要导出的服务">
+                    <SelectValue placeholder="选择服务" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {enabledProviders.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={providerExportFormat}
+                  onValueChange={(v) => setProviderExportFormat(v as CaptureExportFormat)}
+                  disabled={!providerExportTarget || providerActionBusy}
+                >
+                  <SelectTrigger className="w-36" aria-label="选择导出格式">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="json">JSON 格式</SelectItem>
+                    <SelectItem value="markdown">Markdown 格式</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <IconButton
+                  label="刷新会话"
+                  disabled={refreshBusy}
+                  onClick={() => void handleRefresh()}
+                >
+                  <RefreshCw className="size-4" />
+                </IconButton>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!providerExportTarget || providerActionBusy}
+                  onClick={() => void handleProviderExport()}
+                  className="gap-2"
+                >
+                  <Download className="size-4" />
+                  {exportProvider ? `导出 ${exportProvider.name} 记录` : '导出记录'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <div className="library-grid">
           <ConversationList
@@ -262,102 +335,5 @@ export function LibraryPage(props: {
         </div>
       )}
     </section>
-  );
-}
-
-function LibraryOverview(props: {
-  sessionCount: number;
-  providerCount: number;
-  activeProviderName: string;
-  children?: ReactNode;
-}) {
-  return (
-    <section className="library-overview-dashboard" aria-label="全部记录总览">
-      <div className="library-overview-dashboard__tools-header">
-        <h2>全部记录总览</h2>
-        <p>{props.sessionCount} 条记录 · {props.providerCount} 个服务</p>
-      </div>
-      <div className="library-overview-dashboard__stats">
-        <div className="stat-card stat-card--accent">
-          <span className="stat-card__label">已收录记录</span>
-          <div className="stat-card__value">
-            {props.sessionCount}
-            <span className="stat-card__unit">条</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <span className="stat-card__label">已接入服务</span>
-          <div className="stat-card__value">
-            {props.providerCount}
-            <span className="stat-card__unit">个</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <span className="stat-card__label">当前工作服务</span>
-          <div className="stat-card__value stat-card__value--text" style={{ fontSize: '24px', paddingTop: '10px' }}>
-            {props.activeProviderName}
-          </div>
-        </div>
-      </div>
-      
-      <div className="library-overview-dashboard__tools">
-        <div className="library-overview-dashboard__tools-header">
-          <h3>导出与同步</h3>
-          <p>按需配置并导出您的本地 AI 对话数据</p>
-        </div>
-        {props.children}
-      </div>
-    </section>
-  );
-}
-
-function IconActionButton(props: {
-  label: string;
-  busy?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      className="secondary-icon-button"
-      type="button"
-      aria-label={props.label}
-      title={props.label}
-      disabled={props.disabled || props.busy}
-      onClick={props.onClick}
-    >
-      {props.children}
-    </button>
-  );
-}
-
-function ExportIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="button-icon">
-      <path
-        d="M12 4.5v10m0 0 4-4m-4 4-4-4M5.5 16.5v1.25A1.75 1.75 0 0 0 7.25 19.5h9.5a1.75 1.75 0 0 0 1.75-1.75V16.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="button-icon">
-      <path
-        d="M19 8.5V4.75m0 0H15.25M19 4.75 14.8 8.9A7 7 0 1 0 18.25 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

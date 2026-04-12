@@ -75,9 +75,8 @@ test('opens the data workspace in all-record mode, hides the native stage, and h
   fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
   expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
-  expect(screen.getByText('2 条记录 · 1 个服务')).toBeInTheDocument();
+  expect(screen.getByText('总会话数')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByText('全部记录总览')).toBeInTheDocument();
   expect(screen.queryByText('Recent answer')).not.toBeInTheDocument();
   await waitFor(() => {
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
@@ -176,9 +175,8 @@ test('shows the data workspace as an all-provider overview instead of scoping to
   fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
   expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
-  expect(screen.getByText('3 条记录 · 3 个服务')).toBeInTheDocument();
+  expect(screen.getByText('总会话数')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByText('全部记录总览')).toBeInTheDocument();
   expect(screen.queryByRole('list', { name: '会话数据列表' })).not.toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: '数据详情' })).not.toBeInTheDocument();
 
@@ -210,7 +208,7 @@ test('keeps all-provider data visible even when the active provider has no sessi
   fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
   expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
-  expect(screen.getByText('3 条记录 · 4 个服务')).toBeInTheDocument();
+  expect(screen.getByText('总会话数')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
   fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
   expect(await screen.findByRole('button', { name: /chatgpt-conv/i })).toBeInTheDocument();
@@ -361,12 +359,11 @@ test('supports provider export and session delete actions from the data workspac
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
-  fireEvent.change(screen.getByRole('combobox', { name: '选择要导出的服务' }), {
-    target: { value: 'chatgpt' },
-  });
-  fireEvent.change(screen.getByRole('combobox', { name: '选择导出格式' }), {
-    target: { value: 'markdown' satisfies CaptureExportFormat },
-  });
+  // Radix Select: click trigger to open, then click option
+  fireEvent.click(screen.getByRole('combobox', { name: '选择要导出的服务' }));
+  fireEvent.click(screen.getByRole('option', { name: 'ChatGPT' }));
+  fireEvent.click(screen.getByRole('combobox', { name: '选择导出格式' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Markdown 格式' }));
   fireEvent.click(screen.getByRole('button', { name: '导出 ChatGPT 记录' }));
 
   await waitFor(() => {
