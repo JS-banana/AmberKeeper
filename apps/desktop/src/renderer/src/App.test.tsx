@@ -63,7 +63,7 @@ test('switches the active provider from the rail and keeps chat mode focused on 
   });
 });
 
-test('opens the library in all-record mode, hides the native stage, and hydrates provider-specific history on demand', async () => {
+test('opens the data workspace in all-record mode, hides the native stage, and hydrates provider-specific history on demand', async () => {
   const state = createHydrationFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -72,9 +72,9 @@ test('opens the library in all-record mode, hides the native stage, and hydrates
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
-  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
   expect(screen.getByText('2 条记录 · 1 个服务')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByText('全部记录总览')).toBeInTheDocument();
@@ -105,20 +105,26 @@ test('renders the utility area with a left nav and compact service rows', async 
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
 
-  const nav = screen.getByRole('navigation', { name: '设置与历史' });
+  const nav = screen.getByRole('navigation', { name: '工作台导航' });
   expect(nav.closest('.utility-workbench')).toHaveClass('utility-workbench--sidebar');
-  expect(within(nav).getAllByRole('button')[0]).toHaveTextContent('历史记录');
-  expect(within(nav).getByRole('button', { name: '历史记录' })).toHaveAttribute('aria-current', 'page');
-  expect(within(nav).getByRole('button', { name: '服务管理' })).toBeInTheDocument();
+  expect(within(nav).getAllByRole('button')[0]).toHaveTextContent('数据');
+  expect(within(nav).getByRole('button', { name: '数据' })).toHaveAttribute('aria-current', 'page');
+  expect(within(nav).getByRole('button', { name: '设置' })).toBeInTheDocument();
+  expect(within(nav).getByRole('button', { name: '关于' })).toBeInTheDocument();
   expect(within(nav).getByRole('button', { name: '诊断' })).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('button', { name: '服务管理' }));
+  fireEvent.click(screen.getByRole('button', { name: '设置' }));
   const chatgptItem = within(screen.getByRole('list', { name: '内置应用列表' }))
     .getAllByRole('listitem')
     .find((item) => item.getAttribute('data-provider-id') === 'chatgpt');
 
   expect(chatgptItem).toBeDefined();
   expect(within(chatgptItem!).getByText('https://chatgpt.com')).toBeInTheDocument();
+  expect(within(chatgptItem!).getByText('缓存')).toBeInTheDocument();
+  expect(within(chatgptItem!).getByRole('switch', { name: 'ChatGPT 本地缓存' })).toHaveAttribute(
+    'aria-checked',
+    'true'
+  );
   expect(
     within(chatgptItem!).queryByText(/拖动整行即可调整服务顺序|拖动到目标位置后松手完成排序/)
   ).not.toBeInTheDocument();
@@ -132,7 +138,31 @@ test('renders the utility area with a left nav and compact service rows', async 
   expect(within(chatgptItem!).queryByText('已停用')).not.toBeInTheDocument();
 });
 
-test('shows the library as an all-provider knowledge base instead of scoping to the active provider', async () => {
+test('renders a product-style about page inside the workbench', async () => {
+  const state = createWorkspaceFixture({ deepseekEnabled: true });
+  installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true, appVersion: '0.2.0', interfaceLanguage: 'system' },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
+  fireEvent.click(screen.getByRole('button', { name: '关于' }));
+
+  expect(await screen.findByRole('heading', { name: /amberkeeper/i })).toBeInTheDocument();
+  expect(screen.getByText(/多 ai provider 本地对话工作台/i)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /github 项目/i })).toHaveAttribute(
+    'href',
+    'https://github.com/JS-banana/amberkeeper'
+  );
+  expect(screen.getByRole('link', { name: '反馈问题' })).toHaveAttribute(
+    'href',
+    'https://github.com/JS-banana/amberkeeper/issues'
+  );
+  expect(screen.getByText('0.2.0')).toBeInTheDocument();
+});
+
+test('shows the data workspace as an all-provider overview instead of scoping to the active provider', async () => {
   const state = createWorkspaceFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -147,18 +177,18 @@ test('shows the library as an all-provider knowledge base instead of scoping to 
   });
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
-  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
   expect(screen.getByText('3 条记录 · 3 个服务')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByText('全部记录总览')).toBeInTheDocument();
-  expect(screen.queryByRole('list', { name: '历史记录列表' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('heading', { name: '记录详情' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('list', { name: '会话数据列表' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: '数据详情' })).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: '查看 Claude 记录' }));
 
-  expect(await screen.findByRole('list', { name: '历史记录列表' })).toBeInTheDocument();
+  expect(await screen.findByRole('list', { name: '会话数据列表' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /chatgpt-conv/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /gemini-conv/i })).not.toBeInTheDocument();
@@ -166,7 +196,7 @@ test('shows the library as an all-provider knowledge base instead of scoping to 
   expect(await screen.findByText('Claude answer')).toBeInTheDocument();
 });
 
-test('keeps all-provider history visible even when the active provider has no sessions', async () => {
+test('keeps all-provider data visible even when the active provider has no sessions', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -181,9 +211,9 @@ test('keeps all-provider history visible even when the active provider has no se
   });
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
-  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
   expect(screen.getByText('3 条记录 · 4 个服务')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '查看全部记录' })).toHaveAttribute('aria-pressed', 'true');
   fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
@@ -192,7 +222,7 @@ test('keeps all-provider history visible even when the active provider has no se
   expect(await screen.findByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
 });
 
-test('uses semantic fallback titles in the knowledge base when provider page titles are generic', async () => {
+test('uses semantic fallback titles in the data workspace when provider page titles are generic', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   state.sessions.unshift(
     buildSession({
@@ -219,7 +249,7 @@ test('uses semantic fallback titles in the knowledge base when provider page tit
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  fireEvent.click(await screen.findByRole('button', { name: '历史记录' }));
+  fireEvent.click(await screen.findByRole('button', { name: '数据' }));
   fireEvent.click(await screen.findByRole('button', { name: '查看 DeepSeek 记录' }));
 
   expect(
@@ -230,7 +260,7 @@ test('uses semantic fallback titles in the knowledge base when provider page tit
   expect(screen.queryByText('DeepSeek - Into the Unknown')).not.toBeInTheDocument();
 });
 
-test('allows enabling and reordering built-in providers from settings', async () => {
+test('allows enabling, cache toggling, and reordering built-in providers from settings', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -245,10 +275,14 @@ test('allows enabling and reordering built-in providers from settings', async ()
     expect(api.setNativeStageVisible).toHaveBeenLastCalledWith(false);
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '服务管理' }));
+  fireEvent.click(screen.getByRole('button', { name: '设置' }));
   fireEvent.click(screen.getByRole('button', { name: '停用 Claude' }));
   await waitFor(() => {
     expect(api.setProviderEnabled).toHaveBeenCalledWith('claude', false);
+  });
+  fireEvent.click(screen.getByRole('switch', { name: 'ChatGPT 本地缓存' }));
+  await waitFor(() => {
+    expect(api.setProviderCacheEnabled).toHaveBeenCalledWith('chatgpt', false);
   });
 
   const dataTransfer = createDataTransfer();
@@ -304,9 +338,9 @@ test('allows enabling and reordering built-in providers from settings', async ()
     ]);
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
   fireEvent.click(screen.getByRole('button', { name: '打开工作台' }));
-  fireEvent.click(screen.getByRole('button', { name: '服务管理' }));
+  fireEvent.click(screen.getByRole('button', { name: '设置' }));
 
   const settingsList = screen.getByRole('list', { name: '内置应用列表' });
   const items = within(settingsList).getAllByRole('listitem');
@@ -319,7 +353,7 @@ test('allows enabling and reordering built-in providers from settings', async ()
   expect(screen.getByRole('button', { name: '启用 Claude' })).toBeInTheDocument();
 });
 
-test('supports provider export and session delete actions from the knowledge base', async () => {
+test('supports provider export and session delete actions from the data workspace', async () => {
   const state = createHydrationFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -329,7 +363,7 @@ test('supports provider export and session delete actions from the knowledge bas
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
   fireEvent.change(screen.getByRole('combobox', { name: '选择要导出的服务' }), {
     target: { value: 'chatgpt' },
@@ -348,13 +382,13 @@ test('supports provider export and session delete actions from the knowledge bas
   fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出当前数据' }));
 
   await waitFor(() => {
     expect(api.exportSession).toHaveBeenCalledWith('chatgpt-recent-session', 'markdown');
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '删除当前记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '删除当前数据' }));
 
   expect(confirmSpy).toHaveBeenCalled();
   await waitFor(() => {
@@ -363,7 +397,7 @@ test('supports provider export and session delete actions from the knowledge bas
   expect((await screen.findAllByText('chatgpt-older-conv')).length).toBeGreaterThan(0);
 });
 
-test('lets operators manually refresh the history list so new sessions surface', async () => {
+test('lets operators manually refresh the data list so new sessions surface', async () => {
   const state = createWorkspaceFixture({ deepseekEnabled: true });
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -372,9 +406,9 @@ test('lets operators manually refresh the history list so new sessions surface',
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
-  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
   const initialListSessionCalls = api.listSessions.mock.calls.length;
 
   state.sessions.unshift(
@@ -415,9 +449,9 @@ test('refreshes sessions after capture-driven runtime status updates', async () 
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
-  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
   const initialListSessionCalls = api.listSessions.mock.calls.length;
 
   state.sessions.unshift(
@@ -450,7 +484,7 @@ test('refreshes sessions after capture-driven runtime status updates', async () 
   ).toBeInTheDocument();
 });
 
-test('shows provider-specific history with a scrollable list and active record state', async () => {
+test('shows provider-specific data with a scrollable list and active record state', async () => {
   const state = createHydrationFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -459,10 +493,10 @@ test('shows provider-specific history with a scrollable list and active record s
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
   fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
 
-  const list = await screen.findByRole('list', { name: '历史记录列表' });
+  const list = await screen.findByRole('list', { name: '会话数据列表' });
   expect(list).toHaveClass('conversation-list--scroll');
 
   const recentRecordButton = screen.getByRole('button', { name: /chatgpt-recent-conv/i });
@@ -483,7 +517,7 @@ test('shows provider-specific history with a scrollable list and active record s
   expect(recentRecordButton).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('restores the last utility surface and selected history scope when returning from chat', async () => {
+test('restores the last utility surface and selected data scope when returning from chat', async () => {
   const state = createHydrationFixture();
   installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -492,9 +526,9 @@ test('restores the last utility surface and selected history scope when returnin
   render(<App />);
 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
-  const utilityNav = screen.getByRole('navigation', { name: '设置与历史' });
-  expect(within(utilityNav).getAllByRole('button')[0]).toHaveTextContent('历史记录');
-  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  const utilityNav = screen.getByRole('navigation', { name: '工作台导航' });
+  expect(within(utilityNav).getAllByRole('button')[0]).toHaveTextContent('数据');
+  fireEvent.click(screen.getByRole('button', { name: '数据' }));
   fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
 
   expect(screen.getByRole('button', { name: '查看 ChatGPT 记录' })).toHaveAttribute(
@@ -505,8 +539,8 @@ test('restores the last utility surface and selected history scope when returnin
   fireEvent.click(screen.getByRole('button', { name: '打开 ChatGPT' }));
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
 
-  expect(await screen.findByRole('heading', { name: '历史记录' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '历史记录' })).toHaveAttribute('aria-pressed', 'true');
+  expect(await screen.findByRole('heading', { name: '数据' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '数据' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByRole('button', { name: '查看 ChatGPT 记录' })).toHaveAttribute(
     'aria-pressed',
     'true'
@@ -551,7 +585,12 @@ test('renders diagnostics tooling with chinese labels for internal operators', a
 function installCaptureApiMock(
   state: WorkspaceFixtureState,
   input?: {
-    shellInfo?: { diagnosticsEnabled: boolean; isPackaged: boolean };
+    shellInfo?: {
+      diagnosticsEnabled: boolean;
+      isPackaged: boolean;
+      appVersion?: string;
+      interfaceLanguage?: 'system' | 'zh-CN' | 'en';
+    };
     runtimeStatus?: Partial<RuntimeStatus>;
   }
 ) {
@@ -586,6 +625,14 @@ function installCaptureApiMock(
         active: provider.id === fallback?.id,
       }));
     }
+
+    return state.providers.find((provider) => provider.id === providerId) ?? null;
+  });
+
+  const setProviderCacheEnabled = vi.fn(async (providerId: string, enabled: boolean) => {
+    state.providers = state.providers.map((provider) =>
+      provider.id === providerId ? { ...provider, cacheEnabled: enabled } : provider
+    );
 
     return state.providers.find((provider) => provider.id === providerId) ?? null;
   });
@@ -676,7 +723,18 @@ function installCaptureApiMock(
     getActiveProvider: async () => state.providers.find((provider) => provider.active) ?? null,
     setActiveProvider,
     setProviderEnabled,
+    setProviderCacheEnabled,
     moveProvider,
+    setInterfaceLanguage: async (language: 'system' | 'zh-CN' | 'en') => ({
+      ...(input?.shellInfo ?? {
+        diagnosticsEnabled: false,
+        isPackaged: true,
+        appVersion: '0.0.1',
+        interfaceLanguage: 'system',
+      }),
+      appVersion: input?.shellInfo?.appVersion ?? '0.0.1',
+      interfaceLanguage: language,
+    }),
     getRuntimeStatus,
     triggerDomSnapshot: async () => ({
       message: 'stubbed',
@@ -686,6 +744,8 @@ function installCaptureApiMock(
       input?.shellInfo ?? {
         diagnosticsEnabled: false,
         isPackaged: true,
+        appVersion: '0.0.1',
+        interfaceLanguage: 'system',
       },
     setNativeStageVisible,
     onRuntimeStatus: (callback: (status: RuntimeStatus) => void) => {
@@ -704,6 +764,7 @@ function installCaptureApiMock(
     getRuntimeStatus,
     setActiveProvider,
     setProviderEnabled,
+    setProviderCacheEnabled,
     moveProvider,
     openSession,
     deleteSession,
@@ -855,6 +916,7 @@ function createHydrationFixture(): WorkspaceFixtureState {
 function buildProvider(
   input: Pick<ProviderRecord, 'id' | 'name' | 'homeUrl' | 'enabled'> & {
     active?: boolean;
+    cacheEnabled?: boolean;
   }
 ): ProviderRecord {
   return {
@@ -862,6 +924,7 @@ function buildProvider(
     name: input.name,
     homeUrl: input.homeUrl,
     enabled: input.enabled,
+    cacheEnabled: input.cacheEnabled ?? true,
     builtin: true,
     active: input.active ?? false,
     createdAt: '2026-03-19T00:00:00.000Z',
