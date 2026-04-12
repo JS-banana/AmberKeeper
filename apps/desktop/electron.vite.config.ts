@@ -92,6 +92,7 @@ export default defineConfig({
     plugins: [react()],
     resolve: {
       alias: {
+        '@': resolve(__dirname, 'src/renderer/src'),
         '@amberkeeper/capture-core': captureCoreEntry,
         '@amberkeeper/provider-claude': providerClaudeEntry,
         '@amberkeeper/provider-deepseek': providerDeepSeekEntry,

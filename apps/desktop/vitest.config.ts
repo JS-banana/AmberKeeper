@@ -18,6 +18,7 @@ export default defineConfig({
         '../../packages/provider-xiaomi-aistudio/src/index.ts'
       ),
       '@amberkeeper/shared-types': resolve(__dirname, '../../packages/shared-types/src/index.ts'),
+      '@': resolve(__dirname, 'src/renderer/src'),
     },
   },
   test: {

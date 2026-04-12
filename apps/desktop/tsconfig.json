@@ -21,7 +21,8 @@
       "@amberkeeper/provider-kimi": ["../../packages/provider-kimi/src/index.ts"],
       "@amberkeeper/provider-qianwen": ["../../packages/provider-qianwen/src/index.ts"],
       "@amberkeeper/provider-xiaomi-aistudio": ["../../packages/provider-xiaomi-aistudio/src/index.ts"],
-      "@amberkeeper/shared-types": ["../../packages/shared-types/src/index.ts"]
+      "@amberkeeper/shared-types": ["../../packages/shared-types/src/index.ts"],
+      "@/*": ["src/renderer/src/*"]
     }
   },
   "include": [
