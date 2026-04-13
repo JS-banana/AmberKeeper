@@ -239,9 +239,6 @@ button {
   transform: translateX(-50%) scaleX(0.86);
 }
 
-.rail-button--provider.active .provider-icon {
-  box-shadow: none;
-}
 
 .rail-button--provider.active::before {
   border-color: rgba(34, 29, 23, 0.08);
@@ -378,91 +375,10 @@ button {
 
 /* Consolidated Conversation List styles moved to Components section */
 
-.provider-icon {
-  --provider-icon-scale: 0.88;
-  --provider-badge-tint: rgba(255, 255, 255, 0.34);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 12px;
-  flex-shrink: 0;
-  background:
-    radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.94), transparent 62%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.8), var(--provider-badge-tint));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.84),
-    0 8px 18px rgba(95, 71, 34, 0.08);
-}
-
-.provider-icon--rail {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.provider-icon__media {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  transform: scale(var(--provider-icon-scale));
-  transform-origin: center;
-}
-
-.provider-icon--rail .provider-icon__media {
-  transform: scale(var(--provider-icon-scale));
-}
-
-.provider-icon__visual {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.provider-icon__visual--inline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.provider-icon__visual--inline svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.provider-icon--rail .provider-icon__visual--chatgpt .favicon-bg {
-  fill: transparent;
-}
-
-.provider-icon__visual--fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  border-radius: 9px;
-  color: white;
-  background: var(--provider-brand);
-}
-
-.provider-icon--rail .provider-icon__visual--fallback {
-  border-radius: 8px;
-}
-
-.provider-icon__visual--fallback span {
-  font-size: 12px;
-  font-weight: 800;
+@layer components {
+  [data-variant="rail"] .provider-icon__visual--chatgpt .favicon-bg {
+    fill: transparent;
+  }
 }
 
 @media (max-width: 1080px) {
