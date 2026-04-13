@@ -23,6 +23,26 @@
     --ring: 32 90% 49%;
     --radius: 0.625rem;
   }
+
+  .dark {
+    --background: 222 26% 5%;
+    --foreground: 220 30% 95%;
+    --card: 222 26% 7%;
+    --card-foreground: 220 30% 95%;
+    --muted: 222 20% 14%;
+    --muted-foreground: 220 20% 64%;
+    --primary: 174 60% 68%;
+    --primary-foreground: 222 26% 5%;
+    --secondary: 222 20% 12%;
+    --secondary-foreground: 220 30% 90%;
+    --accent: 210 100% 68%;
+    --accent-foreground: 222 26% 5%;
+    --destructive: 0 72% 65%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 20% 16%;
+    --input: 220 20% 16%;
+    --ring: 210 100% 68%;
+  }
 }
 
 /* ===== LEGACY STYLES — delete per-section as pages are rewritten ===== */
