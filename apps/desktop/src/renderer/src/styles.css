@@ -45,27 +45,14 @@
   }
 }
 
-/* ===== LEGACY STYLES — delete per-section as pages are rewritten ===== */
-
 :root {
-  --product-sidebar-width: 346px;
-  --product-bg: #f4efe6;
-  --product-panel: rgba(255, 251, 245, 0.9);
-  --product-panel-strong: rgba(255, 248, 239, 0.96);
-  --product-border: rgba(114, 88, 40, 0.14);
-  --product-shadow: 0 18px 48px rgba(98, 67, 19, 0.08);
-  --product-ink: #221d17;
-  --product-muted: #6f6455;
-  --product-accent: #cf8b2e;
-  --product-accent-strong: #9f5a11;
   font-family:
-    "Avenir Next",
     "Avenir Next",
     "IBM Plex Sans",
     "SF Pro Display",
     "Segoe UI",
     sans-serif;
-  color: var(--product-ink);
+  color: #221d17;
   background: #ffffff;
   color-scheme: light;
 }
