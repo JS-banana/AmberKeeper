@@ -172,85 +172,10 @@ button {
   }
 }
 
-.utility-page {
-  display: grid;
-  gap: 20px;
-  align-content: start;
-  min-height: 0;
-  padding-right: 4px;
-}
-
-.utility-page--scroll,
 .diagnostics-page {
   min-height: 0;
   overflow: auto;
   padding-right: 6px;
-}
-
-.utility-page--library {
-  grid-template-rows: auto minmax(0, 1fr);
-  height: 100%;
-  overflow: hidden;
-}
-
-.utility-page__header {
-  display: grid;
-  gap: 10px;
-  max-width: 54rem;
-}
-
-.utility-page__header--compact {
-  gap: 8px;
-}
-
-.utility-page__header h1 {
-  margin: 0;
-  font-size: 30px;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  text-wrap: balance;
-}
-
-.utility-page__copy {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--product-muted);
-  max-width: 62rem;
-}
-
-.library-page__top {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  display: grid;
-  gap: 8px;
-  padding: 8px 12px 12px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid rgba(153, 127, 76, 0.08);
-  margin: -24px -16px 12px -16px;
-}
-
-.message-pane__feedback {
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 16px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #5b4c38;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(153, 127, 76, 0.12);
-}
-
-.library-grid {
-  display: grid;
-  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
-  gap: 12px;
-  align-items: stretch;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
 }
 
 /* Consolidated Conversation List styles moved to Components section */
@@ -261,11 +186,6 @@ button {
   }
 }
 
-@media (max-width: 1080px) {
-  .library-grid {
-    grid-template-columns: 1fr;
-  }
-}
 
 .diagnostics-page {
   position: relative;

@@ -156,9 +156,9 @@ export function LibraryPage(props: {
   }
 
   return (
-    <section className="utility-page utility-page--library">
-      <h1 className="visually-hidden">数据</h1>
-      <div className="library-page__top">
+    <section className="grid grid-rows-[auto_minmax(0,1fr)] gap-5 h-full overflow-hidden">
+      <h1 className="sr-only">数据</h1>
+      <div className="sticky top-0 z-[3] grid gap-2 px-3 pt-2 pb-3 bg-white/85 backdrop-blur-[18px] border-b border-[rgba(153,127,76,0.08)] -mx-4 -mt-6 mb-3">
         <div className="flex items-center gap-1 overflow-x-auto pb-1"
             aria-label="按服务筛选数据"
           >
@@ -319,7 +319,7 @@ export function LibraryPage(props: {
           </Card>
         </div>
       ) : (
-        <div className="library-grid">
+        <div className="grid grid-cols-[minmax(220px,320px)_minmax(0,1fr)] gap-3 items-stretch flex-1 min-h-0 overflow-hidden">
           <ConversationList
             sessions={scopedSessions}
             selectedSessionId={scopedSelectedSession?.id ?? null}

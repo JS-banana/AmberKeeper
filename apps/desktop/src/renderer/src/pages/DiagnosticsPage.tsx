@@ -12,7 +12,7 @@ export function DiagnosticsPage() {
 
   return (
     <section className="diagnostics-page">
-      <h1 className="visually-hidden">抓取调试台与对账控制台</h1>
+      <h1 className="sr-only">抓取调试台与对账控制台</h1>
 
       <RuntimeStatusCard
         status={store.runtimeStatus}
