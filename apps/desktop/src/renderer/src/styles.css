@@ -28,7 +28,6 @@
 /* ===== LEGACY STYLES — delete per-section as pages are rewritten ===== */
 
 :root {
-  --product-rail-width: 66px;
   --product-sidebar-width: 346px;
   --product-bg: #f4efe6;
   --product-panel: rgba(255, 251, 245, 0.9);
@@ -80,22 +79,6 @@ button {
   cursor: pointer;
 }
 
-.product-shell {
-  position: relative;
-  display: grid;
-  height: 100vh;
-  min-height: 100vh;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.product-shell--chat {
-  grid-template-columns: var(--product-rail-width) minmax(0, 1fr);
-}
-
-.product-shell--utility {
-  grid-template-columns: var(--product-rail-width) minmax(0, 1fr);
-}
 
 .product-rail {
   display: flex;
@@ -303,53 +286,7 @@ button {
   width: 19px;
   height: 19px;
 }
-.product-main {
-  min-width: 0;
-  min-height: 100vh;
-  padding: 28px;
-  overflow: auto;
-}
 
-.product-main--utility {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0;
-}
-
-.utility-workbench {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  flex: 1;
-  min-height: 0;
-}
-
-.utility-workbench--sidebar {
-  align-content: stretch;
-}
-
-
-.utility-workbench__body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  padding: 24px 16px;
-  background: #ffffff;
-}
-
-.product-main--stage {
-  position: relative;
-  padding: 0;
-  overflow: hidden;
-}
-
-.native-stage-shell {
-  min-height: 100vh;
-}
 .utility-page {
   display: grid;
   gap: 20px;
@@ -529,13 +466,6 @@ button {
 }
 
 @media (max-width: 1080px) {
-  .product-shell--chat {
-    grid-template-columns: var(--product-rail-width) minmax(0, 1fr);
-  }
-  .product-main {
-    padding: 18px;
-  }
-
   .library-grid {
     grid-template-columns: 1fr;
   }

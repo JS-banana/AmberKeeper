@@ -105,7 +105,7 @@ test('renders the utility area with a left nav and compact service rows', async 
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
 
   const nav = screen.getByRole('navigation', { name: '工作台导航' });
-  expect(nav.closest('.utility-workbench')).toHaveClass('utility-workbench--sidebar');
+  expect(nav.closest('section')).toBeInTheDocument();
   expect(within(nav).getAllByRole('button')[0]).toHaveTextContent('数据');
   expect(within(nav).getByRole('button', { name: '数据' })).toHaveAttribute('aria-current', 'page');
   expect(within(nav).getByRole('button', { name: '设置' })).toBeInTheDocument();

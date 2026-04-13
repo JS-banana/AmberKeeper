@@ -36,7 +36,7 @@ export function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
-    <div className={showChatSurface ? 'product-shell product-shell--chat' : 'product-shell product-shell--utility'}>
+    <div className="grid h-screen min-h-screen overflow-hidden bg-white grid-cols-[66px_minmax(0,1fr)]">
       <AppSidebar
         providers={state.providers}
         activeProviderId={state.activeProviderId}
@@ -53,12 +53,12 @@ export function App() {
       <main
         className={
           showChatSurface
-            ? 'product-main product-main--stage'
-            : 'product-main product-main--utility'
+            ? 'relative min-w-0 min-h-screen p-0 overflow-hidden'
+            : 'flex flex-col min-w-0 min-h-screen overflow-hidden p-0'
         }
       >
         {showChatSurface ? (
-          <div className="native-stage-shell" aria-hidden="true" />
+          <div className="min-h-screen" aria-hidden="true" />
         ) : (
           <UtilityWorkbench
             activeSurface={activeSurface}
@@ -106,15 +106,7 @@ function UtilityWorkbench(props: {
   const currentSurface = props.activeSurface === 'chat' ? 'library' : props.activeSurface;
 
   return (
-    <section
-      className={[
-        'utility-workbench',
-        'utility-workbench--sidebar',
-        currentSurface === 'library' ? 'utility-workbench--library' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
+    <section className="flex items-stretch flex-1 min-h-0">
       <nav className="flex flex-col gap-1 w-[180px] shrink-0 border-r border-border bg-background/60 p-3 overflow-y-auto" aria-label="工作台导航">
         {menuItems.map((item) => {
           const isActive = currentSurface === item.id;
@@ -139,13 +131,7 @@ function UtilityWorkbench(props: {
         })}
       </nav>
 
-      <div
-        className={
-          currentSurface === 'library'
-            ? 'utility-workbench__body utility-workbench__body--library'
-            : 'utility-workbench__body'
-        }
-      >
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden px-4 py-6 bg-white">
         {props.children}
       </div>
     </section>
