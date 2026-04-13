@@ -80,208 +80,96 @@ button {
 }
 
 
-.product-rail {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 0;
-  padding: 42px 0 12px;
-  overflow: auto;
-  border-right: 1px solid rgba(123, 98, 56, 0.08);
-  background: transparent;
-  backdrop-filter: blur(18px);
-}
+@layer components {
+  .rail-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 14px;
+    color: #6a5f51;
+    background: transparent;
+    isolation: isolate;
+    transition: color 180ms ease;
+  }
 
-.product-rail__top,
-.product-rail__providers,
-.product-rail__nav {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
+  .rail-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    background: transparent;
+    box-shadow: none;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease;
+  }
 
-.product-rail__top {
-  gap: 12px;
-}
+  .rail-btn > * {
+    position: relative;
+    z-index: 1;
+  }
 
-.product-rail__providers {
-  gap: 12px;
-}
+  .rail-btn:focus-visible {
+    outline: 2px solid rgba(207, 139, 46, 0.22);
+    outline-offset: 2px;
+  }
 
-.product-rail__nav {
-  gap: 12px;
-  padding-top: 12px;
-}
+  .rail-btn:hover,
+  .rail-btn:focus-visible {
+    color: #2e2419;
+  }
 
-.product-rail__nav::before {
-  content: "";
-  width: 22px;
-  height: 1px;
-  margin-bottom: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(126, 101, 63, 0.28), transparent);
-}
+  .rail-btn:hover::before,
+  .rail-btn:focus-visible::before {
+    border-color: rgba(34, 29, 23, 0.06);
+    background: rgba(34, 29, 23, 0.045);
+  }
 
-.rail-button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 14px;
-  color: #6a5f51;
-  background: transparent;
-  isolation: isolate;
-  transition:
-    color 180ms ease,
-    box-shadow 180ms ease;
-}
+  .rail-btn.active {
+    color: #2c2219;
+  }
 
-.rail-button::before {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04));
-  box-shadow: none;
-  opacity: 0;
-  transform: scale(0.94);
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease,
-    background 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease;
-}
+  .rail-btn.active::before {
+    border-color: rgba(34, 29, 23, 0.08);
+    background: rgba(34, 29, 23, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  }
 
-.rail-button > * {
-  position: relative;
-  z-index: 1;
-}
+  /* Provider variant: accent dot */
+  .rail-btn--provider::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 10px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--rail-provider-accent, rgba(34, 29, 23, 0.32));
+    opacity: 0.2;
+    transform: translateX(-50%) scaleX(0.68);
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease;
+  }
 
-.rail-button:focus-visible {
-  outline: 2px solid rgba(207, 139, 46, 0.22);
-  outline-offset: 2px;
-}
+  .rail-btn--provider:hover::after,
+  .rail-btn--provider:focus-visible::after {
+    opacity: 0.42;
+    transform: translateX(-50%) scaleX(0.86);
+  }
 
-.rail-button:hover,
-.rail-button:focus-visible {
-  color: #2e2419;
-}
-
-.rail-button:hover::before,
-.rail-button:focus-visible::before {
-  opacity: 1;
-  transform: scale(1);
-  border-color: rgba(205, 162, 92, 0.18);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 250, 244, 0.6));
-  box-shadow: 0 10px 18px rgba(107, 76, 28, 0.1);
-}
-
-.rail-button.active {
-  color: #2c2219;
-}
-
-.rail-button.active::before {
-  opacity: 1;
-  transform: scale(1);
-  border-color: rgba(207, 139, 46, 0.26);
-  background: linear-gradient(160deg, rgba(244, 206, 149, 0.42), rgba(255, 255, 255, 0.96));
-  box-shadow: 0 10px 20px rgba(118, 81, 28, 0.12);
-}
-
-.rail-button--provider {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-}
-
-.rail-button--provider::before {
-  inset: 0;
-  border-radius: 14px;
-  opacity: 1;
-  transform: none;
-  background: transparent;
-  box-shadow: none;
-}
-
-.rail-button--provider::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 4px;
-  width: 10px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--rail-provider-accent, rgba(34, 29, 23, 0.32));
-  opacity: 0.2;
-  transform: translateX(-50%) scaleX(0.68);
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-
-.rail-button--provider:hover::before,
-.rail-button--provider:focus-visible::before {
-  border-color: rgba(34, 29, 23, 0.06);
-  background: rgba(34, 29, 23, 0.045);
-  box-shadow: none;
-}
-
-.rail-button--provider:hover::after,
-.rail-button--provider:focus-visible::after {
-  opacity: 0.42;
-  transform: translateX(-50%) scaleX(0.86);
-}
-
-
-.rail-button--provider.active::before {
-  border-color: rgba(34, 29, 23, 0.08);
-  background: rgba(34, 29, 23, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
-}
-
-.rail-button--provider.active::after {
-  opacity: 0.95;
-  transform: translateX(-50%) scaleX(1);
-}
-
-.rail-button--utility {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-}
-
-.rail-button--utility::before {
-  inset: 0;
-  border-radius: 14px;
-  opacity: 1;
-  transform: none;
-  background: transparent;
-  box-shadow: none;
-}
-
-.rail-button--utility:hover::before,
-.rail-button--utility:focus-visible::before {
-  border-color: rgba(34, 29, 23, 0.06);
-  background: rgba(34, 29, 23, 0.045);
-  box-shadow: none;
-}
-
-.rail-button--utility.active::before {
-  border-color: rgba(34, 29, 23, 0.08);
-  background: rgba(34, 29, 23, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
-}
-
-.rail-glyph {
-  width: 19px;
-  height: 19px;
+  .rail-btn--provider.active::after {
+    opacity: 0.95;
+    transform: translateX(-50%) scaleX(1);
+  }
 }
 
 .utility-page {
@@ -387,25 +275,6 @@ button {
   }
 }
 
-@media (max-height: 860px) {
-  .product-rail {
-    padding-top: 30px;
-    padding-bottom: 14px;
-  }
-
-  .product-rail__top {
-    gap: 10px;
-  }
-
-  .product-rail__providers {
-    gap: 10px;
-  }
-
-  .product-rail__nav {
-    gap: 8px;
-    padding-top: 12px;
-  }
-}
 .diagnostics-page {
   position: relative;
   padding: 18px;
