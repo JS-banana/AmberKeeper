@@ -12,6 +12,8 @@ export const BUILTIN_PROVIDER_IDS = [
 
 export type ProviderId = (typeof BUILTIN_PROVIDER_IDS)[number];
 
+export type InterfaceLanguage = 'system' | 'zh-CN' | 'en';
+
 export type CaptureSource = 'cdp-network' | 'preload-dom';
 export type SessionTitleSource = 'provider' | 'fallback';
 export type CaptureExportFormat = 'json' | 'markdown';
@@ -71,6 +73,7 @@ export interface ProviderRecord {
   name: string;
   homeUrl: string;
   enabled: boolean;
+  cacheEnabled: boolean;
   builtin: boolean;
   active: boolean;
   createdAt: string;
@@ -82,6 +85,8 @@ export type ProviderMoveDirection = 'up' | 'down';
 export interface ShellInfo {
   diagnosticsEnabled: boolean;
   isPackaged: boolean;
+  appVersion: string;
+  interfaceLanguage: InterfaceLanguage;
 }
 
 export interface CaptureAttemptLogRecord {

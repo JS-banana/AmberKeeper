@@ -3,6 +3,7 @@ import type {
   CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
+  InterfaceLanguage,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
@@ -30,9 +31,13 @@ contextBridge.exposeInMainWorld('captureApi', {
     ipcRenderer.invoke('providers:setActive', providerId) as Promise<ProviderRecord | null>,
   setProviderEnabled: (providerId: ProviderId, enabled: boolean) =>
     ipcRenderer.invoke('providers:setEnabled', providerId, enabled) as Promise<ProviderRecord | null>,
+  setProviderCacheEnabled: (providerId: ProviderId, cacheEnabled: boolean) =>
+    ipcRenderer.invoke('providers:setCacheEnabled', providerId, cacheEnabled) as Promise<ProviderRecord | null>,
   moveProvider: (providerId: ProviderId, direction: ProviderMoveDirection) =>
     ipcRenderer.invoke('providers:move', providerId, direction) as Promise<ProviderRecord[]>,
   getShellInfo: () => ipcRenderer.invoke('shell:getInfo') as Promise<ShellInfo>,
+  setInterfaceLanguage: (language: InterfaceLanguage) =>
+    ipcRenderer.invoke('settings:setInterfaceLanguage', language) as Promise<InterfaceLanguage>,
   setNativeStageVisible: (visible: boolean) =>
     ipcRenderer.invoke('shell:setNativeStageVisible', visible) as Promise<void>,
   getRuntimeStatus: () => ipcRenderer.invoke('capture:getRuntimeStatus') as Promise<RuntimeStatus>,

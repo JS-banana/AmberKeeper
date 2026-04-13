@@ -42,6 +42,7 @@ function buildProvider(input: Partial<ProviderRecord> & Pick<ProviderRecord, 'id
     id: input.id,
     name: input.name,
     enabled: input.enabled ?? true,
+    cacheEnabled: input.cacheEnabled ?? true,
     homeUrl: input.homeUrl ?? `https://${input.id}.com`,
     builtin: input.builtin ?? true,
     active: input.active ?? false,

@@ -11,8 +11,10 @@ export function registerCaptureIpc(options: {
   getActiveProvider: () => unknown;
   setActiveProvider: (providerId: string) => unknown;
   setProviderEnabled: (providerId: string, enabled: boolean) => unknown;
+  setProviderCacheEnabled: (providerId: string, cacheEnabled: boolean) => unknown;
   moveProvider: (providerId: string, direction: 'up' | 'down') => unknown;
   getShellInfo: () => unknown;
+  setInterfaceLanguage: (language: string) => unknown;
   setNativeStageVisible: (visible: boolean) => void;
   getRuntimeStatus: () => unknown;
   triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
@@ -36,10 +38,16 @@ export function registerCaptureIpc(options: {
   ipcMain.handle('providers:setEnabled', (_event, providerId: string, enabled: boolean) =>
     options.setProviderEnabled(providerId, enabled)
   );
+  ipcMain.handle('providers:setCacheEnabled', (_event, providerId: string, cacheEnabled: boolean) =>
+    options.setProviderCacheEnabled(providerId, cacheEnabled)
+  );
   ipcMain.handle('providers:move', (_event, providerId: string, direction: 'up' | 'down') =>
     options.moveProvider(providerId, direction)
   );
   ipcMain.handle('shell:getInfo', () => options.getShellInfo());
+  ipcMain.handle('settings:setInterfaceLanguage', (_event, language: string) =>
+    options.setInterfaceLanguage(language)
+  );
   ipcMain.handle('shell:setNativeStageVisible', (_event, visible: boolean) => {
     options.setNativeStageVisible(visible);
   });

@@ -41,6 +41,10 @@ export class CaptureStore {
     this.providerSettingsRepository = createProviderSettingsRepository(this.database);
   }
 
+  getDb(): DatabaseSync {
+    return this.database;
+  }
+
   persistEnvelope(envelope: CaptureEnvelope): string {
     const conversationId = this.conversationRepository.resolve({
       provider: envelope.provider,
@@ -293,6 +297,10 @@ export class CaptureStore {
 
   setProviderEnabled(providerId: ProviderId, enabled: boolean): ProviderRecord {
     return this.providerSettingsRepository.setEnabled(providerId, enabled);
+  }
+
+  setProviderCacheEnabled(providerId: ProviderId, cacheEnabled: boolean): ProviderRecord {
+    return this.providerSettingsRepository.setCacheEnabled(providerId, cacheEnabled);
   }
 
   moveProvider(providerId: ProviderId, direction: ProviderMoveDirection): ProviderRecord[] {

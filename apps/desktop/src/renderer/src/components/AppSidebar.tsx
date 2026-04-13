@@ -3,7 +3,7 @@ import type { ProviderId, ProviderRecord } from '@amberkeeper/shared-types';
 import { getProviderBranding } from '../lib/provider-branding';
 import { ProviderIcon } from './ProviderIcon';
 
-export type AppSurfaceId = 'chat' | 'library' | 'settings' | 'diagnostics';
+export type AppSurfaceId = 'chat' | 'library' | 'settings' | 'about' | 'diagnostics';
 
 export function AppSidebar(props: {
   providers: ProviderRecord[];

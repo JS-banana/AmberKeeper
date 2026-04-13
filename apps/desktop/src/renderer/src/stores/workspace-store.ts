@@ -3,6 +3,7 @@ import type {
   CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
+  InterfaceLanguage,
   ProviderId,
   ProviderRecord,
   RuntimeStatus,
@@ -231,6 +232,34 @@ export function useWorkspaceStore() {
     }
   );
 
+  const setProviderCacheEnabled = useEffectEvent(async (providerId: ProviderId, cacheEnabled: boolean) => {
+    try {
+      await window.captureApi.setProviderCacheEnabled(providerId, cacheEnabled);
+      await refresh(null);
+    } catch (error) {
+      startTransition(() => {
+        setState((current) => ({
+          ...current,
+          error: formatError(error),
+        }));
+      });
+    }
+  });
+
+  const setInterfaceLanguage = useEffectEvent(async (language: InterfaceLanguage) => {
+    try {
+      await window.captureApi.setInterfaceLanguage(language);
+      await refresh(null);
+    } catch (error) {
+      startTransition(() => {
+        setState((current) => ({
+          ...current,
+          error: formatError(error),
+        }));
+      });
+    }
+  });
+
   const exportProviderSessions = useEffectEvent(
     async (providerId: ProviderId, format: CaptureExportFormat): Promise<CaptureActionResult> => {
       try {
@@ -293,6 +322,8 @@ export function useWorkspaceStore() {
       refresh,
       selectProvider,
       setProviderEnabled,
+      setProviderCacheEnabled,
+      setInterfaceLanguage,
       moveProvider,
       selectSession,
       deleteSession,

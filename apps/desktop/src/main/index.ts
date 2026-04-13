@@ -49,6 +49,7 @@ import { resolveConversationIdSignal } from './runtime/conversation-id-resolutio
 import { shouldRecordParsedResponseDiagnostics } from './runtime/response-diagnostics';
 import { createProviderRuntimeRegistry } from './runtime/provider-runtime-registry';
 import { CaptureStore } from './storage/capture-store';
+import { createAppSettingsRepository } from './storage/app-settings-repository';
 import { createMainWindow, createProviderStageController } from './windows/main-window';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -91,6 +92,7 @@ let cdpObserver: ReturnType<typeof createCdpObserver> | null = null;
 let runtimeRegistry: ReturnType<typeof createProviderRuntimeRegistry<ProviderRuntimeContext>> | null =
   null;
 let captureStore: CaptureStore | null = null;
+let appSettingsRepo: ReturnType<typeof createAppSettingsRepository> | null = null;
 let captureOrchestrator: ReturnType<typeof createCaptureOrchestrator> | null = null;
 let turnPersistenceService: ReturnType<typeof createTurnPersistenceService> | null = null;
 let providerLiveAutomation: ReturnType<typeof createProviderLiveAutomation> | null = null;
@@ -1539,6 +1541,8 @@ function getShellInfo(): ShellInfo {
   return {
     diagnosticsEnabled: !app.isPackaged || process.env.AMBERKEEPER_ENABLE_DIAGNOSTICS === '1',
     isPackaged: app.isPackaged,
+    appVersion: app.getVersion(),
+    interfaceLanguage: appSettingsRepo?.getInterfaceLanguage() ?? 'system',
   };
 }
 
@@ -1657,6 +1661,7 @@ function wait(milliseconds: number): Promise<void> {
 registerAppLifecycle({
   onReady: () => {
     captureStore = new CaptureStore(path.join(app.getPath('userData'), 'capture-lab.db'));
+    appSettingsRepo = createAppSettingsRepository(captureStore.getDb());
     currentUrl = getPersistedActiveProviderHomeUrl();
     turnPersistenceService = createTurnPersistenceService({
       persistTurn,
@@ -1681,9 +1686,13 @@ registerAppLifecycle({
       setActiveProvider: (providerId) => setActiveProvider(providerId as ProviderId),
       setProviderEnabled: (providerId, enabled) =>
         setProviderEnabled(providerId as ProviderId, enabled),
+      setProviderCacheEnabled: (providerId, cacheEnabled) =>
+        captureStore?.setProviderCacheEnabled(providerId as ProviderId, cacheEnabled) ?? null,
       moveProvider: (providerId, direction) =>
         moveProvider(providerId as ProviderId, direction as ProviderMoveDirection),
       getShellInfo,
+      setInterfaceLanguage: (language) =>
+        appSettingsRepo?.setInterfaceLanguage(language as import('@amberkeeper/shared-types').InterfaceLanguage) ?? 'system',
       setNativeStageVisible,
       getRuntimeStatus,
       triggerDomSnapshot: async () => {

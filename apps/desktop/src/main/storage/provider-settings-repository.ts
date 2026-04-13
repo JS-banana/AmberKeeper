@@ -11,6 +11,7 @@ type ProviderRow = {
   homeUrl: string;
   sortOrder: number;
   enabled: number;
+  cacheEnabled: number;
   builtin: number;
   active: number;
   createdAt: string;
@@ -29,6 +30,7 @@ export function createProviderSettingsRepository(db: DatabaseSync) {
             home_url AS homeUrl,
             sort_order AS sortOrder,
             enabled,
+            cache_enabled AS cacheEnabled,
             builtin,
             active,
             created_at AS createdAt,
@@ -139,6 +141,30 @@ export function createProviderSettingsRepository(db: DatabaseSync) {
         });
 
         return listProviders();
+      });
+    },
+    setCacheEnabled(providerId: ProviderId, cacheEnabled: boolean): ProviderRecord {
+      return runInTransaction(db, () => {
+        const provider = getProviderById(db, providerId);
+        if (!provider) {
+          throw new Error(`Unknown provider: ${providerId}.`);
+        }
+
+        const updatedAt = new Date().toISOString();
+        db.prepare(
+          `
+            UPDATE providers
+            SET
+              cache_enabled = ?,
+              updated_at = CASE
+                WHEN cache_enabled <> ? THEN ?
+                ELSE updated_at
+              END
+            WHERE id = ?
+          `
+        ).run(cacheEnabled ? 1 : 0, cacheEnabled ? 1 : 0, updatedAt, providerId);
+
+        return getProviderById(db, providerId) as ProviderRecord;
       });
     },
   };
@@ -323,6 +349,7 @@ function mapProviderRow(row: ProviderRow): ProviderRecord {
     name: row.name,
     homeUrl: row.homeUrl,
     enabled: row.enabled === 1,
+    cacheEnabled: row.cacheEnabled === 1,
     builtin: row.builtin === 1,
     active: row.active === 1,
     createdAt: row.createdAt,

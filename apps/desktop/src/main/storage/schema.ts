@@ -36,11 +36,22 @@ CREATE INDEX IF NOT EXISTS idx_providers_active
   ON providers(active);
 `;
 
+const APP_SETTINGS_SCHEMA = `
+CREATE TABLE IF NOT EXISTS app_settings (
+  id INTEGER PRIMARY KEY,
+  interface_language TEXT NOT NULL DEFAULT 'system',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`;
+
 export function ensureCaptureStoreSchema(db: DatabaseSync): void {
   ensureCaptureCorePersistenceSchema(db);
   db.exec(PROVIDERS_SCHEMA);
   ensureProvidersSortOrderColumn(db);
+  ensureProvidersCacheEnabledColumn(db);
   db.exec(CAPTURE_ATTEMPT_LOGS_SCHEMA);
+  db.exec(APP_SETTINGS_SCHEMA);
 }
 
 export function hasTable(db: DatabaseSync, tableName: string): boolean {
@@ -55,6 +66,22 @@ export function hasTable(db: DatabaseSync, tableName: string): boolean {
     .get(tableName) as { name?: string } | undefined;
 
   return Boolean(row?.name);
+}
+
+function ensureProvidersCacheEnabledColumn(db: DatabaseSync): void {
+  const columns = db
+    .prepare(
+      `
+        PRAGMA table_info(providers)
+      `
+    )
+    .all() as Array<{ name?: string }>;
+
+  if (columns.some((column) => column.name === 'cache_enabled')) {
+    return;
+  }
+
+  db.exec('ALTER TABLE providers ADD COLUMN cache_enabled INTEGER NOT NULL DEFAULT 1;');
 }
 
 function ensureProvidersSortOrderColumn(db: DatabaseSync): void {

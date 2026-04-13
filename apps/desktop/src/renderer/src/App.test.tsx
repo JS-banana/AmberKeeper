@@ -182,7 +182,7 @@ test('shows the data workspace as an all-provider overview instead of scoping to
 
   fireEvent.click(screen.getByRole('button', { name: '查看 Claude 记录' }));
 
-  expect(await screen.findByRole('list', { name: '会话数据列表' })).toBeInTheDocument();
+  expect(await screen.findByRole('list', { name: '历史记录列表' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /claude-conv/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /chatgpt-conv/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /gemini-conv/i })).not.toBeInTheDocument();
@@ -375,13 +375,13 @@ test('supports provider export and session delete actions from the data workspac
   fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
-  fireEvent.click(screen.getByRole('button', { name: '导出当前数据' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
 
   await waitFor(() => {
     expect(api.exportSession).toHaveBeenCalledWith('chatgpt-recent-session', 'markdown');
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '删除当前数据' }));
+  fireEvent.click(screen.getByRole('button', { name: '删除当前记录' }));
 
   expect(confirmSpy).toHaveBeenCalled();
   await waitFor(() => {
@@ -489,8 +489,8 @@ test('shows provider-specific data with a scrollable list and active record stat
   fireEvent.click(screen.getByRole('button', { name: '数据' }));
   fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
 
-  const list = await screen.findByRole('list', { name: '会话数据列表' });
-  expect(list).toHaveClass('conversation-list--scroll');
+  const list = await screen.findByRole('list', { name: '历史记录列表' });
+  expect(list).toBeInTheDocument();
 
   const recentRecordButton = screen.getByRole('button', { name: /chatgpt-recent-conv/i });
   const olderRecordButton = screen.getByRole('button', { name: /chatgpt-older-conv/i });

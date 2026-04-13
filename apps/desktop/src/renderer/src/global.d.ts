@@ -2,6 +2,7 @@ import type {
   CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
+  InterfaceLanguage,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
@@ -29,8 +30,10 @@ declare global {
       getActiveProvider: () => Promise<ProviderRecord | null>;
       setActiveProvider: (providerId: ProviderId) => Promise<ProviderRecord | null>;
       setProviderEnabled: (providerId: ProviderId, enabled: boolean) => Promise<ProviderRecord | null>;
+      setProviderCacheEnabled: (providerId: ProviderId, cacheEnabled: boolean) => Promise<ProviderRecord | null>;
       moveProvider: (providerId: ProviderId, direction: ProviderMoveDirection) => Promise<ProviderRecord[]>;
       getShellInfo: () => Promise<ShellInfo>;
+      setInterfaceLanguage: (language: InterfaceLanguage) => Promise<InterfaceLanguage>;
       setNativeStageVisible: (visible: boolean) => Promise<void>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
