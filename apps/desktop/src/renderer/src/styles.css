@@ -253,13 +253,6 @@ button {
   overflow: hidden;
 }
 
-.workspace-card--messages {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
 /* Consolidated Conversation List styles moved to Components section */
 
 @layer components {
@@ -304,28 +297,10 @@ button {
   grid-column: 1 / -1;
 }
 
-.workspace-card,
 .panel-card {
   border-radius: 20px;
   overflow: hidden;
   animation: fade-up 420ms ease both;
-}
-
-.workspace-card {
-  padding: 18px;
-  border: 1px solid rgba(66, 49, 11, 0.12);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 18px 44px rgba(68, 54, 26, 0.1);
-}
-.workspace-card--messages {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.panel-card {
   padding: 18px;
   border: 1px solid rgba(147, 168, 194, 0.16);
   background:
@@ -333,43 +308,6 @@ button {
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.32);
 }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.section-header--tight {
-  margin-bottom: 14px;
-}
-
-.section-header h2,
-.section-header h3 {
-  margin: 0;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-}
-
-.panel-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: inherit;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.workspace-card .panel-count {
-  color: #6b4e06;
-  background: rgba(255, 204, 101, 0.18);
-}
 
 .runtime-status-card .panel-count {
   color: #72e2d5;
@@ -478,167 +416,6 @@ button {
   list-style: none;
   margin: 0;
   padding: 0;
-}
-.workspace-empty {
-  padding: 14px;
-  border-radius: 16px;
-  color: #586779;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px dashed rgba(87, 102, 122, 0.22);
-}
-
-.workspace-empty p {
-  margin: 0;
-  line-height: 1.55;
-}
-
-
-.message-pane__header {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(92, 104, 123, 0.16);
-}
-
-.message-pane__headline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.message-pane__summary {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.message-pane__title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.message-pane__provider-icon {
-  width: 28px;
-  height: 28px;
-  padding: 4px;
-}
-
-.message-pane__header strong {
-  display: block;
-  margin: 0;
-  font-size: 18px;
-  color: #202b3a;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.message-pane__header span {
-  color: #66758a;
-  font-size: 12px;
-  line-height: 1.55;
-  word-break: break-word;
-}
-
-.message-pane__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.message-pane__chips span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(84, 99, 124, 0.1);
-}
-
-.message-pane__meta-inline {
-  margin-top: 4px;
-  font-size: 11px;
-  color: #8c7e6a;
-  font-family: var(--product-font-mono);
-  word-break: break-all;
-  opacity: 0.8;
-  line-height: 1.4;
-}
-
-.message-pane__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.message-pane__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 8px;
-  margin-top: 8px;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.message-bubble {
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.64);
-  border: 1px solid rgba(85, 97, 118, 0.1);
-}
-
-.message-list {
-  display: grid;
-  gap: 12px;
-}
-
-.message-bubble.user {
-  background: rgba(255, 250, 235, 0.94);
-  border-color: rgba(200, 145, 20, 0.12);
-}
-
-.message-bubble.assistant {
-  background: rgba(244, 247, 255, 0.94);
-  border-color: rgba(91, 168, 255, 0.14);
-}
-
-.message-bubble__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #738297;
-}
-
-.message-bubble p {
-  margin: 0;
-  line-height: 1.62;
-  color: #243346;
-  white-space: pre-wrap;
 }
 .attempt-list,
 .message-list,
