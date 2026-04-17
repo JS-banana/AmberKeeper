@@ -10,6 +10,7 @@ import type {
   CaptureExportArtifact,
   CaptureExportFormat,
   CaptureSessionRecord,
+  InterfaceLanguage,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
@@ -35,6 +36,7 @@ import { createDiagnosticsService } from './diagnostics/diagnostics-service';
 import { createLiveProbeService } from './diagnostics/live-probe-service';
 import { registerCaptureIpc } from './ipc/capture-ipc';
 import {
+  applyInterfaceLanguageToWebContents,
   buildCustomBrowserSessionConfig,
   createBrowserSessionRuntime,
   createBrowserSessionRuntimeWithConfig,
@@ -58,6 +60,7 @@ import { createServiceRuntimeRegistry } from './runtime/service-runtime-registry
 import {
   getActiveShellRuntime,
   isProviderRuntime,
+  listResolvedShellRuntimes,
   syncCustomServiceRuntimes,
   syncShellStageController,
 } from './runtime/shell-runtime-coordination';
@@ -219,6 +222,8 @@ function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext
   const browserSessionRuntime = createBrowserSessionRuntime({
     providerId: provider.id,
     chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
+    interfaceLanguage: getConfiguredInterfaceLanguage(),
+    systemLocale: getConfiguredSystemLocale(),
     onUrlChanged(url) {
       runtime.currentUrl = url;
 
@@ -268,6 +273,8 @@ function createCustomServiceRuntime(service: ServiceRecord): CustomServiceRuntim
   const browserSessionRuntime = createBrowserSessionRuntimeWithConfig({
     config,
     chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
+    interfaceLanguage: getConfiguredInterfaceLanguage(),
+    systemLocale: getConfiguredSystemLocale(),
     onUrlChanged(url) {
       runtime.currentUrl = url;
 
@@ -722,8 +729,48 @@ function getShellInfo(): ShellInfo {
     diagnosticsEnabled: !app.isPackaged || process.env.AMBERKEEPER_ENABLE_DIAGNOSTICS === '1',
     isPackaged: app.isPackaged,
     appVersion: app.getVersion(),
-    interfaceLanguage: appSettingsRepo?.getInterfaceLanguage() ?? 'system',
+    interfaceLanguage: getConfiguredInterfaceLanguage(),
   };
+}
+
+function getConfiguredInterfaceLanguage(): InterfaceLanguage {
+  return appSettingsRepo?.getInterfaceLanguage() ?? 'system';
+}
+
+function getConfiguredSystemLocale(): string {
+  return app.getLocale();
+}
+
+function applyConfiguredInterfaceLanguageToResolvedRuntimes(): void {
+  const interfaceLanguage = getConfiguredInterfaceLanguage();
+  const systemLocale = getConfiguredSystemLocale();
+
+  for (const runtime of listResolvedShellRuntimes({
+    runtimeRegistry,
+    customRuntimeRegistry,
+  }) as ShellRuntimeContext[]) {
+    applyInterfaceLanguageToWebContents(
+      runtime.view.webContents,
+      interfaceLanguage,
+      systemLocale
+    );
+  }
+}
+
+async function reloadActiveRuntimeAfterLanguageChange(): Promise<void> {
+  const activeRuntime = getActiveShellRuntime({
+    activeServiceId,
+    activeProviderId,
+    runtimeRegistry,
+    customRuntimeRegistry,
+  }) as ShellRuntimeContext | null;
+
+  if (!activeRuntime) {
+    return;
+  }
+
+  const targetUrl = activeRuntime.currentUrl || activeRuntime.homeUrl;
+  await activeRuntime.loadUrl(targetUrl);
 }
 
 function setNativeStageVisible(visible: boolean): void {
@@ -865,6 +912,12 @@ registerAppLifecycle({
       getCaptureStore: () => captureStore,
       getAppSettingsRepository: () => appSettingsRepo,
       afterStoreMutation: () => syncRuntimeRegistryFromStore(),
+      afterInterfaceLanguageMutation: () => {
+        applyConfiguredInterfaceLanguageToResolvedRuntimes();
+        void reloadActiveRuntimeAfterLanguageChange().catch((error) => {
+          console.error('[settings] failed to reload active runtime after language change:', error);
+        });
+      },
     });
     captureSessionService = createCaptureSessionService({
       getCaptureStore: () => captureStore,
@@ -927,6 +980,8 @@ registerAppLifecycle({
         createBrowserSessionRuntimeWithConfig({
           config,
           chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
+          interfaceLanguage: getConfiguredInterfaceLanguage(),
+          systemLocale: getConfiguredSystemLocale(),
           onUrlChanged: () => undefined,
         }),
       getBrowserSession: () => browserSession,

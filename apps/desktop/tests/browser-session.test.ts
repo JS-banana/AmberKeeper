@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import {
+  applyInterfaceLanguageToWebContents,
   buildRemoteContentWebPreferences,
   buildCustomBrowserSessionConfig,
   executeChatCaptureScript,
+  resolveAcceptLanguagesForInterfaceLanguage,
+  resolveEffectiveInterfaceLocale,
   resolveBrowserSessionConfig,
 } from '../src/main/runtime/browser-session';
 import { AMBERKEEPER_CHAT_CAPTURE_WORLD_ID } from '../src/shared/chat-capture-bridge';
@@ -111,5 +114,40 @@ describe('browser-session', () => {
       'page-world'
     );
     expect(pageCalls).toEqual([{ code: '(() => 2)()', userGesture: false }]);
+  });
+
+  test('resolves effective interface locale from explicit and system-backed settings', () => {
+    expect(resolveEffectiveInterfaceLocale('zh-CN', 'en-US')).toBe('zh-CN');
+    expect(resolveEffectiveInterfaceLocale('system', 'zh_CN')).toBe('zh-CN');
+    expect(resolveEffectiveInterfaceLocale('system', 'en-US')).toBe('en-US');
+  });
+
+  test('builds accept-language chains that favor the selected locale with sensible fallbacks', () => {
+    expect(resolveAcceptLanguagesForInterfaceLanguage('zh-CN', 'en-US')).toBe(
+      'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+    );
+    expect(resolveAcceptLanguagesForInterfaceLanguage('system', 'en-US')).toBe(
+      'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7'
+    );
+  });
+
+  test('applies the selected interface language to webContents user agent preferences', () => {
+    const calls: Array<{ userAgent: string; acceptLanguages?: string }> = [];
+    const webContents = {
+      getUserAgent: () => 'AmberKeeperTestUA/1.0',
+      setUserAgent: (userAgent: string, acceptLanguages?: string) => {
+        calls.push({ userAgent, acceptLanguages });
+      },
+    };
+
+    const acceptLanguages = applyInterfaceLanguageToWebContents(webContents, 'zh-CN', 'en-US');
+
+    expect(acceptLanguages).toBe('zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7');
+    expect(calls).toEqual([
+      {
+        userAgent: 'AmberKeeperTestUA/1.0',
+        acceptLanguages: 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
+    ]);
   });
 });

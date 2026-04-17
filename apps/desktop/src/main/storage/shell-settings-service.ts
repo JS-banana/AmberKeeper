@@ -17,6 +17,7 @@ export function createShellSettingsService(options: {
   getCaptureStore: () => CaptureStore | null;
   getAppSettingsRepository: () => AppSettingsRepositoryLike | null;
   afterStoreMutation: () => void;
+  afterInterfaceLanguageMutation?: (language: InterfaceLanguage) => void;
 }) {
   return {
     setActiveProvider(providerId: ProviderId): ProviderRecord | null {
@@ -116,7 +117,11 @@ export function createShellSettingsService(options: {
       return service;
     },
     setInterfaceLanguage(language: InterfaceLanguage): InterfaceLanguage {
-      return options.getAppSettingsRepository()?.setInterfaceLanguage(language) ?? 'system';
+      const nextLanguage =
+        options.getAppSettingsRepository()?.setInterfaceLanguage(language) ?? 'system';
+
+      options.afterInterfaceLanguageMutation?.(nextLanguage);
+      return nextLanguage;
     },
   };
 }

@@ -1,5 +1,5 @@
 import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
-import type { ProviderId } from '@amberkeeper/shared-types';
+import type { InterfaceLanguage, ProviderId } from '@amberkeeper/shared-types';
 import { randomUUID } from 'node:crypto';
 import { ipcMain, WebContentsView } from 'electron';
 import type { HandlerDetails } from 'electron/main';
@@ -194,6 +194,11 @@ export interface BrowserSessionRuntime {
   dispose: () => void;
 }
 
+type UserAgentWebContents = {
+  getUserAgent: () => string;
+  setUserAgent: (userAgent: string, acceptLanguages?: string) => void;
+};
+
 function sanitizeBrowserSessionId(value: string): string {
   return value.replace(/[^a-zA-Z0-9-]/g, '-');
 }
@@ -208,12 +213,16 @@ export function createBrowserSessionRuntime(options: {
   providerId: BrowserSessionProviderId;
   chatPreloadPath: string;
   onUrlChanged: (url: string) => void;
+  interfaceLanguage?: InterfaceLanguage;
+  systemLocale?: string;
 }): BrowserSessionRuntime {
   const config = resolveBrowserSessionConfig(options.providerId);
   return createBrowserSessionRuntimeWithConfig({
     config,
     chatPreloadPath: options.chatPreloadPath,
     onUrlChanged: options.onUrlChanged,
+    interfaceLanguage: options.interfaceLanguage,
+    systemLocale: options.systemLocale,
   });
 }
 
@@ -221,6 +230,8 @@ export function createBrowserSessionRuntimeWithConfig(options: {
   config: BrowserSessionConfig;
   chatPreloadPath: string;
   onUrlChanged: (url: string) => void;
+  interfaceLanguage?: InterfaceLanguage;
+  systemLocale?: string;
 }): BrowserSessionRuntime {
   const config = options.config;
   const view = new WebContentsView({
@@ -231,6 +242,11 @@ export function createBrowserSessionRuntimeWithConfig(options: {
       }),
     },
   });
+  applyInterfaceLanguageToWebContents(
+    view.webContents,
+    options.interfaceLanguage ?? 'system',
+    options.systemLocale ?? 'en-US'
+  );
   view.setBackgroundColor('#ffffff');
 
   view.webContents.on('did-finish-load', () => {
@@ -372,6 +388,52 @@ export async function executeChatCaptureScript<TResult = unknown>(
   return (await webContents.executeJavaScript(code, userGesture)) as TResult;
 }
 
+export function resolveEffectiveInterfaceLocale(
+  interfaceLanguage: InterfaceLanguage,
+  systemLocale: string
+): string {
+  const requestedLocale = interfaceLanguage === 'system' ? systemLocale : interfaceLanguage;
+  const normalized = normalizeLocaleTag(requestedLocale);
+
+  if (normalized) {
+    return normalized;
+  }
+
+  return interfaceLanguage === 'zh-CN' ? 'zh-CN' : 'en-US';
+}
+
+export function resolveAcceptLanguagesForInterfaceLanguage(
+  interfaceLanguage: InterfaceLanguage,
+  systemLocale: string
+): string {
+  const effectiveLocale = resolveEffectiveInterfaceLocale(interfaceLanguage, systemLocale);
+  const candidates = dedupeLocaleChain([effectiveLocale, ...fallbackLocalesFor(effectiveLocale)]);
+
+  return candidates
+    .map((locale, index) => {
+      if (index === 0) {
+        return locale;
+      }
+
+      const quality = Math.max(0.1, 1 - index * 0.1).toFixed(1);
+      return `${locale};q=${quality}`;
+    })
+    .join(',');
+}
+
+export function applyInterfaceLanguageToWebContents(
+  webContents: UserAgentWebContents,
+  interfaceLanguage: InterfaceLanguage,
+  systemLocale: string
+): string {
+  const acceptLanguages = resolveAcceptLanguagesForInterfaceLanguage(
+    interfaceLanguage,
+    systemLocale
+  );
+  webContents.setUserAgent(webContents.getUserAgent(), acceptLanguages);
+  return acceptLanguages;
+}
+
 const CHAT_CAPTURE_COMMAND_TIMEOUT_MS = 2_500;
 
 async function requestChatCapturePayload<TResult>(
@@ -453,4 +515,56 @@ export function buildRemoteContentWebPreferences(options: {
     webSecurity: true,
     webviewTag: false,
   };
+}
+
+function normalizeLocaleTag(locale: string | null | undefined): string | null {
+  const trimmed = locale?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(/_/g, '-');
+
+  try {
+    return new Intl.Locale(normalized).toString();
+  } catch {
+    return normalized;
+  }
+}
+
+function fallbackLocalesFor(locale: string): string[] {
+  const lowerLocale = locale.toLowerCase();
+
+  if (lowerLocale.startsWith('zh')) {
+    return ['zh-CN', 'zh', 'en-US', 'en'];
+  }
+
+  if (lowerLocale.startsWith('en')) {
+    return ['en-US', 'en', 'zh-CN', 'zh'];
+  }
+
+  const language = locale.split('-')[0] ?? locale;
+  return [language, 'en-US', 'en', 'zh-CN', 'zh'];
+}
+
+function dedupeLocaleChain(locales: string[]): string[] {
+  const seen = new Set<string>();
+  const resolved: string[] = [];
+
+  for (const locale of locales) {
+    const normalized = normalizeLocaleTag(locale);
+    if (!normalized) {
+      continue;
+    }
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    resolved.push(normalized);
+  }
+
+  return resolved;
 }
