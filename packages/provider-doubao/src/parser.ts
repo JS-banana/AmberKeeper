@@ -82,7 +82,16 @@ export function parseDoubaoRequestBody(body: string): NormalizedMessage[] {
   }
 
   const latestUser = [...(parsed.messages ?? [])].reverse().find((message) => {
-    return message.role === 'user' && Boolean(extractMessageContent(message).trim());
+    const content = extractMessageContent(message).trim();
+    if (!content) {
+      return false;
+    }
+
+    if (!message.role && !message.sender) {
+      return true;
+    }
+
+    return normalizeRole(message.role ?? message.sender) === 'user';
   });
 
   const content = extractMessageContent(latestUser).trim();

@@ -4,6 +4,7 @@ import type { InterfaceLanguage } from '@amberkeeper/shared-types';
 type AppSettingsRow = {
   id: number;
   interfaceLanguage: string;
+  activeServiceId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -21,6 +22,7 @@ export function createAppSettingsRepository(db: DatabaseSync) {
             SELECT
               id,
               interface_language AS interfaceLanguage,
+              active_service_id AS activeServiceId,
               created_at AS createdAt,
               updated_at AS updatedAt
             FROM app_settings
@@ -50,6 +52,42 @@ export function createAppSettingsRepository(db: DatabaseSync) {
 
       return nextLanguage;
     },
+    getActiveServiceId(): string | null {
+      const row = db
+        .prepare(
+          `
+            SELECT
+              id,
+              interface_language AS interfaceLanguage,
+              active_service_id AS activeServiceId,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+            FROM app_settings
+            WHERE id = 1
+          `
+        )
+        .get() as AppSettingsRow | undefined;
+
+      return row?.activeServiceId ?? null;
+    },
+    setActiveServiceId(serviceId: string | null): string | null {
+      const updatedAt = new Date().toISOString();
+
+      db.prepare(
+        `
+          UPDATE app_settings
+          SET
+            active_service_id = ?,
+            updated_at = CASE
+              WHEN COALESCE(active_service_id, '') <> COALESCE(?, '') THEN ?
+              ELSE updated_at
+            END
+          WHERE id = 1
+        `
+      ).run(serviceId, serviceId, updatedAt);
+
+      return serviceId;
+    },
   };
 }
 
@@ -61,9 +99,10 @@ function seedAppSettings(db: DatabaseSync): void {
       INSERT OR IGNORE INTO app_settings (
         id,
         interface_language,
+        active_service_id,
         created_at,
         updated_at
-      ) VALUES (1, 'system', ?, ?)
+      ) VALUES (1, 'system', NULL, ?, ?)
     `
   ).run(now, now);
 }

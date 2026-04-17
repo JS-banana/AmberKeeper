@@ -30,7 +30,7 @@ export function SessionList(props: {
               <li key={session.id}>
                 <button
                   className={cn(
-                    'w-full flex items-center justify-between gap-3 px-3.5 py-3 border border-white/[0.08] rounded-[14px] text-inherit bg-white/[0.04] text-left transition-[transform,border-color,background] duration-[160ms] ease-out hover:-translate-y-px hover:border-[rgba(91,168,255,0.4)] focus-visible:outline-2 focus-visible:outline-[rgba(91,168,255,0.7)] focus-visible:outline-offset-2',
+                    'w-full flex items-center justify-between gap-3 px-3.5 py-3 border border-white/[0.08] rounded-[14px] text-inherit bg-white/[0.04] text-left transition-[transform,border-color,background] duration-150 ease-out hover:-translate-y-px hover:border-[rgba(91,168,255,0.4)] focus-visible:outline-2 focus-visible:outline-[rgba(91,168,255,0.7)] focus-visible:outline-offset-2',
                     isSelected && 'border-[rgba(91,168,255,0.62)] bg-[rgba(91,168,255,0.14)]',
                   )}
                   type="button"

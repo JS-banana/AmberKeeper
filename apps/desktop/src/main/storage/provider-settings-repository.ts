@@ -66,41 +66,10 @@ export function createProviderSettingsRepository(db: DatabaseSync) {
       });
     },
     setEnabled(providerId: ProviderId, enabled: boolean): ProviderRecord {
-      return runInTransaction(db, () => {
-        const provider = getProviderById(db, providerId);
-        if (!provider) {
-          throw new Error(`Unknown provider: ${providerId}.`);
-        }
-        if (provider.enabled === enabled) {
-          return provider;
-        }
-
-        if (!enabled) {
-          const enabledProviders = listProviders().filter((entry) => entry.enabled);
-          if (enabledProviders.length === 1 && enabledProviders[0]?.id === providerId) {
-            throw new Error('At least one provider must remain enabled.');
-          }
-        }
-
-        const updatedAt = new Date().toISOString();
-        db.prepare(
-          `
-            UPDATE providers
-            SET
-              enabled = ?,
-              active = CASE
-                WHEN ? = 0 THEN 0
-                ELSE active
-              END,
-              updated_at = ?
-            WHERE id = ?
-          `
-        ).run(enabled ? 1 : 0, enabled ? 1 : 0, updatedAt, providerId);
-
-        normalizeActiveProvider(db, updatedAt);
-
-        return getProviderById(db, providerId) as ProviderRecord;
-      });
+      return runInTransaction(db, () => setEnabledInternal(providerId, enabled));
+    },
+    setEnabledWithinTransaction(providerId: ProviderId, enabled: boolean): ProviderRecord {
+      return setEnabledInternal(providerId, enabled);
     },
     move(providerId: ProviderId, direction: ProviderMoveDirection): ProviderRecord[] {
       return runInTransaction(db, () => {
@@ -168,6 +137,42 @@ export function createProviderSettingsRepository(db: DatabaseSync) {
       });
     },
   };
+
+  function setEnabledInternal(providerId: ProviderId, enabled: boolean): ProviderRecord {
+    const provider = getProviderById(db, providerId);
+    if (!provider) {
+      throw new Error(`Unknown provider: ${providerId}.`);
+    }
+    if (provider.enabled === enabled) {
+      return provider;
+    }
+
+    if (!enabled) {
+      const enabledProviders = listProviders().filter((entry) => entry.enabled);
+      if (enabledProviders.length === 1 && enabledProviders[0]?.id === providerId) {
+        throw new Error('At least one provider must remain enabled.');
+      }
+    }
+
+    const updatedAt = new Date().toISOString();
+    db.prepare(
+      `
+        UPDATE providers
+        SET
+          enabled = ?,
+          active = CASE
+            WHEN ? = 0 THEN 0
+            ELSE active
+          END,
+          updated_at = ?
+        WHERE id = ?
+      `
+    ).run(enabled ? 1 : 0, enabled ? 1 : 0, updatedAt, providerId);
+
+    normalizeActiveProvider(db, updatedAt);
+
+    return getProviderById(db, providerId) as ProviderRecord;
+  }
 }
 
 function seedBuiltInProviders(db: DatabaseSync): void {
@@ -367,10 +372,9 @@ function sortProviders<T extends { id: ProviderId }>(providers: T[]): T[] {
   }
 
   const order = new Map<ProviderId, number>(
-    BUILT_IN_BROWSER_SESSION_CONFIGS.map((config, index) => [config.id, index] satisfies [
-      BrowserSessionConfig['id'],
-      number,
-    ])
+    BUILT_IN_BROWSER_SESSION_CONFIGS.map(
+      (config, index): [ProviderId, number] => [config.id as ProviderId, index]
+    )
   );
 
   return [...providers].sort((left, right) => {

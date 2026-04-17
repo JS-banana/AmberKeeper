@@ -67,7 +67,8 @@ export function extractConversationIdFromUrl(input: string): string | null {
 
   const backendMatch = url.pathname.match(/^\/backend-api\/conversation\/([^/?#]+)/);
   if (backendMatch) {
-    return backendMatch[1];
+    const candidate = backendMatch[1];
+    return candidate === 'init' ? null : candidate;
   }
 
   return null;

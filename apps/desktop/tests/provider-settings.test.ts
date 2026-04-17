@@ -79,11 +79,11 @@ describe('provider-settings', () => {
     expect(store.getActiveProvider()?.id).toBe('chatgpt');
   });
 
-  test('persists custom provider order across restarts', () => {
-    const firstStore = new CaptureStore(dbPath);
+test('persists custom provider order across restarts', () => {
+  const firstStore = new CaptureStore(dbPath);
 
-    firstStore.moveProvider('gemini', 'up');
-    firstStore.moveProvider('gemini', 'up');
+  firstStore.moveProvider('gemini', 'up');
+  firstStore.moveProvider('gemini', 'up');
 
     const secondStore = new CaptureStore(dbPath);
 
@@ -98,5 +98,34 @@ describe('provider-settings', () => {
       'doubao',
       'xiaomi-aistudio',
     ]);
+  });
+
+  test('keeps built-in providers non-deletable after custom services are introduced', () => {
+    const store = new CaptureStore(dbPath);
+    store.addCustomService({
+      name: 'Perplexity',
+      url: 'https://www.perplexity.ai/discover',
+    });
+
+    expect(() => store.removeCustomService('chatgpt')).toThrow('Built-in services cannot be deleted.');
+    expect(store.listProviders().map((provider) => provider.id)).toContain('chatgpt');
+  });
+
+  test('retains provider-only cache toggles when custom services exist', () => {
+    const store = new CaptureStore(dbPath);
+    const custom = store.addCustomService({
+      name: 'Docs',
+      url: 'https://docs.example.com/portal',
+    });
+
+    store.setProviderCacheEnabled('claude', false);
+
+    expect(store.listProviders().find((provider) => provider.id === 'claude')?.cacheEnabled).toBe(false);
+    expect(store.listServices().find((service) => service.id === custom.id)).toEqual(
+      expect.objectContaining({
+        supportsCapture: false,
+        supportsDataManagement: false,
+      })
+    );
   });
 });

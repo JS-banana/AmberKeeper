@@ -2,11 +2,15 @@ import type {
   CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
+  CreateCustomServiceInput,
   InterfaceLanguage,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
   RuntimeStatus,
+  GeminiThemeDiagnosticReport,
+  ServiceMoveDirection,
+  ServiceRecord,
   ShellInfo,
 } from '@amberkeeper/shared-types';
 import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
@@ -26,6 +30,15 @@ declare global {
         providerId: ProviderId,
         format: CaptureExportFormat
       ) => Promise<{ message: string; detail: string }>;
+      listServices: () => Promise<ServiceRecord[]>;
+      getActiveService: () => Promise<ServiceRecord | null>;
+      setActiveService: (serviceId: string) => Promise<ServiceRecord | null>;
+      addCustomService: (input: CreateCustomServiceInput) => Promise<ServiceRecord | null>;
+      removeCustomService: (serviceId: string) => Promise<void>;
+      setServiceEnabled: (serviceId: string, enabled: boolean) => Promise<ServiceRecord | null>;
+      moveService: (serviceId: string, direction: ServiceMoveDirection) => Promise<ServiceRecord[]>;
+      updateCustomServiceIcon: (serviceId: string, iconUrl: string | null) => Promise<ServiceRecord | null>;
+      discoverSiteIcon: (url: string) => Promise<string | null>;
       listProviders: () => Promise<ProviderRecord[]>;
       getActiveProvider: () => Promise<ProviderRecord | null>;
       setActiveProvider: (providerId: ProviderId) => Promise<ProviderRecord | null>;
@@ -37,7 +50,9 @@ declare global {
       setNativeStageVisible: (visible: boolean) => Promise<void>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
+      runGeminiThemeDiagnostic: () => Promise<GeminiThemeDiagnosticReport>;
       onRuntimeStatus: (callback: (status: RuntimeStatus) => void) => () => void;
+      openExternal: (url: string) => Promise<void>;
     };
     amberkeeperChatCapture?: {
       snapshotDom: () => { message: string; detail: string };

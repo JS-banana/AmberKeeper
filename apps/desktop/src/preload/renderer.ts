@@ -3,11 +3,15 @@ import type {
   CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
+  CreateCustomServiceInput,
   InterfaceLanguage,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
   RuntimeStatus,
+  GeminiThemeDiagnosticReport,
+  ServiceMoveDirection,
+  ServiceRecord,
   ShellInfo,
 } from '@amberkeeper/shared-types';
 
@@ -25,6 +29,22 @@ contextBridge.exposeInMainWorld('captureApi', {
     ipcRenderer.invoke('capture:exportSession', sessionId, format) as Promise<{ message: string; detail: string }>,
   exportProviderSessions: (providerId: ProviderId, format: CaptureExportFormat) =>
     ipcRenderer.invoke('capture:exportProviderSessions', providerId, format) as Promise<{ message: string; detail: string }>,
+  listServices: () => ipcRenderer.invoke('services:list') as Promise<ServiceRecord[]>,
+  getActiveService: () => ipcRenderer.invoke('services:getActive') as Promise<ServiceRecord | null>,
+  setActiveService: (serviceId: string) =>
+    ipcRenderer.invoke('services:setActive', serviceId) as Promise<ServiceRecord | null>,
+  addCustomService: (input: CreateCustomServiceInput) =>
+    ipcRenderer.invoke('services:addCustom', input) as Promise<ServiceRecord | null>,
+  removeCustomService: (serviceId: string) =>
+    ipcRenderer.invoke('services:removeCustom', serviceId) as Promise<void>,
+  setServiceEnabled: (serviceId: string, enabled: boolean) =>
+    ipcRenderer.invoke('services:setEnabled', serviceId, enabled) as Promise<ServiceRecord | null>,
+  moveService: (serviceId: string, direction: ServiceMoveDirection) =>
+    ipcRenderer.invoke('services:move', serviceId, direction) as Promise<ServiceRecord[]>,
+  updateCustomServiceIcon: (serviceId: string, iconUrl: string | null) =>
+    ipcRenderer.invoke('services:updateCustomIcon', serviceId, iconUrl) as Promise<ServiceRecord | null>,
+  discoverSiteIcon: (url: string) =>
+    ipcRenderer.invoke('services:discoverIcon', url) as Promise<string | null>,
   listProviders: () => ipcRenderer.invoke('providers:list') as Promise<ProviderRecord[]>,
   getActiveProvider: () => ipcRenderer.invoke('providers:getActive') as Promise<ProviderRecord | null>,
   setActiveProvider: (providerId: ProviderId) =>
@@ -43,6 +63,8 @@ contextBridge.exposeInMainWorld('captureApi', {
   getRuntimeStatus: () => ipcRenderer.invoke('capture:getRuntimeStatus') as Promise<RuntimeStatus>,
   triggerDomSnapshot: () =>
     ipcRenderer.invoke('capture:triggerDomSnapshot') as Promise<{ message: string; detail: string }>,
+  runGeminiThemeDiagnostic: () =>
+    ipcRenderer.invoke('capture:runGeminiThemeDiagnostic') as Promise<GeminiThemeDiagnosticReport>,
   onRuntimeStatus: (callback: RuntimeCallback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: RuntimeStatus) => callback(payload);
     ipcRenderer.on('capture:runtime-status', listener);
@@ -50,4 +72,5 @@ contextBridge.exposeInMainWorld('captureApi', {
       ipcRenderer.removeListener('capture:runtime-status', listener);
     };
   },
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>,
 });

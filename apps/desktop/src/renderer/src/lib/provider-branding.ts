@@ -19,15 +19,19 @@ type ProviderBranding = {
 
 const PROVIDER_BRANDING: Record<ProviderId, ProviderBranding> = {
   chatgpt: {
-    iconUrl: 'https://cdn.oaistatic.com/assets/favicon-o20kmmos.svg',
+    iconUrl: 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=64',
     assetMarkup: chatgptAssetMarkup,
     brandColor: '#00a67e',
     badgeTint: 'rgba(16, 166, 126, 0.14)',
-    iconScale: 1.25,
+    iconScale: 1.0,
     railTint: 'rgba(16, 166, 126, 0.1)',
     railActiveTint: 'rgba(16, 166, 126, 0.18)',
     monogram: 'G',
-    remoteIconUrls: ['https://cdn.oaistatic.com/assets/favicon-o20kmmos.svg'],
+    remoteIconUrls: [
+      'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=64',
+      'https://chatgpt.com/favicon.ico',
+      'https://icons.duckduckgo.com/ip3/chatgpt.com.ico',
+    ],
   },
   claude: {
     iconUrl: 'https://claude.ai/favicon.ico',

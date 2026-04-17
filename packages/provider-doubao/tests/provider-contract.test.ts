@@ -244,6 +244,37 @@ describe('doubao-provider', () => {
       { role: 'assistant', content: 'Use the package-local provider contract.' },
     ]);
   });
+
+  test('collects Doubao DOM turns from current production bubble/container classes', () => {
+    const root = createNode({
+      queries: {
+        '.bg-g-send-msg-bubble-bg': [
+          createNode({
+            className:
+              'whitespace-pre-wrap wrap-anywhere rounded-s-radius-s bg-g-send-msg-bubble-bg',
+            textContent: '[amberkeeper-live-probe doubao] reply with OK only',
+          }),
+        ],
+        '.container-P2rR72': [
+          createNode({
+            className: 'container-P2rR72 flow-markdown-body theme-samantha-uDexJL',
+            textContent: 'OK',
+          }),
+        ],
+        '.paragraph-pP9ZLC': [
+          createNode({
+            className: 'paragraph-pP9ZLC paragraph-element',
+            textContent: 'OK',
+          }),
+        ],
+      },
+    }) as unknown as ParentNode;
+
+    expect(collectDoubaoStructuredMessages(root)).toEqual([
+      { role: 'user', content: '[amberkeeper-live-probe doubao] reply with OK only' },
+      { role: 'assistant', content: 'OK' },
+    ]);
+  });
 });
 
 type FakeNode = {

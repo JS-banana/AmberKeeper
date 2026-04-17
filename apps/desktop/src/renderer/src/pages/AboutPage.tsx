@@ -5,9 +5,12 @@ import { Button } from '@/components/ui/button';
 const PROJECT_URL = 'https://github.com/JS-banana/amberkeeper';
 const FEEDBACK_URL = 'https://github.com/JS-banana/amberkeeper/issues';
 
+function openInBrowser(url: string) {
+  void window.captureApi.openExternal(url);
+}
+
 export function AboutPage(props: { shellInfo: ShellInfo | null }) {
   const version = props.shellInfo?.appVersion ?? '开发环境';
-  const mode = props.shellInfo?.isPackaged ? '已打包应用' : '开发模式';
 
   return (
     <section className="flex flex-col items-center justify-center flex-1 min-h-0 px-6 py-12">
@@ -23,23 +26,18 @@ export function AboutPage(props: { shellInfo: ShellInfo | null }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-8 w-full max-w-xs">
+      <div className="mb-8">
         <MetaCard label="当前版本" value={version} />
-        <MetaCard label="运行形态" value={mode} />
       </div>
 
       <div className="flex gap-3">
-        <Button asChild>
-          <a href={PROJECT_URL} target="_blank" rel="noreferrer">
-            <ExternalLink className="size-4 mr-2" />
-            GitHub 项目
-          </a>
+        <Button onClick={() => openInBrowser(PROJECT_URL)}>
+          <ExternalLink className="size-4 mr-2" />
+          GitHub 项目
         </Button>
-        <Button variant="outline" asChild>
-          <a href={FEEDBACK_URL} target="_blank" rel="noreferrer">
-            <Bug className="size-4 mr-2" />
-            反馈问题
-          </a>
+        <Button variant="outline" onClick={() => openInBrowser(FEEDBACK_URL)}>
+          <Bug className="size-4 mr-2" />
+          反馈问题
         </Button>
       </div>
     </section>

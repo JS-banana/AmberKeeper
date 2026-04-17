@@ -4,7 +4,7 @@ import { deepseekAdapter } from '@amberkeeper/provider-deepseek';
 import { doubaoAdapter, doubaoLiveAutomationSpec } from '@amberkeeper/provider-doubao';
 import { geminiAdapter } from '@amberkeeper/provider-gemini';
 import { grokAdapter, grokLiveAutomationSpec } from '@amberkeeper/provider-grok';
-import { chatgptAdapter } from '@amberkeeper/provider-chatgpt';
+import { chatgptAdapter, chatgptLiveAutomationSpec } from '@amberkeeper/provider-chatgpt';
 import { kimiAdapter, kimiLiveAutomationSpec } from '@amberkeeper/provider-kimi';
 import { qianwenAdapter, qianwenLiveAutomationSpec } from '@amberkeeper/provider-qianwen';
 import {
@@ -26,6 +26,7 @@ const PROVIDER_ADAPTERS: Partial<Record<ProviderId, ProviderAdapter<ProviderSign
 };
 
 const PROVIDER_AUTOMATION_SPECS: Partial<Record<ProviderId, ProviderLiveAutomationSpec>> = {
+  chatgpt: chatgptLiveAutomationSpec,
   grok: grokLiveAutomationSpec,
   kimi: kimiLiveAutomationSpec,
   qianwen: qianwenLiveAutomationSpec,

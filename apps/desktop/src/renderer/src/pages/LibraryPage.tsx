@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { LayoutGrid, RefreshCw, Download, MessagesSquare, Server, TrendingUp, Database } from 'lucide-react';
+import { LayoutGrid, RefreshCw, Download, MessagesSquare, TrendingUp, Database } from 'lucide-react';
 import type {
   CaptureExportFormat,
   CaptureMessageRecord,
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { IconButton } from '@/components/ui/icon-button';
+import { resolveSessionTitle } from '../lib/session-display';
 import { ConversationList } from '../components/ConversationList';
 import { ConversationMessagePane } from '../components/ConversationMessagePane';
 import { ProviderIcon } from '../components/ProviderIcon';
@@ -23,15 +24,54 @@ type HistoryScope = 'all' | ProviderRecord['id'];
 function KpiCard(props: { icon: ReactNode; label: string; value: number | string }) {
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="flex items-center gap-2 text-xs">
+      <CardHeader className="space-y-1 px-4 pt-4 pb-1.5">
+        <CardDescription className="flex items-center gap-2 text-[11px] leading-none">
           <span className="text-primary">{props.icon}</span>
           {props.label}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold tabular-nums text-foreground">
+      <CardContent className="px-4 pb-4 pt-0">
+        <div className="text-[1.4rem] font-bold leading-none tabular-nums text-foreground">
           {typeof props.value === 'number' ? props.value.toLocaleString() : props.value}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentUpdateCard(props: {
+  icon: ReactNode;
+  label: string;
+  providerId?: ProviderRecord['id'];
+  providerName?: string;
+  providerHomeUrl?: string;
+  sessionTitle: string;
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="space-y-1 px-4 pt-4 pb-1.5">
+        <CardDescription className="flex items-center gap-2 text-[11px] leading-none">
+          <span className="text-primary">{props.icon}</span>
+          {props.label}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="px-4 pb-4 pt-0">
+        <div className="flex min-h-[1.4rem] items-center gap-2.5 min-w-0">
+          {props.providerId && props.providerName && props.providerHomeUrl ? (
+            <ProviderIcon
+              providerId={props.providerId}
+              providerName={props.providerName}
+              homeUrl={props.providerHomeUrl}
+              variant="rail"
+              className="!w-[15px] !h-[15px]"
+            />
+          ) : null}
+          <p
+            className="min-w-0 flex-1 text-[0.95rem] font-semibold leading-none text-foreground whitespace-nowrap overflow-hidden text-ellipsis"
+            title={props.sessionTitle}
+          >
+            {props.sessionTitle}
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -41,6 +81,7 @@ function KpiCard(props: { icon: ReactNode; label: string; value: number | string
 export function LibraryPage(props: {
   activeProvider: ProviderRecord | null;
   providers: ProviderRecord[];
+  infoBanner?: string | null;
   historyScope: HistoryScope;
   onChangeHistoryScope: (scope: HistoryScope) => void;
   sessions: CaptureSessionRecord[];
@@ -63,16 +104,40 @@ export function LibraryPage(props: {
   const enabledProviders = props.providers.filter((provider) => provider.enabled);
   const cacheDisabledProviders = enabledProviders.filter((provider) => !provider.cacheEnabled);
   const cachedCount = enabledProviders.filter((provider) => provider.cacheEnabled).length;
+  const totalMessageCount = props.sessions.reduce((sum, session) => sum + session.messageCount, 0);
+  const now = new Date();
 
-  const todayCount = props.sessions.filter((session) => {
+  const todaySessionCount = props.sessions.filter((session) => {
     const d = new Date(session.createdAt);
-    const now = new Date();
     return (
       d.getFullYear() === now.getFullYear() &&
       d.getMonth() === now.getMonth() &&
       d.getDate() === now.getDate()
     );
   }).length;
+  const latestUpdatedSession = props.sessions.reduce<CaptureSessionRecord | null>((latest, session) => {
+    const sessionTimestamp = Date.parse(session.updatedAt);
+    if (Number.isNaN(sessionTimestamp)) {
+      return latest;
+    }
+
+    if (!latest) {
+      return session;
+    }
+
+    return sessionTimestamp > Date.parse(latest.updatedAt) ? session : latest;
+  }, null);
+  const latestUpdatedProvider = latestUpdatedSession
+    ? props.providers.find((provider) => provider.id === latestUpdatedSession.provider) ?? null
+    : null;
+  const latestUpdatedProviderName = latestUpdatedProvider?.name;
+  const latestUpdatedTitle = latestUpdatedSession
+    ? resolveSessionTitle(latestUpdatedSession)
+    : '等待首次本地采集';
+  const dataOperationsDescription =
+    enabledProviders.length > 0
+      ? `已启用 ${enabledProviders.length} 个服务，其中 ${cachedCount} 个开启本地缓存。按需刷新、导出和管理您的本地 AI 对话数据。`
+      : '当前未启用可管理的数据服务。';
 
   const [providerExportTarget, setProviderExportTarget] = useState<ProviderRecord['id'] | ''>(
     props.selectedSession?.provider ?? props.activeProvider?.id ?? enabledProviders[0]?.id ?? ''
@@ -156,7 +221,10 @@ export function LibraryPage(props: {
   }
 
   return (
-    <section className="grid grid-rows-[auto_minmax(0,1fr)] gap-5 h-full overflow-hidden">
+    <section className={props.historyScope === 'all'
+      ? 'flex flex-col gap-5'
+      : 'grid grid-rows-[auto_minmax(0,1fr)] gap-5 h-full overflow-hidden'
+    }>
       <h1 className="sr-only">数据</h1>
       <div className="sticky top-0 z-[3] grid gap-2 px-3 pt-2 pb-3 bg-white/85 backdrop-blur-[18px] border-b border-[rgba(153,127,76,0.08)] -mx-4 -mt-6 mb-3">
         <div className="flex items-center gap-1 overflow-x-auto pb-1"
@@ -203,7 +271,8 @@ export function LibraryPage(props: {
                     providerId={provider.id}
                     providerName={provider.name}
                     homeUrl={provider.homeUrl}
-                    className="size-4"
+                    variant="rail"
+                    className="!w-4 !h-4"
                   />
                   {provider.name}
                 </button>
@@ -223,37 +292,47 @@ export function LibraryPage(props: {
         </div>
       ) : null}
 
+      {props.infoBanner ? (
+        <div
+          className="mx-0 rounded-2xl px-3.5 py-3 text-sm leading-relaxed text-[#30445f] bg-slate-50 border border-slate-200"
+          role="status"
+        >
+          {props.infoBanner}
+        </div>
+      ) : null}
+
       {props.historyScope === 'all' ? (
         <div className="flex flex-col gap-6 p-2">
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KpiCard
               icon={<MessagesSquare className="size-4" />}
+              label="总消息数"
+              value={totalMessageCount}
+            />
+            <KpiCard
+              icon={<Database className="size-4" />}
               label="总会话数"
               value={props.sessions.length}
             />
             <KpiCard
-              icon={<Server className="size-4" />}
-              label="接入服务"
-              value={enabledProviders.length}
-            />
-            <KpiCard
               icon={<TrendingUp className="size-4" />}
-              label="今日新增"
-              value={todayCount}
+              label="今日会话"
+              value={todaySessionCount}
             />
-            <KpiCard
-              icon={<Database className="size-4" />}
-              label="缓存服务"
-              value={`${cachedCount}/${enabledProviders.length}`}
+            <RecentUpdateCard
+              icon={<RefreshCw className="size-4" />}
+              label="最近更新"
+              providerId={latestUpdatedProvider?.id}
+              providerName={latestUpdatedProviderName}
+              providerHomeUrl={latestUpdatedProvider?.homeUrl}
+              sessionTitle={latestUpdatedTitle}
             />
           </div>
 
           {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <CaptureTrendChart sessions={props.sessions} />
-            </div>
+          <div className="flex flex-col gap-4">
+            <CaptureTrendChart sessions={props.sessions} />
             <ProviderShareChart sessions={props.sessions} providers={props.providers} />
           </div>
 
@@ -261,7 +340,7 @@ export function LibraryPage(props: {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">数据操作</CardTitle>
-              <CardDescription>按需刷新、导出和管理您的本地 AI 对话数据</CardDescription>
+              <CardDescription>{dataOperationsDescription}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap items-center gap-3">

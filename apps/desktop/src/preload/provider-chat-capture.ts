@@ -1,54 +1,58 @@
 import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
+// Keep sandboxed preload bundles on DOM-only/provider-automation code paths.
+// Importing provider package roots can pull parser/network modules with Node-only
+// dependencies that do not load inside sandboxed remote-content preloads.
 import {
   buildClaudeDomSignal,
   buildClaudeDomSnapshot,
   collectClaudeStructuredMessages,
-} from '@amberkeeper/provider-claude';
+} from '../../../../packages/provider-claude/src/dom';
 import {
   buildDeepSeekDomSignal,
   buildDeepSeekDomSnapshot,
   collectDeepSeekStructuredMessages,
-} from '@amberkeeper/provider-deepseek';
+} from '../../../../packages/provider-deepseek/src/dom';
 import {
   buildDoubaoDomSignal,
   buildDoubaoDomSnapshot,
   collectDoubaoStructuredMessages,
-  doubaoLiveAutomationSpec,
-} from '@amberkeeper/provider-doubao';
+} from '../../../../packages/provider-doubao/src/dom';
+import { doubaoLiveAutomationSpec } from '../../../../packages/provider-doubao/src/automation';
 import {
   buildGeminiDomSignal,
   buildGeminiDomSnapshot,
   collectGeminiStructuredMessages,
-} from '@amberkeeper/provider-gemini';
+} from '../../../../packages/provider-gemini/src/dom';
 import {
   buildGrokDomSignal,
   buildGrokDomSnapshot,
   collectGrokStructuredMessages,
-  grokLiveAutomationSpec,
-} from '@amberkeeper/provider-grok';
+} from '../../../../packages/provider-grok/src/dom';
+import { grokLiveAutomationSpec } from '../../../../packages/provider-grok/src/automation';
 import {
   buildKimiDomSignal,
   buildKimiDomSnapshot,
   collectKimiStructuredMessages,
-  kimiLiveAutomationSpec,
-} from '@amberkeeper/provider-kimi';
+} from '../../../../packages/provider-kimi/src/dom';
+import { kimiLiveAutomationSpec } from '../../../../packages/provider-kimi/src/automation';
 import {
   buildQianwenDomSignal,
   buildQianwenDomSnapshot,
   collectQianwenStructuredMessages,
-  qianwenLiveAutomationSpec,
-} from '@amberkeeper/provider-qianwen';
+} from '../../../../packages/provider-qianwen/src/dom';
+import { qianwenLiveAutomationSpec } from '../../../../packages/provider-qianwen/src/automation';
 import {
   buildChatGptDomSignal,
   buildChatGptDomSnapshot,
   collectChatGptStructuredMessages,
-} from '@amberkeeper/provider-chatgpt';
+} from '../../../../packages/provider-chatgpt/src/dom';
+import { chatgptLiveAutomationSpec } from '../../../../packages/provider-chatgpt/src/automation';
 import {
   buildXiaomiAistudioDomSignal,
   buildXiaomiAistudioDomSnapshot,
   collectXiaomiAistudioStructuredMessages,
-  xiaomiAistudioLiveAutomationSpec,
-} from '@amberkeeper/provider-xiaomi-aistudio';
+} from '../../../../packages/provider-xiaomi-aistudio/src/dom';
+import { xiaomiAistudioLiveAutomationSpec } from '../../../../packages/provider-xiaomi-aistudio/src/automation';
 import type { ProviderId, ProviderLiveProbeRequest } from '@amberkeeper/shared-types';
 import {
   runProviderLiveDomProbe,
@@ -311,6 +315,7 @@ const PROVIDER_DOM_CAPTURE_DRIVERS: ProviderDomCaptureDriver[] = [
     collectMessages: collectChatGptStructuredMessages,
     buildSnapshot: buildChatGptDomSnapshot,
     buildSignal: buildChatGptDomSignal,
+    liveAutomationSpec: chatgptLiveAutomationSpec,
   }),
   createProviderDomCaptureDriver({
     id: 'claude',

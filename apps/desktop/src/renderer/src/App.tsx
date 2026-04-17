@@ -1,10 +1,11 @@
 import { startTransition, useEffect, useState, type ReactNode } from 'react';
-import { Database, Settings, Info, Activity } from 'lucide-react';
+import { Database, Settings, Info, Activity, Server } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppSidebar, type AppSurfaceId } from './components/AppSidebar';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { AboutPage } from './pages/AboutPage';
 import { LibraryPage } from './pages/LibraryPage';
+import { ServicesPage } from './pages/ServicesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useWorkspaceStore } from './stores/workspace-store';
 import { cn } from '@/lib/cn';
@@ -14,7 +15,7 @@ type UtilitySurfaceId = Exclude<AppSurfaceId, 'chat'>;
 type HistoryScope = 'all' | ProviderRecord['id'];
 
 export function App() {
-  const { state, activeProvider, selectedSession, actions } = useWorkspaceStore();
+  const { state, activeService, activeProvider, selectedSession, actions } = useWorkspaceStore();
   const [activeSurface, setActiveSurface] = useState<AppSurfaceId>('chat');
   const [lastUtilitySurface, setLastUtilitySurface] = useState<UtilitySurfaceId>('library');
   const [libraryHistoryScope, setLibraryHistoryScope] = useState<HistoryScope>('all');
@@ -22,7 +23,7 @@ export function App() {
   const showChatSurface = activeSurface === 'chat';
 
   useEffect(() => {
-    void window.captureApi.setNativeStageVisible(showChatSurface);
+    void window.captureApi?.setNativeStageVisible?.(showChatSurface);
   }, [showChatSurface]);
 
   useEffect(() => {
@@ -38,12 +39,12 @@ export function App() {
     <TooltipProvider delayDuration={300}>
     <div className="grid h-screen min-h-screen overflow-hidden bg-white grid-cols-[66px_minmax(0,1fr)]">
       <AppSidebar
-        providers={state.providers}
-        activeProviderId={state.activeProviderId}
+        services={state.services}
+        activeServiceId={state.activeServiceId}
         activeSurface={activeSurface}
-        onSelectProvider={(providerId) => {
+        onSelectService={(serviceId) => {
           startTransition(() => setActiveSurface('chat'));
-          void actions.selectProvider(providerId);
+          void actions.selectService(serviceId);
         }}
         onOpenUtility={() => {
           startTransition(() => setActiveSurface(lastUtilitySurface));
@@ -74,6 +75,7 @@ export function App() {
               activeSurface,
               libraryHistoryScope,
               onChangeLibraryHistoryScope: setLibraryHistoryScope,
+              activeService,
               activeProvider,
               state,
               selectedSession,
@@ -95,6 +97,7 @@ function UtilityWorkbench(props: {
 }) {
   const menuItems: Array<{ id: Exclude<AppSurfaceId, 'chat'>; label: string; icon: ReactNode }> = [
     { id: 'library', label: '数据', icon: <Database className="size-4" /> },
+    { id: 'services', label: '服务', icon: <Server className="size-4" /> },
     { id: 'settings', label: '设置', icon: <Settings className="size-4" /> },
     { id: 'about', label: '关于', icon: <Info className="size-4" /> },
   ];
@@ -131,7 +134,7 @@ function UtilityWorkbench(props: {
         })}
       </nav>
 
-      <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden px-4 py-6 bg-white">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-y-auto px-4 py-6 bg-white">
         {props.children}
       </div>
     </section>
@@ -142,6 +145,7 @@ function renderUtilitySurface(input: {
   activeSurface: AppSurfaceId;
   libraryHistoryScope: HistoryScope;
   onChangeLibraryHistoryScope: (scope: HistoryScope) => void;
+  activeService: ReturnType<typeof useWorkspaceStore>['activeService'];
   activeProvider: ReturnType<typeof useWorkspaceStore>['activeProvider'];
   state: ReturnType<typeof useWorkspaceStore>['state'];
   selectedSession: ReturnType<typeof useWorkspaceStore>['selectedSession'];
@@ -153,6 +157,11 @@ function renderUtilitySurface(input: {
         <LibraryPage
           activeProvider={input.activeProvider}
           providers={input.state.providers}
+          infoBanner={
+            input.activeService && !input.activeService.supportsDataManagement
+              ? `${input.activeService.name} 仅作为壳层服务入口，不支持本地采集、历史、导出或缓存开关。`
+              : null
+          }
           historyScope={input.libraryHistoryScope}
           onChangeHistoryScope={input.onChangeLibraryHistoryScope}
           sessions={input.state.sessions}
@@ -167,17 +176,25 @@ function renderUtilitySurface(input: {
           onExportProviderSessions={input.actions.exportProviderSessions}
         />
       );
+    case 'services':
+      return (
+        <ServicesPage
+          services={input.state.services}
+          activeServiceId={input.state.activeServiceId}
+          onSelectService={input.actions.selectService}
+          onToggleService={input.actions.setServiceEnabled}
+          onToggleProviderCache={input.actions.setProviderCacheEnabled}
+          onMoveService={input.actions.moveService}
+          onAddCustomService={input.actions.addCustomService}
+          onDeleteCustomService={input.actions.removeCustomService}
+          onResolvedCustomIcon={input.actions.updateCustomServiceIcon}
+        />
+      );
     case 'settings':
       return (
         <SettingsPage
           shellInfo={input.state.shellInfo}
-          providers={input.state.providers}
-          activeProviderId={input.state.activeProviderId}
           onSetInterfaceLanguage={input.actions.setInterfaceLanguage}
-          onSelectProvider={input.actions.selectProvider}
-          onToggleProvider={input.actions.setProviderEnabled}
-          onToggleProviderCache={input.actions.setProviderCacheEnabled}
-          onMoveProvider={input.actions.moveProvider}
         />
       );
     case 'about':

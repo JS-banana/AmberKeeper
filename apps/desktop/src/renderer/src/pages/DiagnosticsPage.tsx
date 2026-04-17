@@ -24,6 +24,9 @@ export function DiagnosticsPage() {
           status={store.runtimeStatus}
           snapshotFeedback={store.snapshotFeedback}
           onTriggerSnapshot={store.triggerSnapshot}
+          geminiDiagnosticFeedback={store.geminiDiagnosticFeedback}
+          geminiDiagnosticReport={store.geminiDiagnosticReport}
+          onRunGeminiThemeDiagnostic={store.runGeminiThemeDiagnostic}
         />
         <div className="grid grid-cols-2 gap-4 [&>:last-child]:col-span-full mt-4">
           <AttemptLogPanel attempts={store.runtimeStatus.recentAttempts} />

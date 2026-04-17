@@ -1,13 +1,21 @@
 import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
 import type { ProviderId } from '@amberkeeper/shared-types';
-import { WebContentsView } from 'electron';
+import { randomUUID } from 'node:crypto';
+import { ipcMain, WebContentsView } from 'electron';
 import type { HandlerDetails } from 'electron/main';
+import {
+  AMBERKEEPER_CHAT_CAPTURE_COMMAND_CHANNEL,
+  AMBERKEEPER_CHAT_CAPTURE_KEY,
+  AMBERKEEPER_CHAT_CAPTURE_RESULT_CHANNEL,
+  AMBERKEEPER_CHAT_CAPTURE_WORLD_ID,
+  type ChatCaptureCommandKind,
+} from '../../shared/chat-capture-bridge';
 import { createSerializedNavigationExecutor } from './navigation-queue';
 
 export type BrowserSessionProviderId = ProviderId;
 
 export interface BrowserSessionConfig {
-  id: BrowserSessionProviderId;
+  id: string;
   name: string;
   homeUrl: string;
   partition: string;
@@ -74,7 +82,7 @@ export const BUILT_IN_BROWSER_SESSION_CONFIGS: readonly BrowserSessionConfig[] =
   },
   {
     id: 'xiaomi-aistudio',
-    name: 'Xiaomi AI Studio',
+    name: 'MiMo',
     homeUrl: 'https://aistudio.xiaomimimo.com/#/c',
     partition: 'persist:anychat-xiaomi-aistudio',
     sourceSessionKey: 'xiaomi-aistudio-primary-view',
@@ -140,7 +148,7 @@ const PROVIDER_CONFIGS: Record<BrowserSessionProviderId, BrowserSessionConfig> =
   },
   'xiaomi-aistudio': {
     id: 'xiaomi-aistudio',
-    name: 'Xiaomi AI Studio',
+    name: 'MiMo',
     homeUrl: 'https://aistudio.xiaomimimo.com/#/c',
     partition: 'persist:anychat-xiaomi-aistudio',
     sourceSessionKey: 'xiaomi-aistudio-primary-view',
@@ -153,6 +161,20 @@ export function resolveBrowserSessionConfig(providerId: BrowserSessionProviderId
 
 export function listBuiltInBrowserSessionConfigs(): BrowserSessionConfig[] {
   return BUILT_IN_BROWSER_SESSION_CONFIGS.map((config) => ({ ...config }));
+}
+
+export function buildCustomBrowserSessionConfig(input: {
+  id: string;
+  name: string;
+  launchUrl: string;
+}): BrowserSessionConfig {
+  return {
+    id: input.id,
+    name: input.name,
+    homeUrl: input.launchUrl,
+    partition: `persist:amberkeeper-custom-${sanitizeBrowserSessionId(input.id)}`,
+    sourceSessionKey: `${sanitizeBrowserSessionId(input.id)}-primary-view`,
+  };
 }
 
 export interface BrowserSessionRuntime {
@@ -169,6 +191,11 @@ export interface BrowserSessionRuntime {
     title: string;
     messages: Array<{ role?: string; content?: string }>;
   }>;
+  dispose: () => void;
+}
+
+function sanitizeBrowserSessionId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9-]/g, '-');
 }
 
 type StructuredSnapshotResult = {
@@ -183,13 +210,35 @@ export function createBrowserSessionRuntime(options: {
   onUrlChanged: (url: string) => void;
 }): BrowserSessionRuntime {
   const config = resolveBrowserSessionConfig(options.providerId);
+  return createBrowserSessionRuntimeWithConfig({
+    config,
+    chatPreloadPath: options.chatPreloadPath,
+    onUrlChanged: options.onUrlChanged,
+  });
+}
+
+export function createBrowserSessionRuntimeWithConfig(options: {
+  config: BrowserSessionConfig;
+  chatPreloadPath: string;
+  onUrlChanged: (url: string) => void;
+}): BrowserSessionRuntime {
+  const config = options.config;
   const view = new WebContentsView({
     webPreferences: {
-      preload: options.chatPreloadPath,
-      contextIsolation: true,
-      sandbox: false,
-      partition: config.partition,
+      ...buildRemoteContentWebPreferences({
+        preloadPath: options.chatPreloadPath,
+        partition: config.partition,
+      }),
     },
+  });
+  view.setBackgroundColor('#ffffff');
+
+  view.webContents.on('did-finish-load', () => {
+    void view.webContents.insertCSS('html { color-scheme: light !important; }');
+  });
+
+  view.webContents.on('preload-error', (_event, preloadPath, error) => {
+    console.error(`[browser-session:${config.id}] preload error in ${preloadPath}:`, error);
   });
 
   view.webContents.on('did-navigate', (_event, url) => {
@@ -223,18 +272,24 @@ export function createBrowserSessionRuntime(options: {
     executeJavaScript: async <TResult = unknown>(code: string, userGesture = true) =>
       (await view.webContents.executeJavaScript(code, userGesture)) as TResult,
     runDomSnapshot: async () => {
-      const raw = await view.webContents.executeJavaScript(
-        `
-          (async () => {
-            const capture = window.amberkeeperChatCapture;
-            if (!capture?.snapshotDom) {
-              return { message: 'Chat preload snapshot API unavailable.', detail: '' };
-            }
-            return capture.snapshotDom();
-          })();
-        `,
-        true
-      );
+      const raw =
+        (await requestChatCapturePayload<{ message?: string; detail?: string }>(
+          view.webContents,
+          'snapshot-dom'
+        )) ??
+        (await executeChatCaptureScript(
+          view.webContents,
+          `
+            (async () => {
+              const capture = globalThis.${AMBERKEEPER_CHAT_CAPTURE_KEY};
+              if (!capture?.snapshotDom) {
+                return { message: 'Chat preload snapshot API unavailable.', detail: '' };
+              }
+              return capture.snapshotDom();
+            })();
+          `,
+          true
+        ));
 
       return {
         message: (raw as { message?: string } | undefined)?.message ?? 'DOM snapshot completed.',
@@ -242,21 +297,25 @@ export function createBrowserSessionRuntime(options: {
       };
     },
     readStructuredDomSnapshot: async (fallbackUrl: string) => {
-      const raw = (await view.webContents.executeJavaScript(
-        `
-          (async () => {
-            const capture = window.amberkeeperChatCapture;
-            if (capture?.snapshotSignal) {
-              return capture.snapshotSignal();
-            }
-            if (!capture?.snapshotMessages) {
-              return { url: location.href, title: document.title, messages: [] };
-            }
-            return capture.snapshotMessages();
-          })();
-        `,
-        true
-      )) as
+      const raw = ((await requestChatCapturePayload<
+        StructuredSnapshotResult | Partial<DomSnapshotSeenSignal>
+      >(view.webContents, 'snapshot-structured')) ??
+        (await executeChatCaptureScript(
+          view.webContents,
+          `
+            (async () => {
+              const capture = globalThis.${AMBERKEEPER_CHAT_CAPTURE_KEY};
+              if (capture?.snapshotSignal) {
+                return capture.snapshotSignal();
+              }
+              if (!capture?.snapshotMessages) {
+                return { url: location.href, title: document.title, messages: [] };
+              }
+              return capture.snapshotMessages();
+            })();
+          `,
+          true
+        ))) as
         | StructuredSnapshotResult
         | Partial<DomSnapshotSeenSignal>
         | undefined;
@@ -275,7 +334,90 @@ export function createBrowserSessionRuntime(options: {
         messages: Array.isArray(raw?.messages) ? raw.messages : [],
       };
     },
+    dispose: () => {
+      if (!view.webContents.isDestroyed()) {
+        view.webContents.close();
+      }
+    },
   };
+}
+
+type ChatCaptureWebContents = {
+  executeJavaScript: (code: string, userGesture?: boolean) => Promise<unknown>;
+  executeJavaScriptInIsolatedWorld?: (
+    worldId: number,
+    scripts: Array<{ code: string }>,
+    userGesture?: boolean
+  ) => Promise<unknown>;
+};
+
+export async function executeChatCaptureScript<TResult = unknown>(
+  webContents: ChatCaptureWebContents,
+  code: string,
+  userGesture = true
+): Promise<TResult> {
+  if (typeof webContents.executeJavaScriptInIsolatedWorld === 'function') {
+    try {
+      return (await webContents.executeJavaScriptInIsolatedWorld(
+        AMBERKEEPER_CHAT_CAPTURE_WORLD_ID,
+        [{ code }],
+        userGesture
+      )) as TResult;
+    } catch {
+      // Fall back to the page world for tests, mocks, and any non-isolated
+      // bridge environments.
+    }
+  }
+
+  return (await webContents.executeJavaScript(code, userGesture)) as TResult;
+}
+
+const CHAT_CAPTURE_COMMAND_TIMEOUT_MS = 2_500;
+
+async function requestChatCapturePayload<TResult>(
+  webContents: ChatCaptureWebContents & {
+    id?: number;
+    send?: (channel: string, payload: unknown) => void;
+  },
+  kind: ChatCaptureCommandKind
+): Promise<TResult | null> {
+  if (typeof webContents.send !== 'function' || typeof webContents.id !== 'number') {
+    return null;
+  }
+
+  const requestId = randomUUID();
+  const send = webContents.send.bind(webContents);
+
+  return await new Promise<TResult | null>((resolve) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, CHAT_CAPTURE_COMMAND_TIMEOUT_MS);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      ipcMain.off(AMBERKEEPER_CHAT_CAPTURE_RESULT_CHANNEL, onResponse);
+    };
+
+    const onResponse = (
+      event: Electron.IpcMainEvent,
+      payload?: {
+        requestId?: string;
+        ok?: boolean;
+        payload?: TResult;
+      }
+    ) => {
+      if (event.sender.id !== webContents.id || payload?.requestId !== requestId) {
+        return;
+      }
+
+      cleanup();
+      resolve(payload?.ok === false ? null : (payload?.payload ?? null));
+    };
+
+    ipcMain.on(AMBERKEEPER_CHAT_CAPTURE_RESULT_CHANNEL, onResponse);
+    send(AMBERKEEPER_CHAT_CAPTURE_COMMAND_CHANNEL, { requestId, kind });
+  });
 }
 
 function buildPopupHandler(
@@ -289,11 +431,26 @@ function buildPopupHandler(
       height: 720,
       title: 'AmberKeeper Auth',
       webPreferences: {
-        partition: options.partition,
-        contextIsolation: true,
-        sandbox: false,
-        preload: options.chatPreloadPath,
+        ...buildRemoteContentWebPreferences({
+          preloadPath: options.chatPreloadPath,
+          partition: options.partition,
+        }),
       },
     },
+  };
+}
+
+export function buildRemoteContentWebPreferences(options: {
+  preloadPath: string;
+  partition: string;
+}) {
+  return {
+    partition: options.partition,
+    contextIsolation: true,
+    sandbox: true,
+    preload: options.preloadPath,
+    nodeIntegration: false,
+    webSecurity: true,
+    webviewTag: false,
   };
 }

@@ -9,7 +9,7 @@ export interface DoubaoDomSnapshotMessageInput {
 export function collectDoubaoStructuredMessages(
   root: ParentNode = document
 ): DoubaoDomSnapshotMessageInput[] {
-  const selectors = [
+  const primarySelectors = [
     '[data-message-author-role]',
     '[data-role]',
     '[data-testid="union_message"]',
@@ -18,9 +18,18 @@ export function collectDoubaoStructuredMessages(
     '[data-testid="receive_message"]',
     '[data-testid="message_content"]',
     '[data-testid="message_text_content"]',
+    '.bg-g-send-msg-bubble-bg',
+    '.container-P2rR72',
+    '.paragraph-pP9ZLC',
+  ];
+
+  const messages = collectFromSelectors(root, primarySelectors);
+  if (messages.length > 0) {
+    return dedupeMessages(messages);
+  }
+
+  const fallbackSelectors = [
     '[data-testid*="message"]',
-    '[class*="message"]',
-    '[class*="chat"]',
     '[role="article"]',
     '.message-item',
     '.chat-message',
@@ -28,26 +37,23 @@ export function collectDoubaoStructuredMessages(
     '.conversation-message',
     '.doubao-message',
     '.semi-message',
+    '[class*="message"]',
+    '[class*="chat"]',
   ];
 
-  const nodes = uniqueNodes(
-    selectors.flatMap((selector) =>
-      Array.from(root.querySelectorAll(selector))
-    ) as unknown as NodeLike[]
+  const fallbackMessages = collectFromSelectors(
+    root,
+    fallbackSelectors
   );
-  const messages = nodes
-    .map((node) => collectDoubaoMessageFromNode(node))
-    .filter(isCompleteMessage);
-
-  if (messages.length > 0) {
-    return messages;
+  if (fallbackMessages.length > 0) {
+    return dedupeMessages(fallbackMessages);
   }
 
-  return (
-    Array.from(root.querySelectorAll('main article, [role="article"]')) as unknown as NodeLike[]
-  )
-    .map((node) => collectDoubaoMessageFromNode(node))
-    .filter(isCompleteMessage);
+  return dedupeMessages(
+    (Array.from(root.querySelectorAll('main article, [role="article"]')) as unknown as NodeLike[])
+      .map((node) => collectDoubaoMessageFromNode(node))
+      .filter(isCompleteMessage)
+  );
 }
 
 export function buildDoubaoDomSnapshot(input: {
@@ -197,7 +203,15 @@ function inferRoleFromElement(element: NodeLike): DoubaoDomSnapshotMessageInput[
     return 'user';
   }
 
+  if (hasClassToken(element, 'bg-g-send-msg-bubble-bg')) {
+    return 'user';
+  }
+
   if (hasClassToken(element, 'assistant-message')) {
+    return 'assistant';
+  }
+
+  if (hasClassToken(element, 'container-P2rR72') || hasClassToken(element, 'paragraph-pP9ZLC')) {
     return 'assistant';
   }
 
@@ -271,6 +285,35 @@ function keepsBlankLine(lines: string[], index: number): boolean {
 
 function hasClassToken(element: NodeLike, token: string): boolean {
   return typeof element.className === 'string' && element.className.split(/\s+/).includes(token);
+}
+
+function collectFromSelectors(
+  root: ParentNode,
+  selectors: string[]
+): Required<DoubaoDomSnapshotMessageInput>[] {
+  const nodes = uniqueNodes(
+    selectors.flatMap((selector) =>
+      Array.from(root.querySelectorAll(selector))
+    ) as unknown as NodeLike[]
+  );
+
+  return nodes
+    .map((node) => collectDoubaoMessageFromNode(node))
+    .filter(isCompleteMessage);
+}
+
+function dedupeMessages(
+  messages: Required<DoubaoDomSnapshotMessageInput>[]
+): Required<DoubaoDomSnapshotMessageInput>[] {
+  const seen = new Set<string>();
+  return messages.filter((message) => {
+    const key = `${message.role}\u0000${message.content}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function offsetIsoTimestamp(baseIso: string, offset: number): string {

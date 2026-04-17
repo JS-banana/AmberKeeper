@@ -82,6 +82,33 @@ export interface ProviderRecord {
 
 export type ProviderMoveDirection = 'up' | 'down';
 
+export type ServiceKind = 'builtin' | 'custom';
+export type ServiceMoveDirection = 'up' | 'down';
+
+export interface ServiceRecord {
+  id: string;
+  providerId: ProviderId | null;
+  kind: ServiceKind;
+  name: string;
+  displayUrl: string;
+  launchUrl: string;
+  iconUrl: string | null;
+  cacheEnabled?: boolean;
+  enabled: boolean;
+  builtin: boolean;
+  active: boolean;
+  supportsDataManagement: boolean;
+  supportsCapture: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCustomServiceInput {
+  name: string;
+  url: string;
+  iconUrl?: string | null;
+}
+
 export interface ShellInfo {
   diagnosticsEnabled: boolean;
   isPackaged: boolean;
@@ -105,6 +132,27 @@ export interface RuntimeStatus {
   lastCaptureAt: string | null;
   pendingRequestCount: number;
   recentAttempts: CaptureAttemptLogRecord[];
+}
+
+export type GeminiThemeDiagnosticMode = 'legacy' | 'fresh';
+
+export interface GeminiThemeDiagnosticEntry {
+  mode: GeminiThemeDiagnosticMode;
+  partition: string;
+  currentUrl: string;
+  prefersDark: boolean;
+  htmlColorScheme: string | null;
+  metaColorScheme: string | null;
+  documentBackground: string | null;
+  bodyBackground: string | null;
+  themeStorage: Record<string, string | null>;
+  issueDetected: boolean;
+}
+
+export interface GeminiThemeDiagnosticReport {
+  comparedAt: string;
+  summary: 'legacy-only' | 'fresh-only' | 'both' | 'none';
+  entries: GeminiThemeDiagnosticEntry[];
 }
 
 export type ProviderLiveProbeKind = 'new-message' | 'history-click';

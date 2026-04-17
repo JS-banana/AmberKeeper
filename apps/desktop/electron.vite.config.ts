@@ -82,6 +82,12 @@ export default defineConfig({
           renderer: resolve(__dirname, 'src/preload/renderer.ts'),
           chat: resolve(__dirname, 'src/preload/chat.ts'),
         },
+        output: {
+          // Sandboxed remote-content preloads cannot rely on ESM imports at runtime.
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+          chunkFileNames: '[name]-[hash].cjs',
+        },
       },
       isolatedEntries: true,
       externalizeDeps: false,

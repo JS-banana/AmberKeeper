@@ -1,4 +1,3 @@
-import type { ProviderId } from '@amberkeeper/shared-types';
 import { app, BrowserWindow, WebContentsView } from 'electron';
 
 export interface StageViewBounds {
@@ -11,7 +10,7 @@ export interface StageViewBounds {
 export interface ProviderStageView<
   TView extends { setBounds(bounds: StageViewBounds): void } = WebContentsView,
 > {
-  providerId: ProviderId;
+  providerId: string;
   view: TView;
 }
 
@@ -27,9 +26,7 @@ export function createMainWindow(options: {
     backgroundColor: '#0b1020',
     titleBarStyle: 'hiddenInset',
     webPreferences: {
-      preload: options.rendererPreloadPath,
-      contextIsolation: true,
-      sandbox: false,
+      ...buildMainRendererWebPreferences(options.rendererPreloadPath),
     },
   });
 
@@ -65,7 +62,7 @@ export function attachChatView(
 export function applyProviderStageLayout<TView extends { setBounds(bounds: StageViewBounds): void }>(
   options: {
     providerViews: Array<ProviderStageView<TView>>;
-    activeProviderId: ProviderId | null;
+    activeProviderId: string | null;
     panelWidth: number;
     contentBounds: {
       width: number;
@@ -95,7 +92,7 @@ export function applyProviderStageLayout<TView extends { setBounds(bounds: Stage
 
 export function createProviderStageController(mainWindow: BrowserWindow, panelWidth: number) {
   let providerViews: Array<ProviderStageView<WebContentsView>> = [];
-  let activeProviderId: ProviderId | null = null;
+  let activeProviderId: string | null = null;
   const attachedViews = new WeakSet<WebContentsView>();
 
   const syncBounds = () => {
@@ -118,10 +115,32 @@ export function createProviderStageController(mainWindow: BrowserWindow, panelWi
   mainWindow.on('resize', syncBounds);
 
   return {
-    sync(nextProviderViews: Array<ProviderStageView<WebContentsView>>, nextActiveProviderId: ProviderId | null): void {
+    sync(nextProviderViews: Array<ProviderStageView<WebContentsView>>, nextActiveProviderId: string | null): void {
       providerViews = nextProviderViews;
       activeProviderId = nextActiveProviderId;
       syncBounds();
     },
+    detach(view: WebContentsView): void {
+      if (!attachedViews.has(view)) {
+        return;
+      }
+
+      mainWindow.contentView.removeChildView(view);
+      attachedViews.delete(view);
+    },
+  };
+}
+
+export function buildMainRendererWebPreferences(preloadPath: string) {
+  return {
+    preload: preloadPath,
+    contextIsolation: true,
+    // Runtime evidence: sandboxing the local renderer breaks the shell bridge and
+    // causes the left navigation/menu surfaces to disappear. Keep the shell renderer
+    // unsandboxed for now; remote-content surfaces stay sandboxed separately.
+    sandbox: false,
+    nodeIntegration: false,
+    webSecurity: true,
+    webviewTag: false,
   };
 }

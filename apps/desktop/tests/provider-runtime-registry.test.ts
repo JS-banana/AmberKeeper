@@ -191,7 +191,7 @@ function buildProviders(): ProviderRecord[] {
     },
     {
       id: 'xiaomi-aistudio',
-      name: 'Xiaomi AI Studio',
+      name: 'MiMo',
       homeUrl: 'https://aistudio.xiaomimimo.com',
       enabled: true,
       cacheEnabled: true,

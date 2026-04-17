@@ -9,7 +9,7 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   kimi: 'Kimi',
   qianwen: 'Qianwen',
   doubao: 'Doubao',
-  'xiaomi-aistudio': 'Xiaomi AI Studio',
+  'xiaomi-aistudio': 'MiMo',
 };
 
 const GENERIC_SESSION_TITLES = new Set([
@@ -23,6 +23,7 @@ const GENERIC_SESSION_TITLES = new Set([
   'kimi',
   'qianwen',
   'doubao',
+  'mimo',
   'xiaomi ai studio',
   'new chat',
   'new conversation',

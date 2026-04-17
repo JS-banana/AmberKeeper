@@ -10,46 +10,60 @@ import type {
   CaptureExportArtifact,
   CaptureExportFormat,
   CaptureSessionRecord,
-  NormalizedMessage,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
   RuntimeStatus,
+  ServiceMoveDirection,
+  ServiceRecord,
   ShellInfo,
 } from '@amberkeeper/shared-types';
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, nativeTheme } from 'electron';
+nativeTheme.themeSource = 'light';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAppLifecycle } from './bootstrap/app';
+import { createCaptureSessionService } from './capture/capture-session-service';
+import { createHistoryDomHydrationService } from './capture/history-dom-hydration-service';
+import { createHistoryEnvelopeBuilderService } from './capture/history-envelope-builder-service';
+import { createHistoryCapturePersistenceService } from './capture/history-capture-persistence-service';
+import { createHistorySessionOpenService } from './capture/history-session-open-service';
+import { createNetworkResponseIngestionService } from './capture/network-response-ingestion-service';
+import { createRequestIngestionService } from './capture/request-ingestion-service';
+import { createDiagnosticsService } from './diagnostics/diagnostics-service';
+import { createLiveProbeService } from './diagnostics/live-probe-service';
 import { registerCaptureIpc } from './ipc/capture-ipc';
 import {
+  buildCustomBrowserSessionConfig,
   createBrowserSessionRuntime,
+  createBrowserSessionRuntimeWithConfig,
   resolveBrowserSessionConfig,
   type BrowserSessionProviderId,
   type BrowserSessionRuntime,
 } from './runtime/browser-session';
-import { createProviderLiveAutomation, evaluateProviderPage } from './runtime/provider-live-automation';
-import { createProviderLiveProbeServer } from './runtime/provider-live-probe-server';
 import { getProviderAdapter, getProviderLiveAutomationSpec } from './runtime/provider-adapters';
 import { createCdpObserver } from './runtime/cdp-observer';
 import {
-  createOldSessionAutoCacheKey,
-  resolveAutoCachedTitle,
-  resolveDiscoveryAutoCacheCandidate,
-  shouldAcceptAutoCacheSnapshot,
-  shouldPersistAutoCachedMessages,
-} from './runtime/old-session-auto-cache';
+  buildGeminiThemeDiagnosticConfig,
+  buildGeminiThemeProbeScript,
+} from './runtime/gemini-theme-diagnostics';
 import {
-  normalizeHydratedDomMessages,
-  resolveSessionNavigationUrl,
-  summarizeDeepSeekHydrationDiagnostics,
-} from './runtime/history-hydration';
-import { resolveConversationIdSignal } from './runtime/conversation-id-resolution';
-import { shouldRecordParsedResponseDiagnostics } from './runtime/response-diagnostics';
+  createOldSessionAutoCacheKey,
+  resolveDiscoveryAutoCacheCandidate,
+} from './runtime/old-session-auto-cache';
+import { discoverSiteIcon } from './runtime/site-icon-discovery';
 import { createProviderRuntimeRegistry } from './runtime/provider-runtime-registry';
+import { createServiceRuntimeRegistry } from './runtime/service-runtime-registry';
+import {
+  getActiveShellRuntime,
+  isProviderRuntime,
+  syncCustomServiceRuntimes,
+  syncShellStageController,
+} from './runtime/shell-runtime-coordination';
 import { CaptureStore } from './storage/capture-store';
 import { createAppSettingsRepository } from './storage/app-settings-repository';
+import { createShellSettingsService } from './storage/shell-settings-service';
 import { createMainWindow, createProviderStageController } from './windows/main-window';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -69,8 +83,9 @@ type TrackedRequest = {
   classification: 'capture' | 'discover';
 };
 
-type ProviderRuntimeContext = {
-  providerId: BrowserSessionProviderId;
+type ShellRuntimeContext = {
+  serviceId: string;
+  providerId: ProviderId | null;
   homeUrl: string;
   view: BrowserSessionRuntime['view'];
   loadInitialUrl: () => Promise<void>;
@@ -85,19 +100,39 @@ type ProviderRuntimeContext = {
   currentUrl: string;
 };
 
+type ProviderRuntimeContext = ShellRuntimeContext & {
+  providerId: BrowserSessionProviderId;
+};
+
+type CustomServiceRuntimeContext = ShellRuntimeContext & {
+  providerId: null;
+};
+
 let mainWindow: BrowserWindow | null = null;
 let stageController: ReturnType<typeof createProviderStageController> | null = null;
 let browserSession: BrowserSessionRuntime | null = null;
 let cdpObserver: ReturnType<typeof createCdpObserver> | null = null;
 let runtimeRegistry: ReturnType<typeof createProviderRuntimeRegistry<ProviderRuntimeContext>> | null =
   null;
+let customRuntimeRegistry: ReturnType<typeof createServiceRuntimeRegistry<CustomServiceRuntimeContext>> | null =
+  null;
 let captureStore: CaptureStore | null = null;
 let appSettingsRepo: ReturnType<typeof createAppSettingsRepository> | null = null;
+let shellSettingsService: ReturnType<typeof createShellSettingsService> | null = null;
+let captureSessionService: ReturnType<typeof createCaptureSessionService> | null = null;
+let historyDomHydrationService: ReturnType<typeof createHistoryDomHydrationService<ProviderRuntimeContext>> | null = null;
+let historyEnvelopeBuilderService: ReturnType<typeof createHistoryEnvelopeBuilderService> | null = null;
+let historyCapturePersistenceService: ReturnType<typeof createHistoryCapturePersistenceService> | null = null;
+let historySessionOpenService: ReturnType<typeof createHistorySessionOpenService> | null = null;
+let networkResponseIngestionService: ReturnType<typeof createNetworkResponseIngestionService> | null = null;
+let requestIngestionService: ReturnType<typeof createRequestIngestionService> | null = null;
+let diagnosticsService: ReturnType<typeof createDiagnosticsService> | null = null;
+let liveProbeService: ReturnType<typeof createLiveProbeService> | null = null;
 let captureOrchestrator: ReturnType<typeof createCaptureOrchestrator> | null = null;
 let turnPersistenceService: ReturnType<typeof createTurnPersistenceService> | null = null;
-let providerLiveAutomation: ReturnType<typeof createProviderLiveAutomation> | null = null;
-let providerLiveProbeServer: ReturnType<typeof createProviderLiveProbeServer> | null = null;
 let activeProviderId: ProviderId | null = null;
+let selectedProviderId: ProviderId | null = null;
+let activeServiceId: string | null = null;
 let currentUrl = '';
 let lastCaptureAt: string | null = null;
 let domCaptureInFlight = false;
@@ -115,19 +150,23 @@ function createDesktopWindow(): void {
   }
 
   mainWindow = createMainWindow({
-    rendererPreloadPath: path.join(__dirname, '../preload/renderer.mjs'),
+    rendererPreloadPath: path.join(__dirname, '../preload/renderer.cjs'),
     rendererHtmlPath: path.join(__dirname, '../renderer/index.html'),
   });
   stageController = createProviderStageController(mainWindow, PANEL_WIDTH);
 
   mainWindow.on('closed', () => {
+    disposeAllShellRuntimes();
     mainWindow = null;
     stageController = null;
     browserSession = null;
     cdpObserver = null;
     runtimeRegistry = null;
+    customRuntimeRegistry = null;
     activeProviderId = null;
-    currentUrl = getPersistedActiveProviderHomeUrl();
+    selectedProviderId = null;
+    activeServiceId = null;
+    currentUrl = getPersistedActiveServiceLaunchUrl();
     domCaptureInFlight = false;
     nativeStageVisible = true;
     trackedRequests.clear();
@@ -142,28 +181,31 @@ function createDesktopWindow(): void {
     },
     onStateChanged({ runtimes, activeProviderId: nextActiveProviderId }) {
       activeProviderId = nextActiveProviderId;
-      const activeRuntime =
-        nextActiveProviderId === null
-          ? null
-          : runtimes.find((runtime) => runtime.providerId === nextActiveProviderId) ?? null;
+      const activeRuntime = getActiveShellRuntime({
+        activeServiceId,
+        activeProviderId,
+        runtimeRegistry,
+        customRuntimeRegistry,
+      }) as ShellRuntimeContext | null;
 
-      stageController?.sync(
-        runtimes.map(({ providerId, view }) => ({
-          providerId,
-          view,
-        })),
-        nativeStageVisible ? nextActiveProviderId : null
-      );
-
-      browserSession = activeRuntime?.browserSession ?? null;
-      cdpObserver = activeRuntime?.cdpObserver ?? null;
-      currentUrl = activeRuntime?.currentUrl ?? getPersistedActiveProviderHomeUrl();
-
-      if (activeRuntime) {
+      if (isProviderRuntime(activeRuntime)) {
         void attachObserver(activeRuntime);
       }
 
-      publishRuntimeStatus();
+      syncStageController();
+    },
+  });
+  customRuntimeRegistry = createServiceRuntimeRegistry({
+    services: (captureStore?.listServices() ?? []).filter((service) => service.kind === 'custom'),
+    activeServiceId: null,
+    createRuntime(service) {
+      return createCustomServiceRuntime(service);
+    },
+    disposeRuntime(runtime) {
+      disposeShellRuntime(runtime);
+    },
+    onStateChanged() {
+      syncStageController();
     },
   });
 
@@ -176,11 +218,11 @@ function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext
   const runtime = {} as ProviderRuntimeContext;
   const browserSessionRuntime = createBrowserSessionRuntime({
     providerId: provider.id,
-    chatPreloadPath: path.join(__dirname, '../preload/chat.mjs'),
+    chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
     onUrlChanged(url) {
       runtime.currentUrl = url;
 
-      if (activeProviderId === provider.id) {
+      if (activeServiceId === provider.id) {
         currentUrl = url;
         publishRuntimeStatus();
         void maybeAutoCacheRemoteConversation(provider.id, url);
@@ -201,6 +243,7 @@ function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext
     : null;
 
   runtime.providerId = provider.id;
+  runtime.serviceId = provider.id;
   runtime.homeUrl = config.homeUrl;
   runtime.view = browserSessionRuntime.view;
   runtime.loadInitialUrl = browserSessionRuntime.loadInitialUrl;
@@ -213,6 +256,57 @@ function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext
   runtime.currentUrl = config.homeUrl;
 
   return runtime;
+}
+
+function createCustomServiceRuntime(service: ServiceRecord): CustomServiceRuntimeContext {
+  const config = buildCustomBrowserSessionConfig({
+    id: service.id,
+    name: service.name,
+    launchUrl: service.launchUrl,
+  });
+  const runtime = {} as CustomServiceRuntimeContext;
+  const browserSessionRuntime = createBrowserSessionRuntimeWithConfig({
+    config,
+    chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
+    onUrlChanged(url) {
+      runtime.currentUrl = url;
+
+      if (activeServiceId === service.id) {
+        currentUrl = url;
+        publishRuntimeStatus();
+      }
+    },
+  });
+
+  runtime.serviceId = service.id;
+  runtime.providerId = null;
+  runtime.homeUrl = config.homeUrl;
+  runtime.view = browserSessionRuntime.view;
+  runtime.loadInitialUrl = browserSessionRuntime.loadInitialUrl;
+  runtime.loadUrl = browserSessionRuntime.loadUrl;
+  runtime.evaluateJavaScript = browserSessionRuntime.executeJavaScript;
+  runtime.runDomSnapshot = browserSessionRuntime.runDomSnapshot;
+  runtime.readStructuredDomSnapshot = browserSessionRuntime.readStructuredDomSnapshot;
+  runtime.browserSession = browserSessionRuntime;
+  runtime.cdpObserver = null;
+  runtime.currentUrl = config.homeUrl;
+
+  return runtime;
+}
+
+function disposeShellRuntime(runtime: ShellRuntimeContext): void {
+  stageController?.detach(runtime.view);
+  runtime.browserSession.dispose();
+}
+
+function disposeAllShellRuntimes(): void {
+  for (const runtime of runtimeRegistry?.listResolvedRuntimes() ?? []) {
+    disposeShellRuntime(runtime);
+  }
+
+  for (const runtime of customRuntimeRegistry?.listResolvedRuntimes() ?? []) {
+    disposeShellRuntime(runtime);
+  }
 }
 
 async function attachObserver(runtime: ProviderRuntimeContext): Promise<void> {
@@ -258,84 +352,14 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
   }
 
   if (signal.kind === 'requestSeen') {
-    const classification = adapter.classifyRequest({
-      url: signal.url,
-      method: signal.method,
-    });
-    if (classification === 'ignore') {
-      return;
-    }
-
-    const tracked = {
-      provider: signal.provider,
-      sourceSessionKey: signal.sourceSessionKey,
-      url: signal.url,
-      method: signal.method,
-      postData: signal.postData,
-      pageUrl: signal.pageUrl,
-      capturedAt: signal.capturedAt,
-      resourceType: signal.resourceType,
-      classification,
-    } satisfies TrackedRequest;
-    trackedRequests.set(getTrackedRequestKey(signal.provider, signal.requestId), tracked);
-
-    const requestConversationSignal = resolveConversationIdSignal({
-      provider: signal.provider,
-      source: 'cdp-network',
-      sourceSessionKey: signal.sourceSessionKey,
-      pageUrl: signal.pageUrl,
-      capturedAt: signal.capturedAt,
-      urls: [signal.pageUrl, signal.url],
+    const tracked = requestIngestionService?.handleRequestSeen({
+      signal,
       adapter,
     });
-    if (requestConversationSignal) {
-      maybeAutoCacheDiscoveredConversation({
-        classification,
-        providerId: requestConversationSignal.provider,
-        remoteConversationId: requestConversationSignal.conversationId,
-        pageUrl: requestConversationSignal.pageUrl,
-      });
-      emitProviderSignals([requestConversationSignal]);
+    if (!tracked) {
+      return;
     }
-
-    if (
-      adapter.classifyRequest({ url: tracked.url, method: 'GET' }) !== 'ignore' &&
-      ['Fetch', 'XHR'].includes(tracked.resourceType)
-    ) {
-      recordUniqueObservation(`request:${tracked.method}:${tracked.url}:${tracked.resourceType}`, {
-        source: 'cdp-network',
-        stage: classification === 'capture' ? 'request-candidate' : 'request-discovery',
-        status: 'info',
-        message: `${tracked.method} ${tracked.resourceType} ${tracked.url}`,
-        detail: tracked.postData ? tracked.postData.slice(0, 400) : tracked.pageUrl,
-        createdAt: tracked.capturedAt,
-      });
-    }
-
-    if (classification === 'capture' && tracked.method === 'POST' && tracked.postData) {
-      const signals = adapter.interpretRequest({
-        url: tracked.url,
-        method: tracked.method,
-        body: tracked.postData,
-        pageUrl: tracked.pageUrl,
-        capturedAt: tracked.capturedAt,
-        sourceSessionKey: tracked.sourceSessionKey,
-      });
-
-      if (signals.length > 0) {
-        emitProviderSignals(signals);
-        persistRequestCandidateEnvelope(tracked, signals);
-      } else {
-        recordAttempt({
-          source: 'cdp-network',
-          stage: 'request-parse-empty',
-          status: 'info',
-          message: 'Request matched capture route but yielded no normalized user message.',
-          detail: tracked.url,
-          createdAt: tracked.capturedAt,
-        });
-      }
-    }
+    trackedRequests.set(getTrackedRequestKey(signal.provider, signal.requestId), tracked);
 
     publishRuntimeStatus();
     return;
@@ -346,68 +370,19 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
     if (!tracked) {
       return;
     }
-
-    if (
-      adapter.classifyRequest({ url: signal.url, method: 'GET' }) !== 'ignore' &&
-      ['Fetch', 'XHR'].includes(tracked.resourceType)
-    ) {
-      recordUniqueObservation(
-        `response:${tracked.method}:${signal.url}:${signal.status}:${signal.mimeType}`,
-        {
-          source: 'cdp-network',
-          stage: tracked.classification === 'capture' ? 'response-candidate' : 'response-discovery',
-          status: 'info',
-          message: `${tracked.method} ${signal.status ?? 'unknown'} ${signal.mimeType ?? 'unknown'} ${signal.url}`,
-          detail: tracked.pageUrl,
-          createdAt: signal.capturedAt,
-        }
-      );
-    }
-
-    const responseConversationSignal = resolveConversationIdSignal({
-      provider: signal.provider,
-      source: 'cdp-network',
-      sourceSessionKey: tracked.sourceSessionKey,
-      pageUrl: signal.pageUrl,
-      capturedAt: signal.capturedAt,
-      urls: [signal.pageUrl, signal.url],
+    requestIngestionService?.handleResponseMetaSeen({
+      signal,
+      tracked,
       adapter,
     });
-    if (responseConversationSignal) {
-      maybeAutoCacheDiscoveredConversation({
-        classification: tracked.classification,
-        providerId: responseConversationSignal.provider,
-        remoteConversationId: responseConversationSignal.conversationId,
-        pageUrl: responseConversationSignal.pageUrl,
-      });
-      emitProviderSignals([responseConversationSignal]);
-    }
-
-    if (
-      adapter.shouldTriggerDomAutoCapture({
-        url: tracked.url,
-        method: tracked.method,
-        streamStatus: null,
-      })
-    ) {
-      void captureConversationFromDom(tracked.pageUrl);
-    }
 
     return;
   }
 
   if (signal.kind === 'websocketSeen') {
-    if (!adapter.matchesView(signal.url)) {
-      return;
-    }
-
-    recordUniqueObservation(`websocket:${signal.url}`, {
-      source: 'cdp-network',
-      stage: 'websocket-created',
-      status: 'info',
-      message: `WebSocket observed: ${signal.url}`,
-      detail: signal.pageUrl,
-      createdAt: signal.capturedAt,
+    requestIngestionService?.handleWebsocketSeen({
+      signal,
+      adapter,
     });
     return;
   }
@@ -415,13 +390,9 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
   if (signal.kind === 'responseBodyFailed') {
     const tracked = trackedRequests.get(getTrackedRequestKey(signal.provider, signal.requestId));
     trackedRequests.delete(getTrackedRequestKey(signal.provider, signal.requestId));
-    recordAttempt({
-      source: 'cdp-network',
-      stage: 'response-body',
-      status: 'error',
-      message: `Failed to retrieve or parse a ${signal.provider} response body.`,
-      detail: [tracked?.url ?? '', formatError(signal.error)].filter(Boolean).join('\n'),
-      createdAt: signal.capturedAt,
+    networkResponseIngestionService?.handleResponseBodyFailed({
+      tracked: tracked ?? null,
+      signal,
     });
     publishRuntimeStatus();
     return;
@@ -437,63 +408,11 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
   }
 
   trackedRequests.delete(getTrackedRequestKey(signal.provider, signal.requestId));
-
-  const text = signal.base64Encoded ? Buffer.from(signal.body, 'base64').toString('utf8') : signal.body;
-  const response = adapter.interpretResponseBody({
-    url: tracked.url,
-    method: tracked.method,
-    body: text,
-    pageUrl: tracked.pageUrl,
-    capturedAt: signal.capturedAt,
-    sourceSessionKey: tracked.sourceSessionKey,
+  await networkResponseIngestionService?.handleResponseBodySeen({
+    tracked,
+    signal,
+    adapter,
   });
-  const historyEnvelope = buildHistoryEnvelopeFromTrackedResponse(tracked, text);
-
-  if (historyEnvelope) {
-    persistAutoCachedEnvelope(historyEnvelope, {
-      trigger: 'network-history-response',
-      triggerUrl: tracked.url,
-    });
-  }
-
-  if (response.signals.length > 0) {
-    if (
-      shouldRecordParsedResponseDiagnostics({
-        provider: tracked.provider,
-        classification: tracked.classification,
-      })
-    ) {
-      recordAttempt({
-        source: 'cdp-network',
-        stage: 'response-parsed',
-        status: 'info',
-        message: `Parsed ${response.signals.length} signal(s) from ${tracked.provider} response.`,
-        detail: [
-          tracked.url,
-          summarizeSignalsForDiagnostics(response.signals),
-          adapter.summarizeResponseBody(text, 800),
-        ]
-          .filter(Boolean)
-          .join('\n'),
-        createdAt: signal.capturedAt,
-      });
-    }
-
-    emitProviderSignals(response.signals);
-  } else if (tracked.classification === 'capture') {
-    recordAttempt({
-      source: 'cdp-network',
-      stage: tracked.method === 'POST' ? 'response-sse' : 'history-json',
-      status: 'info',
-      message: `Matched ${tracked.provider} request but parsed no normalized messages.`,
-      detail: `${tracked.url}\n${adapter.summarizeResponseBody(text)}`,
-      createdAt: signal.capturedAt,
-    });
-  }
-
-  if (response.streamStatus === 'COMPLETE') {
-    await captureConversationFromDom(tracked.pageUrl);
-  }
 
   publishRuntimeStatus();
 }
@@ -505,82 +424,6 @@ function emitProviderSignals(signals: ProviderSignal[]): void {
 
   signals.forEach((signal) => {
     captureOrchestrator?.consume(signal);
-  });
-}
-
-function summarizeSignalsForDiagnostics(signals: ProviderSignal[]): string {
-  return JSON.stringify(
-    signals.map((signal) => ({
-      kind: signal.kind,
-      conversationId: 'conversationId' in signal ? (signal.conversationId ?? null) : null,
-      createdAt: 'createdAt' in signal ? (signal.createdAt ?? null) : null,
-      remoteMessageId: 'remoteMessageId' in signal ? (signal.remoteMessageId ?? null) : null,
-      stable: 'stable' in signal ? (signal.stable ?? null) : null,
-      content:
-        'content' in signal && typeof signal.content === 'string'
-          ? signal.content.slice(0, 160)
-          : null,
-    })),
-    null,
-    2
-  );
-}
-
-function persistRequestCandidateEnvelope(
-  tracked: TrackedRequest,
-  signals: ProviderSignal[]
-): void {
-  if (!captureStore) {
-    return;
-  }
-
-  const conversationId =
-    signals.find((signal) => signal.kind === 'conversationIdResolved')?.conversationId ??
-    signals.find((signal) => signal.kind === 'candidateUserMessage')?.conversationId ??
-    null;
-  const userSignals = signals.filter(
-    (signal): signal is Extract<ProviderSignal, { kind: 'candidateUserMessage' }> =>
-      signal.kind === 'candidateUserMessage' && Boolean(signal.content.trim())
-  );
-
-  if (userSignals.length === 0) {
-    return;
-  }
-
-  const latestUserSignal = userSignals[userSignals.length - 1];
-  const envelope: CaptureEnvelope = {
-    provider: tracked.provider,
-    source: 'cdp-network',
-    pageUrl: tracked.pageUrl,
-    capturedAt: tracked.capturedAt,
-    sourceSessionKey: tracked.sourceSessionKey,
-    remoteConversationId: conversationId ?? undefined,
-    title: resolveActiveRuntimeTitle(tracked.provider),
-    titleSource: resolveActiveRuntimeTitle(tracked.provider) ? 'provider' : 'fallback',
-    messages: [
-      {
-        role: 'user',
-        content: latestUserSignal.content,
-        createdAt: latestUserSignal.createdAt,
-        remoteConversationId: conversationId ?? undefined,
-        remoteMessageId: latestUserSignal.remoteMessageId,
-        model: latestUserSignal.model,
-      },
-    ],
-  };
-
-  captureStore.persistEnvelope(envelope);
-  recordAttempt({
-    source: 'cdp-network',
-    stage: 'request-user-persist',
-    status: 'captured',
-    message: `Persisted request-side user turn for ${tracked.provider}.`,
-    detail: JSON.stringify({
-      remoteConversationId: conversationId,
-      pageUrl: tracked.pageUrl,
-      preview: latestUserSignal.content.slice(0, 160),
-    }),
-    createdAt: tracked.capturedAt,
   });
 }
 
@@ -680,154 +523,13 @@ function resolveActiveRuntimeTitle(providerId: ProviderId): string | null {
   return title || null;
 }
 
-async function runDomSnapshot(): Promise<{ message: string; detail: string }> {
-  if (!browserSession) {
-    return {
-      message: 'Chat view is not ready yet.',
-      detail: '',
-    };
-  }
-
-  return browserSession.runDomSnapshot();
-}
-
 async function openSession(sessionId: string): Promise<{ message: string; detail: string }> {
-  if (!captureStore) {
-    return {
+  return (
+    historySessionOpenService?.openSession(sessionId) ?? {
       message: 'Capture store is not ready yet.',
       detail: '',
-    };
-  }
-
-  const session = captureStore.listSessions().find((entry) => entry.id === sessionId) ?? null;
-  if (!session) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Requested hydration for an unknown session.',
-      detail: `session=${sessionId}`,
-      createdAt: new Date().toISOString(),
-    });
-    throw new Error(`Unknown session: ${sessionId}.`);
-  }
-
-  recordAttempt({
-    source: 'preload-dom',
-    stage: 'history-hydration',
-    status: 'info',
-    message: 'Requested hydration for the selected session.',
-    detail: [
-      `session=${session.id}`,
-      `provider=${session.provider}`,
-      `activeProvider=${activeProviderId ?? ''}`,
-      `remoteConversationId=${session.remoteConversationId ?? ''}`,
-      `pageUrl=${session.pageUrl}`,
-    ].join('\n'),
-    createdAt: new Date().toISOString(),
-  });
-
-  if (session.provider !== activeProviderId) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Selected session does not belong to the active provider.',
-      detail: [
-        `session=${session.id}`,
-        `provider=${session.provider}`,
-        `activeProvider=${activeProviderId ?? ''}`,
-      ].join('\n'),
-      createdAt: new Date().toISOString(),
-    });
-    throw new Error(`Session ${sessionId} does not belong to the active provider.`);
-  }
-
-  const provider = captureStore.listProviders().find((entry) => entry.id === session.provider) ?? null;
-  if (!provider) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Selected session provider could not be resolved.',
-      detail: [`session=${session.id}`, `provider=${session.provider}`].join('\n'),
-      createdAt: new Date().toISOString(),
-    });
-    throw new Error(`Unknown provider for session ${sessionId}.`);
-  }
-
-  const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
-  if (!runtime || runtime.providerId !== session.provider) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Active runtime is not ready for the selected session provider.',
-      detail: [
-        `session=${session.id}`,
-        `provider=${session.provider}`,
-        `runtimeProvider=${runtime?.providerId ?? ''}`,
-      ].join('\n'),
-      createdAt: new Date().toISOString(),
-    });
-    throw new Error(`Active runtime is not ready for provider ${session.provider}.`);
-  }
-
-  const targetUrl = resolveSessionNavigationUrl(session, provider.homeUrl);
-  recordAttempt({
-    source: 'preload-dom',
-    stage: 'history-hydration',
-    status: 'info',
-    message: 'Resolved selected session navigation target.',
-    detail: [
-      `session=${session.id}`,
-      `currentUrl=${runtime.currentUrl}`,
-      `targetUrl=${targetUrl}`,
-    ].join('\n'),
-    createdAt: new Date().toISOString(),
-  });
-
-  try {
-    if (runtime.currentUrl !== targetUrl) {
-      await runtime.loadUrl(targetUrl);
-
-      recordAttempt({
-        source: 'preload-dom',
-        stage: 'history-hydration',
-        status: 'info',
-        message: 'Navigated the active runtime to the selected session URL.',
-        detail: [`session=${session.id}`, `targetUrl=${targetUrl}`].join('\n'),
-        createdAt: new Date().toISOString(),
-      });
     }
-
-    return hydrateSessionHistory(session, runtime, targetUrl);
-  } catch (error) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Selected session hydration failed before persistence.',
-      detail: [
-        `session=${session.id}`,
-        `targetUrl=${targetUrl}`,
-        formatError(error),
-      ].join('\n'),
-      createdAt: new Date().toISOString(),
-    });
-
-    throw error;
-  }
-}
-
-function getRuntimeStatus(): RuntimeStatus {
-  return {
-    debuggerAttached: cdpObserver?.isAttached() ?? false,
-    currentUrl,
-    lastCaptureAt,
-    pendingRequestCount: trackedRequests.size,
-    recentAttempts: captureStore?.listAttemptLogs(8) ?? [],
-  };
+  );
 }
 
 function maybeAutoCacheRemoteConversation(providerId: ProviderId, targetUrl: string): void {
@@ -931,157 +633,12 @@ async function runConversationHistoryCaptureFromDom(input: {
   stage: 'history-hydration' | 'history-auto-cache';
   emptyMessage: string;
 }): Promise<{ message: string; detail: string }> {
-  recordAttempt({
-    source: 'preload-dom',
-    stage: input.stage,
-    status: 'info',
-    message:
-      input.stage === 'history-hydration'
-        ? 'Started DOM hydration for the selected session.'
-        : 'Started DOM auto-cache for the active remote session.',
-    detail: [
-      input.preferredConversationId ? `remoteConversationId=${input.preferredConversationId}` : '',
-      `targetUrl=${input.targetUrl}`,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    createdAt: new Date().toISOString(),
-  });
-
-  const adapter = getProviderAdapter(input.providerId);
-  const initialRouteConversationId =
-    adapter?.extractConversationIdFromUrl(input.runtime.currentUrl) ??
-    adapter?.extractConversationIdFromUrl(input.targetUrl) ??
-    null;
-  let initialSignature: string | null = null;
-
-  if (
-    input.stage === 'history-auto-cache' &&
-    input.preferredConversationId &&
-    initialRouteConversationId !== input.preferredConversationId
-  ) {
-    const initialSnapshot = await input.runtime.browserSession.readStructuredDomSnapshot(
-      input.runtime.currentUrl || input.targetUrl
-    );
-    initialSignature = createHydrationSignature(initialSnapshot.messages);
-  }
-
-  let previousSignature: string | null = null;
-  let bestSnapshot:
-    | {
-        url: string;
-        title: string;
-        conversationId: string | null;
-        messages: Array<{ role?: string; content?: string }>;
-      }
-    | null = null;
-
-  for (let attempt = 0; attempt < DOM_CAPTURE_POLL_ATTEMPTS; attempt += 1) {
-    const snapshot = await input.runtime.browserSession.readStructuredDomSnapshot(
-      input.runtime.currentUrl || input.targetUrl
-    );
-    const resolvedConversationId =
-      adapter?.extractConversationIdFromUrl(snapshot.url) ??
-      adapter?.extractConversationIdFromUrl(input.runtime.currentUrl) ??
-      input.preferredConversationId ??
-      null;
-    const normalized = normalizeHydratedDomMessages(snapshot.messages, {
-      capturedAt: new Date().toISOString(),
-      conversationId: resolvedConversationId,
-    });
-
-    if (normalized.length > 0) {
-      const signature = createHydrationSignature(snapshot.messages);
-      if (
-        !shouldAcceptAutoCacheSnapshot({
-          stage: input.stage,
-          preferredConversationId: input.preferredConversationId,
-          resolvedConversationId,
-          initialSignature,
-          nextSignature: signature,
-        })
-      ) {
-        await wait(DOM_CAPTURE_POLL_INTERVAL_MS);
-        continue;
-      }
-
-      bestSnapshot = {
-        url: snapshot.url || input.targetUrl,
-        title: snapshot.title ?? '',
-        conversationId: resolvedConversationId,
-        messages: snapshot.messages,
-      };
-
-      if (signature === previousSignature) {
-        return persistHydratedConversationSnapshot({
-          providerId: input.providerId,
-          existingSessionId: input.existingSessionId ?? null,
-          runtime: input.runtime,
-          snapshot: bestSnapshot,
-          targetUrl: input.targetUrl,
-          preferredConversationId: input.preferredConversationId ?? null,
-          stage: input.stage,
-        });
-      }
-
-      previousSignature = signature;
+  return (
+    historyDomHydrationService?.runConversationHistoryCaptureFromDom(input) ?? {
+      message: input.emptyMessage,
+      detail: input.targetUrl,
     }
-
-    await wait(DOM_CAPTURE_POLL_INTERVAL_MS);
-  }
-
-  if (bestSnapshot) {
-    return persistHydratedConversationSnapshot({
-      providerId: input.providerId,
-      existingSessionId: input.existingSessionId ?? null,
-      runtime: input.runtime,
-      snapshot: bestSnapshot,
-      targetUrl: input.targetUrl,
-      preferredConversationId: input.preferredConversationId ?? null,
-      stage: input.stage,
-    });
-  }
-
-  let domSnapshotDetail = '';
-  try {
-    const domSnapshot = await input.runtime.browserSession.runDomSnapshot();
-    domSnapshotDetail = domSnapshot.detail;
-  } catch (error) {
-    domSnapshotDetail = `runDomSnapshot failed: ${formatError(error)}`;
-  }
-
-  const deepSeekHistoryDiagnostics =
-    input.providerId === 'deepseek'
-      ? await collectDeepSeekHistoryFetchDiagnostics(
-          input.runtime,
-          input.preferredConversationId ?? null
-        )
-      : null;
-  const createdAt = new Date().toISOString();
-
-  recordAttempt({
-    source: 'preload-dom',
-    stage: input.stage,
-    status: 'info',
-    message:
-      input.stage === 'history-hydration'
-        ? 'Opened remote session but found no DOM messages to hydrate.'
-        : 'Observed remote session route but found no DOM history to cache.',
-    detail: [
-      input.targetUrl,
-      input.preferredConversationId ? `remoteConversationId=${input.preferredConversationId}` : '',
-      deepSeekHistoryDiagnostics ? `deepseekHistory=${deepSeekHistoryDiagnostics}` : '',
-      domSnapshotDetail ? `domSnapshot=${domSnapshotDetail}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    createdAt,
-  });
-
-  return {
-    message: input.emptyMessage,
-    detail: input.targetUrl,
-  };
+  );
 }
 
 async function hydrateSessionHistory(
@@ -1104,322 +661,12 @@ async function collectDeepSeekHistoryFetchDiagnostics(
   runtime: ProviderRuntimeContext,
   remoteConversationId: string | null
 ): Promise<string | null> {
-  if (!remoteConversationId) {
-    return 'missing-remote-conversation-id';
-  }
-
-  try {
-    const diagnostics = (await runtime.view.webContents.executeJavaScript(
-      `
-        (async () => {
-          const chatSessionId = ${JSON.stringify(remoteConversationId)};
-          const queryCount = (selector) => {
-            try {
-              return document.querySelectorAll(selector).length;
-            } catch {
-              return -1;
-            }
-          };
-          const sampleNodes = (selector, limit = 3) => {
-            try {
-              return Array.from(document.querySelectorAll(selector))
-                .slice(0, limit)
-                .map((node) => ({
-                  selector,
-                  tagName: node.tagName,
-                  className: typeof node.className === 'string' ? node.className : '',
-                  textSample: node.textContent ?? '',
-                  htmlSample: node instanceof HTMLElement ? node.outerHTML : '',
-                }));
-            } catch {
-              return [];
-            }
-          };
-          const main = document.querySelector('main');
-
-          let historyFetch;
-          try {
-            const response = await fetch(
-              '/api/v0/chat/history_messages?chat_session_id=' + encodeURIComponent(chatSessionId),
-              {
-                credentials: 'include',
-                headers: {
-                  accept: 'application/json, text/plain, */*',
-                },
-              }
-            );
-            const text = await response.text();
-            historyFetch = {
-              ok: response.ok,
-              status: response.status,
-              url: response.url,
-              preview: text.slice(0, 2000),
-            };
-          } catch (error) {
-            historyFetch = {
-              ok: false,
-              status: null,
-              url: '',
-              preview: String(error),
-            };
-          }
-
-          return {
-            historyFetch,
-            dom: {
-              locationHref: location.href,
-              title: document.title,
-              bodyTextSample: document.body?.innerText ?? '',
-              mainHtmlSample: main?.innerHTML ?? '',
-              selectorCounts: {
-                '.message-item': queryCount('.message-item'),
-                '.user-message': queryCount('.user-message'),
-                '.assistant-message': queryCount('.assistant-message'),
-                '[data-testid*="message"]': queryCount('[data-testid*="message"]'),
-                '[class*="message"]': queryCount('[class*="message"]'),
-                'main': queryCount('main'),
-              },
-              candidateNodes: [
-                ...sampleNodes('[class*="message"]'),
-                ...sampleNodes('[data-testid*="message"]'),
-                ...sampleNodes('[role="listitem"]'),
-              ].slice(0, 6),
-            },
-          };
-        })();
-      `,
-      true
-    )) as {
-      historyFetch?: {
-        ok?: boolean;
-        status?: number | null;
-        url?: string;
-        preview?: string;
-      } | null;
-      dom?: {
-        locationHref?: string;
-        title?: string;
-        bodyTextSample?: string;
-        mainHtmlSample?: string;
-        selectorCounts?: Record<string, number>;
-      } | null;
-    } | null;
-
-    return summarizeDeepSeekHydrationDiagnostics({
-      historyFetch: diagnostics?.historyFetch ?? null,
-      dom: diagnostics?.dom ?? null,
-    });
-  } catch (error) {
-    return `executeJavaScript failed: ${formatError(error)}`;
-  }
-}
-
-function persistHydratedConversationSnapshot(input: {
-  providerId: ProviderId;
-  existingSessionId?: string | null;
-  runtime: ProviderRuntimeContext;
-  snapshot: {
-    url: string;
-    title: string;
-    conversationId: string | null;
-    messages: Array<{ role?: string; content?: string }>;
-  };
-  targetUrl: string;
-  preferredConversationId?: string | null;
-  stage: 'history-hydration' | 'history-auto-cache';
-}): { message: string; detail: string } {
-  const capturedAt = new Date().toISOString();
-  const conversationId = input.snapshot.conversationId ?? input.preferredConversationId ?? null;
-  const messages = normalizeHydratedDomMessages(input.snapshot.messages, {
-    capturedAt,
-    conversationId,
-  });
-
-  if (messages.length === 0) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: input.stage,
-      status: 'info',
-      message: 'Opened remote session but normalized history was empty.',
-      detail: `${input.targetUrl}\nremoteConversationId=${conversationId ?? ''}`,
-      createdAt: capturedAt,
-    });
-
-    return {
-      message:
-        input.stage === 'history-hydration'
-          ? 'The selected session did not expose any normalized history yet.'
-          : 'The active remote session did not expose any normalized history yet.',
-      detail: input.targetUrl,
-    };
-  }
-
-  const resolvedTitle = resolveAutoCachedTitle({
-    stage: input.stage,
-    snapshotTitle: input.snapshot.title,
-  });
-  const envelope: CaptureEnvelope = {
-    provider: input.providerId,
-    source: 'preload-dom',
-    pageUrl: input.snapshot.url || input.targetUrl,
-    capturedAt,
-    sourceSessionKey: input.runtime.browserSession.config.sourceSessionKey,
-    remoteConversationId: conversationId ?? undefined,
-    title: resolvedTitle,
-    titleSource: resolvedTitle ? 'provider' : 'fallback',
-    messages,
-  };
-  const sessionId = persistAutoCachedEnvelope(envelope, {
-    existingSessionId: input.existingSessionId ?? null,
-    trigger: input.stage,
-    triggerUrl: input.snapshot.url || input.targetUrl,
-  });
-
-  if (!sessionId) {
-    return {
-      message: 'The remote conversation is already cached with the latest stable snapshot.',
-      detail: input.snapshot.url || input.targetUrl,
-    };
-  }
-
-  const actionLabel = input.existingSessionId ? 'Hydrated' : 'Cached';
-  return {
-    message: `${actionLabel} ${messages.length} message(s) from the remote session.`,
-    detail: input.snapshot.url || input.targetUrl,
-  };
-}
-
-function persistAutoCachedEnvelope(
-  envelope: CaptureEnvelope,
-  input: {
-    existingSessionId?: string | null;
-    trigger: 'history-hydration' | 'history-auto-cache' | 'network-history-response';
-    triggerUrl: string;
-  }
-): string | null {
-  if (!captureStore) {
-    return null;
-  }
-
-  const existingSession = resolveExistingSessionForEnvelope(envelope, input.existingSessionId ?? null);
-  if (
-    existingSession &&
-    existingSession.pageUrl === envelope.pageUrl &&
-    (existingSession.title ?? null) === (envelope.title ?? null) &&
-    !shouldPersistAutoCachedMessages(captureStore.listMessages(existingSession.id), envelope.messages)
-  ) {
-    return null;
-  }
-
-  const sessionId = existingSession
-    ? captureStore.replaceSessionEnvelope(existingSession.id, envelope)
-    : captureStore.persistEnvelope(envelope);
-
-  lastCaptureAt = envelope.capturedAt;
-  recordAttempt({
-    source: envelope.source,
-    stage: input.trigger === 'history-hydration' ? 'history-hydration' : 'history-auto-cache',
-    status: 'captured',
-    message: `${existingSession ? 'Updated' : 'Cached'} ${envelope.messages.length} message(s) from the remote session.`,
-    detail: [
-      input.triggerUrl,
-      `session=${sessionId}`,
-      envelope.remoteConversationId ? `remoteConversationId=${envelope.remoteConversationId}` : '',
-      `trigger=${input.trigger}`,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    createdAt: envelope.capturedAt,
-  });
-
-  return sessionId;
-}
-
-function resolveExistingSessionForEnvelope(
-  envelope: CaptureEnvelope,
-  existingSessionId: string | null
-): CaptureSessionRecord | null {
-  if (!captureStore) {
-    return null;
-  }
-
-  if (existingSessionId) {
-    return captureStore.listSessions().find((session) => session.id === existingSessionId) ?? null;
-  }
-
-  const remoteConversationId = envelope.remoteConversationId?.trim();
-  if (!remoteConversationId) {
-    return null;
-  }
-
-  return captureStore.findSessionByRemoteConversation(envelope.provider, remoteConversationId);
-}
-
-function buildHistoryEnvelopeFromTrackedResponse(
-  tracked: TrackedRequest,
-  body: string
-): CaptureEnvelope | null {
-  const adapter = getProviderAdapter(tracked.provider);
-  const historyCapture = adapter?.extractHistoryCapture?.({
-    url: tracked.url,
-    method: tracked.method,
-    body,
-    pageUrl: tracked.pageUrl,
-    capturedAt: tracked.capturedAt,
-    sourceSessionKey: tracked.sourceSessionKey,
-  });
-
-  if (!historyCapture) {
-    return null;
-  }
-
-  return buildProviderHistoryEnvelope({
-    tracked,
-    messages: historyCapture.messages,
-    conversationId: historyCapture.conversationId ?? null,
-  });
-}
-
-function buildProviderHistoryEnvelope(input: {
-  tracked: TrackedRequest;
-  messages: NormalizedMessage[];
-  conversationId: string | null;
-}): CaptureEnvelope | null {
-  if (input.messages.length === 0) {
-    return null;
-  }
-
-  const remoteConversationId =
-    input.messages.find((message) => message.remoteConversationId)?.remoteConversationId ??
-    input.conversationId ??
-    null;
-  if (!remoteConversationId) {
-    return null;
-  }
-
-  const activeTitle = resolveAutoCachedTitle({
-    stage: 'network-history-response',
-    snapshotTitle: resolveActiveRuntimeTitle(input.tracked.provider),
-  });
-
-  return {
-    provider: input.tracked.provider,
-    source: 'cdp-network',
-    pageUrl: input.tracked.pageUrl,
-    capturedAt: input.tracked.capturedAt,
-    sourceSessionKey: input.tracked.sourceSessionKey,
-    remoteConversationId,
-    title: activeTitle,
-    titleSource: activeTitle ? 'provider' : 'fallback',
-    messages: input.messages.map((message, index) => ({
-      ...message,
-      createdAt:
-        message.createdAt === new Date(0).toISOString()
-          ? new Date(new Date(input.tracked.capturedAt).getTime() + index).toISOString()
-          : message.createdAt,
-      remoteConversationId: message.remoteConversationId ?? remoteConversationId,
-    })),
-  };
+  return (
+    historyDomHydrationService?.collectDeepSeekHistoryFetchDiagnostics(
+      runtime,
+      remoteConversationId
+    ) ?? null
+  );
 }
 
 function publishRuntimeStatus(): void {
@@ -1427,7 +674,13 @@ function publishRuntimeStatus(): void {
     return;
   }
 
-  mainWindow.webContents.send('capture:runtime-status', getRuntimeStatus());
+  mainWindow.webContents.send('capture:runtime-status', diagnosticsService?.getRuntimeStatus() ?? {
+    debuggerAttached: cdpObserver?.isAttached() ?? false,
+    currentUrl,
+    lastCaptureAt,
+    pendingRequestCount: trackedRequests.size,
+    recentAttempts: captureStore?.listAttemptLogs(8) ?? [],
+  });
 }
 
 function createHydrationSignature(messages: Array<{ role?: string; content?: string }>): string {
@@ -1446,95 +699,22 @@ function createHydrationSignature(messages: Array<{ role?: string; content?: str
 
 function syncRuntimeRegistryFromStore(): void {
   const providers = captureStore?.listProviders() ?? [];
+  const services = captureStore?.listServices() ?? [];
   const persistedActiveProvider = captureStore?.getActiveProvider() ?? null;
+  const persistedActiveService = captureStore?.getActiveService() ?? null;
 
-  activeProviderId = persistedActiveProvider?.id ?? null;
-  currentUrl = persistedActiveProvider?.homeUrl ?? '';
+  selectedProviderId = persistedActiveProvider?.id ?? null;
+  activeServiceId = persistedActiveService?.id ?? null;
+  activeProviderId = persistedActiveService?.providerId ?? null;
+  currentUrl = persistedActiveService?.launchUrl ?? persistedActiveProvider?.homeUrl ?? '';
 
+  syncCustomServiceRuntimes({
+    services,
+    activeServiceId,
+    customRuntimeRegistry,
+  });
   runtimeRegistry?.syncProviders(providers, activeProviderId);
-  publishRuntimeStatus();
-}
-
-function setActiveProvider(providerId: ProviderId): ProviderRecord | null {
-  if (!captureStore) {
-    return null;
-  }
-
-  const provider = captureStore.setActiveProvider(providerId);
-  syncRuntimeRegistryFromStore();
-
-  return provider;
-}
-
-function setProviderEnabled(providerId: ProviderId, enabled: boolean): ProviderRecord | null {
-  if (!captureStore) {
-    return null;
-  }
-
-  const provider = captureStore.setProviderEnabled(providerId, enabled);
-  syncRuntimeRegistryFromStore();
-
-  return provider;
-}
-
-function moveProvider(
-  providerId: ProviderId,
-  direction: ProviderMoveDirection
-): ProviderRecord[] | null {
-  if (!captureStore) {
-    return null;
-  }
-
-  const providers = captureStore.moveProvider(providerId, direction);
-  syncRuntimeRegistryFromStore();
-
-  return providers;
-}
-
-async function deleteSession(sessionId: string): Promise<{ message: string; detail: string }> {
-  if (!captureStore) {
-    throw new Error('Capture store is not ready yet.');
-  }
-
-  captureStore.deleteSession(sessionId);
-  publishRuntimeStatus();
-
-  return {
-    message: '已删除该会话的本地缓存。',
-    detail: `session=${sessionId}`,
-  };
-}
-
-async function exportSession(
-  sessionId: string,
-  format: CaptureExportFormat
-): Promise<{ message: string; detail: string }> {
-  if (!captureStore) {
-    throw new Error('Capture store is not ready yet.');
-  }
-
-  const artifact = captureStore.exportSession(sessionId, format);
-  const savedPath = await saveExportArtifact(artifact);
-  return {
-    message: '已导出当前会话。',
-    detail: savedPath,
-  };
-}
-
-async function exportProviderSessions(
-  providerId: ProviderId,
-  format: CaptureExportFormat
-): Promise<{ message: string; detail: string }> {
-  if (!captureStore) {
-    throw new Error('Capture store is not ready yet.');
-  }
-
-  const artifact = captureStore.exportProviderSessions(providerId, format);
-  const savedPath = await saveExportArtifact(artifact);
-  return {
-    message: '已导出当前 provider 的会话档案。',
-    detail: savedPath,
-  };
+  syncStageController();
 }
 
 function getShellInfo(): ShellInfo {
@@ -1548,15 +728,7 @@ function getShellInfo(): ShellInfo {
 
 function setNativeStageVisible(visible: boolean): void {
   nativeStageVisible = visible;
-  const runtimes = runtimeRegistry?.listResolvedRuntimes() ?? [];
-
-  stageController?.sync(
-    runtimes.map(({ providerId, view }) => ({
-      providerId,
-      view,
-    })),
-    nativeStageVisible ? activeProviderId : null
-  );
+  syncStageController();
 }
 
 async function saveExportArtifact(artifact: CaptureExportArtifact): Promise<string> {
@@ -1583,9 +755,14 @@ async function saveExportArtifact(artifact: CaptureExportArtifact): Promise<stri
 function getActiveRuntimeWithAdapter():
   | (ProviderRuntimeContext & { adapter: NonNullable<ReturnType<typeof getProviderAdapter>> })
   | null {
-  const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
+  const runtime = getActiveShellRuntime({
+    activeServiceId,
+    activeProviderId,
+    runtimeRegistry,
+    customRuntimeRegistry,
+  }) as ShellRuntimeContext | null;
 
-  if (!runtime) {
+  if (!isProviderRuntime(runtime)) {
     return null;
   }
 
@@ -1602,6 +779,28 @@ function getActiveRuntimeWithAdapter():
 
 function getPersistedActiveProviderHomeUrl(): string {
   return captureStore?.getActiveProvider()?.homeUrl ?? '';
+}
+
+function getPersistedActiveServiceLaunchUrl(): string {
+  return captureStore?.getActiveService()?.launchUrl ?? getPersistedActiveProviderHomeUrl();
+}
+
+function syncStageController(): void {
+  const { activeRuntime } = syncShellStageController({
+    stageController,
+    activeServiceId,
+    activeProviderId,
+    nativeStageVisible,
+    runtimeRegistry,
+    customRuntimeRegistry,
+  });
+  const resolvedActiveRuntime = activeRuntime as ShellRuntimeContext | null;
+
+  browserSession = resolvedActiveRuntime?.browserSession ?? null;
+  cdpObserver = resolvedActiveRuntime?.cdpObserver ?? null;
+  currentUrl = resolvedActiveRuntime?.currentUrl ?? getPersistedActiveServiceLaunchUrl();
+
+  publishRuntimeStatus();
 }
 
 function getTrackedRequestKey(providerId: ProviderId, requestId: string): string {
@@ -1662,69 +861,91 @@ registerAppLifecycle({
   onReady: () => {
     captureStore = new CaptureStore(path.join(app.getPath('userData'), 'capture-lab.db'));
     appSettingsRepo = createAppSettingsRepository(captureStore.getDb());
-    currentUrl = getPersistedActiveProviderHomeUrl();
-    turnPersistenceService = createTurnPersistenceService({
-      persistTurn,
+    shellSettingsService = createShellSettingsService({
+      getCaptureStore: () => captureStore,
+      getAppSettingsRepository: () => appSettingsRepo,
+      afterStoreMutation: () => syncRuntimeRegistryFromStore(),
     });
-    captureOrchestrator = createCaptureOrchestrator({
-      persist(turn) {
-        turnPersistenceService?.persist(turn);
-      },
+    captureSessionService = createCaptureSessionService({
+      getCaptureStore: () => captureStore,
+      publishRuntimeStatus,
+      saveExportArtifact,
     });
-
-    registerCaptureIpc({
-      listSessions: () => captureStore?.listSessions() ?? [],
-      listMessages: (sessionId) => captureStore?.listMessages(sessionId) ?? [],
-      openSession,
-      deleteSession,
-      exportSession: (sessionId, format) =>
-        exportSession(sessionId, format as CaptureExportFormat),
-      exportProviderSessions: (providerId, format) =>
-        exportProviderSessions(providerId as ProviderId, format as CaptureExportFormat),
-      listProviders: () => captureStore?.listProviders() ?? [],
-      getActiveProvider: () => captureStore?.getActiveProvider() ?? null,
-      setActiveProvider: (providerId) => setActiveProvider(providerId as ProviderId),
-      setProviderEnabled: (providerId, enabled) =>
-        setProviderEnabled(providerId as ProviderId, enabled),
-      setProviderCacheEnabled: (providerId, cacheEnabled) =>
-        captureStore?.setProviderCacheEnabled(providerId as ProviderId, cacheEnabled) ?? null,
-      moveProvider: (providerId, direction) =>
-        moveProvider(providerId as ProviderId, direction as ProviderMoveDirection),
-      getShellInfo,
-      setInterfaceLanguage: (language) =>
-        appSettingsRepo?.setInterfaceLanguage(language as import('@amberkeeper/shared-types').InterfaceLanguage) ?? 'system',
-      setNativeStageVisible,
-      getRuntimeStatus,
-      triggerDomSnapshot: async () => {
-        const snapshot = await runDomSnapshot();
-
-        recordAttempt({
-          source: 'preload-dom',
-          stage: 'manual-snapshot',
-          status: 'info',
-          message: snapshot.message,
-          detail: snapshot.detail,
-          createdAt: new Date().toISOString(),
-        });
-
-        return snapshot;
-      },
-      onPageContext: (payload) => {
-        if (activeProviderId && payload.title?.trim()) {
-          providerPageTitles.set(activeProviderId, payload.title.trim());
-        }
-
-        if (payload.url) {
-          currentUrl = payload.url;
-        }
-
-        publishRuntimeStatus();
-      },
+    historyEnvelopeBuilderService = createHistoryEnvelopeBuilderService({
+      getProviderAdapter,
+      resolveActiveRuntimeTitle,
     });
-
-    providerLiveAutomation = createProviderLiveAutomation({
+    historyCapturePersistenceService = createHistoryCapturePersistenceService({
+      getCaptureStore: () => captureStore,
+      setLastCaptureAt: (capturedAt) => {
+        lastCaptureAt = capturedAt;
+      },
+      recordAttempt,
+    });
+    networkResponseIngestionService = createNetworkResponseIngestionService({
+      buildHistoryEnvelopeFromTrackedResponse: (tracked, body) =>
+        historyEnvelopeBuilderService?.buildHistoryEnvelopeFromTrackedResponse(tracked, body) ?? null,
+      persistAutoCachedEnvelope: (envelope, input) =>
+        historyCapturePersistenceService?.persistAutoCachedEnvelope(envelope, input) ?? null,
+      emitProviderSignals,
+      captureConversationFromDom,
+      recordAttempt: (input) => recordAttempt(input),
+      formatError,
+    });
+    requestIngestionService = createRequestIngestionService({
+      maybeAutoCacheDiscoveredConversation,
+      emitProviderSignals,
+      recordUniqueObservation: (key, input) => recordUniqueObservation(key, input),
+      recordAttempt: (input) => recordAttempt(input),
+      persistEnvelope: (envelope) => captureStore?.persistEnvelope(envelope),
+      resolveActiveRuntimeTitle,
+      captureConversationFromDom,
+    });
+    historyDomHydrationService = createHistoryDomHydrationService({
+      getProviderAdapter,
+      wait,
+      formatError,
+      recordAttempt: (input) => recordAttempt(input),
+      persistHydratedConversationSnapshot: (input) =>
+        historyCapturePersistenceService?.persistHydratedConversationSnapshot(input) ?? {
+          message: 'Capture persistence service is not ready yet.',
+          detail: input.targetUrl,
+        },
+      domCapturePollAttempts: DOM_CAPTURE_POLL_ATTEMPTS,
+      domCapturePollIntervalMs: DOM_CAPTURE_POLL_INTERVAL_MS,
+    });
+    historySessionOpenService = createHistorySessionOpenService({
+      getCaptureStore: () => captureStore,
+      getSelectedProviderId: () => selectedProviderId,
+      resolveRuntime: (providerId) => runtimeRegistry?.resolveRuntime(providerId) ?? null,
+      hydrateSessionHistory,
+      recordAttempt,
+      formatError,
+    });
+    diagnosticsService = createDiagnosticsService({
+      createBrowserSessionRuntime: ({ config }) =>
+        createBrowserSessionRuntimeWithConfig({
+          config,
+          chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
+          onUrlChanged: () => undefined,
+        }),
+      getBrowserSession: () => browserSession,
+      getRuntimeStatusInput: () => ({
+        debuggerAttached: cdpObserver?.isAttached() ?? false,
+        currentUrl,
+        lastCaptureAt,
+        pendingRequestCount: trackedRequests.size,
+        recentAttempts: captureStore?.listAttemptLogs(8) ?? [],
+      }),
+      wait,
+    });
+    liveProbeService = createLiveProbeService({
+      manifestPath: path.join(app.getPath('userData'), 'provider-live-probe-server.json'),
+      diagnosticsEnabled: () => getShellInfo().diagnosticsEnabled,
+      recordAttempt,
+      formatError,
       activateProvider: async (providerId) => {
-        setActiveProvider(providerId);
+        shellSettingsService?.setActiveProvider(providerId);
         await wait(900);
       },
       resolveRuntime: (providerId) => {
@@ -1747,57 +968,104 @@ registerAppLifecycle({
         captureStore?.listSessions().filter((session) => session.provider === providerId) ?? [],
       listAttemptLogs: (limit) => captureStore?.listAttemptLogs(limit) ?? [],
     });
-    createDesktopWindow();
-
-    providerLiveProbeServer = createProviderLiveProbeServer({
-      manifestPath: path.join(app.getPath('userData'), 'provider-live-probe-server.json'),
-      runProbe: async (request: import('@amberkeeper/shared-types').ProviderLiveProbeRequest) => {
-        if (!providerLiveAutomation) {
-          throw new Error('Provider live automation is not ready yet.');
-        }
-
-        return providerLiveAutomation.runProbe(request);
-      },
-      evaluatePage: async (request: import('@amberkeeper/shared-types').ProviderPageEvalRequest) => {
-        if (!providerLiveAutomation) {
-          throw new Error('Provider live automation is not ready yet.');
-        }
-
-        return providerLiveAutomation.evaluatePage(request);
+    currentUrl = getPersistedActiveServiceLaunchUrl();
+    turnPersistenceService = createTurnPersistenceService({
+      persistTurn,
+    });
+    captureOrchestrator = createCaptureOrchestrator({
+      persist(turn) {
+        turnPersistenceService?.persist(turn);
       },
     });
 
-    if (getShellInfo().diagnosticsEnabled) {
-      void providerLiveProbeServer
-        .start()
-        .then((manifest) => {
-          recordAttempt({
-            source: 'runtime',
-            stage: 'live-probe-server',
-            status: 'info',
-            message: 'Started local provider live probe server.',
-            detail: JSON.stringify(manifest),
-            createdAt: new Date().toISOString(),
-          });
-        })
-        .catch((error) => {
-          recordAttempt({
-            source: 'runtime',
-            stage: 'live-probe-server',
-            status: 'error',
-            message: 'Failed to start local provider live probe server.',
-            detail: formatError(error),
-            createdAt: new Date().toISOString(),
-          });
+    registerCaptureIpc({
+      listSessions: () => captureStore?.listSessions() ?? [],
+      listMessages: (sessionId) => captureStore?.listMessages(sessionId) ?? [],
+      openSession,
+      deleteSession: (sessionId) => captureSessionService?.deleteSession(sessionId) ?? Promise.reject(new Error('Capture session service is not ready yet.')),
+      exportSession: (sessionId, format) =>
+        captureSessionService?.exportSession(sessionId, format as CaptureExportFormat) ??
+        Promise.reject(new Error('Capture session service is not ready yet.')),
+      exportProviderSessions: (providerId, format) =>
+        captureSessionService?.exportProviderSessions(providerId as ProviderId, format as CaptureExportFormat) ??
+        Promise.reject(new Error('Capture session service is not ready yet.')),
+      listServices: () => captureStore?.listServices() ?? [],
+      getActiveService: () => captureStore?.getActiveService() ?? null,
+      setActiveService: (serviceId) => shellSettingsService?.setActiveService(serviceId) ?? null,
+      addCustomService: (input) => shellSettingsService?.addCustomService(input) ?? null,
+      removeCustomService: (serviceId) => shellSettingsService?.removeCustomService(serviceId),
+      setServiceEnabled: (serviceId, enabled) =>
+        shellSettingsService?.setServiceEnabled(serviceId, enabled) ?? null,
+      moveService: (serviceId, direction) =>
+        shellSettingsService?.moveService(serviceId, direction as ServiceMoveDirection) ?? null,
+      updateCustomServiceIcon: (serviceId, iconUrl) =>
+        shellSettingsService?.updateCustomServiceIcon(serviceId, iconUrl) ?? null,
+      discoverSiteIcon,
+      listProviders: () => captureStore?.listProviders() ?? [],
+      getActiveProvider: () => captureStore?.getActiveProvider() ?? null,
+      setActiveProvider: (providerId) =>
+        shellSettingsService?.setActiveProvider(providerId as ProviderId) ?? null,
+      setProviderEnabled: (providerId, enabled) =>
+        shellSettingsService?.setProviderEnabled(providerId as ProviderId, enabled) ?? null,
+      setProviderCacheEnabled: (providerId, cacheEnabled) =>
+        captureStore?.setProviderCacheEnabled(providerId as ProviderId, cacheEnabled) ?? null,
+      moveProvider: (providerId, direction) =>
+        shellSettingsService?.moveProvider(providerId as ProviderId, direction as ProviderMoveDirection) ?? null,
+      getShellInfo,
+      setInterfaceLanguage: (language) =>
+        shellSettingsService?.setInterfaceLanguage(
+          language as import('@amberkeeper/shared-types').InterfaceLanguage
+        ) ?? 'system',
+      setNativeStageVisible,
+      getRuntimeStatus: () => diagnosticsService?.getRuntimeStatus() ?? {
+        debuggerAttached: false,
+        currentUrl,
+        lastCaptureAt,
+        pendingRequestCount: trackedRequests.size,
+        recentAttempts: captureStore?.listAttemptLogs(8) ?? [],
+      },
+      triggerDomSnapshot: async () => {
+        const snapshot = await (
+          diagnosticsService?.runDomSnapshot() ?? Promise.resolve({ message: 'Chat view is not ready yet.', detail: '' })
+        );
+
+        recordAttempt({
+          source: 'preload-dom',
+          stage: 'manual-snapshot',
+          status: 'info',
+          message: snapshot.message,
+          detail: snapshot.detail,
+          createdAt: new Date().toISOString(),
         });
-    }
-    app.on('before-quit', () => {
-      void providerLiveProbeServer?.stop().catch(() => undefined);
+
+        return snapshot;
+      },
+      runGeminiThemeDiagnostic: () =>
+        diagnosticsService?.runGeminiThemeDiagnostic() ??
+        Promise.resolve({
+          comparedAt: new Date().toISOString(),
+          summary: 'none',
+          entries: [],
+        }),
+      onPageContext: (payload) => {
+        if (activeServiceId === activeProviderId && activeProviderId && payload.title?.trim()) {
+          providerPageTitles.set(activeProviderId, payload.title.trim());
+        }
+
+        if (payload.url) {
+          currentUrl = payload.url;
+        }
+
+        publishRuntimeStatus();
+      },
     });
+
+    createDesktopWindow();
+    liveProbeService?.startIfEnabled();
+    liveProbeService?.attachAppLifecycle();
   },
   onWindowAllClosed: () => {
-    void providerLiveProbeServer?.stop().catch(() => undefined);
-    providerLiveProbeServer = null;
+    liveProbeService?.stop();
     captureStore?.close();
     if (process.platform !== 'darwin') {
       app.quit();

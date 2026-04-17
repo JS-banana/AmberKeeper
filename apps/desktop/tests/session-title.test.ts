@@ -70,7 +70,7 @@ describe('resolveSessionTitle', () => {
       resolveSessionTitle(
         buildSession({
           provider: 'xiaomi-aistudio',
-          title: 'Xiaomi AI Studio',
+          title: 'MiMo',
           remoteConversationId: 'xiaomi-conv',
           previewText: 'Rehydrate the Xiaomi workspace history',
         })

@@ -156,6 +156,7 @@ export async function runProviderLiveProbe(
   }
 
   const postSnapshot = await waitForProbeOutcome({
+    kind: request.kind,
     providerId: request.providerId,
     runtime,
     dependencies,
@@ -396,6 +397,10 @@ function resolveProbeOutcome(input: {
   remoteConversationId: string | null;
 }): ProviderLiveProbeOutcome {
   if (input.sessionDelta.newSessionIds.length > 0 || input.sessionDelta.updatedSessionIds.length > 0) {
+    if (input.request.kind === 'new-message' && !input.remoteConversationId) {
+      return 'failed-no-local-insert';
+    }
+
     return 'passed';
   }
 
@@ -507,6 +512,7 @@ async function takeProbeSnapshot(
 }
 
 async function waitForProbeOutcome(input: {
+  kind: ProviderLiveProbeRequest['kind'];
   providerId: ProviderId;
   runtime: ProviderLiveAutomationRuntime;
   dependencies: ProviderLiveAutomationDependencies;
@@ -525,7 +531,21 @@ async function waitForProbeOutcome(input: {
     const domChanged = latestSnapshot.domMessageCount !== input.preSnapshot.domMessageCount;
 
     if (sessionDelta.newSessionIds.length > 0 || sessionDelta.updatedSessionIds.length > 0) {
-      return latestSnapshot;
+      const affectedSessions = latestSnapshot.sessions.filter(
+        (session) =>
+          sessionDelta.newSessionIds.includes(session.id) || sessionDelta.updatedSessionIds.includes(session.id)
+      );
+      const hasResolvedConversationId = affectedSessions.some((session) =>
+        Boolean(session.remoteConversationId?.trim())
+      );
+
+      if (hasResolvedConversationId || input.kind !== 'new-message') {
+        return latestSnapshot;
+      }
+
+      if (activityObservedAt === null) {
+        activityObservedAt = Date.now();
+      }
     }
 
     if ((attempts.length > 0 || urlChanged || domChanged) && activityObservedAt === null) {
@@ -606,8 +626,19 @@ async function detectLoginOrAntibot(runtime: ProviderLiveAutomationRuntime): Pro
   const result = await runtime.view.webContents.executeJavaScript(
     `(() => {
       const text = (document.body?.innerText ?? '').toLowerCase();
-      const tokens = ['登录', 'sign in', 'log in', 'captcha', 'verify', 'verification', 'human', '手机号'];
-      return tokens.some((token) => text.includes(token.toLowerCase()));
+      const patterns = [
+        '登录',
+        '登录后',
+        'sign in',
+        'log in',
+        'login required',
+        'please log in',
+        'captcha',
+        'verification code',
+        'verify you are human',
+        '手机号登录',
+      ];
+      return patterns.some((token) => text.includes(token.toLowerCase()));
     })()`,
     true
   );
@@ -628,11 +659,15 @@ function hasLoginOrAntiBotSignal(attempts: CaptureAttemptLogRecord[]): boolean {
     const text = `${attempt.message}\n${attempt.detail ?? ''}`.toLowerCase();
     return (
       text.includes('captcha') ||
-      text.includes('login') ||
+      text.includes('login required') ||
+      text.includes('please log in') ||
       text.includes('sign in') ||
-      text.includes('verify') ||
-      text.includes('verification') ||
-      text.includes('手机号')
+      text.includes('log in') ||
+      text.includes('登录后') ||
+      text.includes('手机号登录') ||
+      text.includes('verification code') ||
+      text.includes('verify you are human') ||
+      text.includes('验证码')
     );
   });
 }

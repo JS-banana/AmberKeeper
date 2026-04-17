@@ -2,7 +2,10 @@ import { describe, expect, test } from 'vitest';
 import { getProviderLiveAutomationSpec } from '../src/main/runtime/provider-adapters';
 
 describe('provider-live-automation-registry', () => {
-  test('registers live automation specs for the five live-adaptation providers', () => {
+  test('registers live automation specs for chatgpt plus the five live-adaptation providers', () => {
+    expect(getProviderLiveAutomationSpec('chatgpt')).toEqual(
+      expect.objectContaining({ providerId: 'chatgpt', newMessage: expect.any(Object) })
+    );
     expect(getProviderLiveAutomationSpec('xiaomi-aistudio')).toEqual(
       expect.objectContaining({ providerId: 'xiaomi-aistudio', newMessage: expect.any(Object) })
     );
@@ -21,6 +24,6 @@ describe('provider-live-automation-registry', () => {
   });
 
   test('returns null for providers without a live automation spec', () => {
-    expect(getProviderLiveAutomationSpec('chatgpt')).toBeNull();
+    expect(getProviderLiveAutomationSpec('claude')).toBeNull();
   });
 });

@@ -122,6 +122,13 @@ describe('chatgpt-parser', () => {
     expect(parseChatGptStreamStatus(JSON.stringify({ status: 'RUNNING' }))).toBeNull();
   });
 
+  test('tolerates invalid JSON payloads without throwing', () => {
+    expect(parseChatGptRequestBody('not-json')).toEqual([]);
+    expect(parseChatGptHistoryResponse('����\u0000\u0010JFIF')).toEqual([]);
+    expect(parseChatGptSseResponse('data: {not-json}\ndata: [DONE]')).toEqual([]);
+    expect(parseChatGptStreamStatus('not-json')).toBeNull();
+  });
+
   test('normalizes DOM snapshot messages into capture records', () => {
     const messages = normalizeDomSnapshotMessages(
       [

@@ -1,32 +1,38 @@
 import { startTransition, type CSSProperties } from 'react';
-import type { ProviderId, ProviderRecord } from '@amberkeeper/shared-types';
+import type { ServiceRecord } from '@amberkeeper/shared-types';
 import { cn } from '@/lib/cn';
 import { getProviderBranding } from '../lib/provider-branding';
-import { ProviderIcon } from './ProviderIcon';
+import { ServiceIcon } from './ServiceIcon';
 
-export type AppSurfaceId = 'chat' | 'library' | 'settings' | 'about' | 'diagnostics';
+export type AppSurfaceId = 'chat' | 'library' | 'services' | 'settings' | 'about' | 'diagnostics';
 
 export function AppSidebar(props: {
-  providers: ProviderRecord[];
-  activeProviderId: ProviderId | null;
+  services: ServiceRecord[];
+  activeServiceId: string | null;
   activeSurface: AppSurfaceId;
-  onSelectProvider: (providerId: ProviderId) => void;
+  onSelectService: (serviceId: string) => void;
   onOpenUtility: () => void;
 }) {
-  const enabledProviders = props.providers.filter((provider) => provider.enabled);
+  const enabledServices = props.services.filter((service) => service.enabled);
 
   return (
     <aside className="flex flex-col justify-between min-h-0 pt-[42px] pb-3 overflow-auto border-r border-[rgba(123,98,56,0.08)] backdrop-blur-[18px]">
       <nav className="flex flex-col items-center gap-3" aria-label="应用列表">
-        {enabledProviders.map((provider) => {
-          const isActive = props.activeSurface === 'chat' && provider.id === props.activeProviderId;
-          const branding = getProviderBranding(provider.id);
+        {enabledServices.map((service) => {
+          const isActive = props.activeSurface === 'chat' && service.id === props.activeServiceId;
+          const branding = service.providerId
+            ? getProviderBranding(service.providerId)
+            : {
+                brandColor: '#42526b',
+                railTint: 'rgba(66, 82, 107, 0.08)',
+                railActiveTint: 'rgba(66, 82, 107, 0.18)',
+              };
 
           return (
             <button
-              key={provider.id}
+              key={service.id}
               type="button"
-              aria-label={`打开 ${provider.name}`}
+              aria-label={`打开 ${service.name}`}
               aria-pressed={isActive}
               className={cn('rail-btn rail-btn--provider', isActive && 'active')}
               style={
@@ -38,16 +44,11 @@ export function AppSidebar(props: {
               }
               onClick={() => {
                 startTransition(() => {
-                  props.onSelectProvider(provider.id);
+                  props.onSelectService(service.id);
                 });
               }}
             >
-              <ProviderIcon
-                providerId={provider.id}
-                providerName={provider.name}
-                homeUrl={provider.homeUrl}
-                variant="rail"
-              />
+              <ServiceIcon service={service} variant="rail" />
             </button>
           );
         })}

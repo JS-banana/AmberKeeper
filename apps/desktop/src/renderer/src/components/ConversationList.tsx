@@ -34,7 +34,7 @@ export function ConversationList(props: {
               <li key={session.id}>
                 <button
                   className={cn(
-                    'w-full block p-3 px-3.5 rounded-xl text-left bg-white border border-[rgba(84,99,124,0.08)] transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden cursor-pointer shrink-0',
+                    'w-full block p-3 px-3.5 rounded-xl text-left bg-white border border-[rgba(84,99,124,0.08)] transition-all duration-200 ease-in-out overflow-hidden cursor-pointer shrink-0',
                     'hover:bg-[#fffdf9] hover:border-[rgba(204,148,17,0.15)] hover:translate-x-0.5',
                     isActive && 'bg-gradient-to-br from-[#fffcf0] to-[#fffbf2] border-[rgba(204,148,17,0.32)] shadow-[0_4px_12px_rgba(204,148,17,0.04)]',
                   )}

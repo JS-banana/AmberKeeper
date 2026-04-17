@@ -40,21 +40,22 @@ export function ProviderShareChart(props: {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Provider 占比</CardTitle>
+        <CardTitle className="text-base">各服务会话分布</CardTitle>
       </CardHeader>
       <CardContent>
         {hasData ? (
-          <ResponsiveContainer width="100%" height={Math.max(120, data.length * 36)}>
-            <BarChart data={data} layout="vertical" margin={{ left: 0, right: 24 }}>
-              <XAxis type="number" hide />
-              <YAxis
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={data} layout="horizontal" margin={{ top: 4, right: 8, left: 8, bottom: 24 }}>
+              <XAxis
                 type="category"
                 dataKey="name"
-                width={80}
                 className="text-xs fill-muted-foreground"
                 tickLine={false}
                 axisLine={false}
+                interval={0}
+                tick={{ fontSize: 12 }}
               />
+              <YAxis type="number" hide />
               <Tooltip
                 contentStyle={{
                   borderRadius: '0.5rem',
@@ -62,7 +63,7 @@ export function ProviderShareChart(props: {
                   fontSize: '0.875rem',
                 }}
               />
-              <Bar dataKey="count" name="会话数" radius={[0, 4, 4, 0]} barSize={20}>
+              <Bar dataKey="count" name="会话数" radius={[4, 4, 0, 0]} barSize={28}>
                 {data.map((entry) => (
                   <Cell key={entry.providerId} fill={PROVIDER_COLORS[entry.providerId] ?? '#94a3b8'} />
                 ))}

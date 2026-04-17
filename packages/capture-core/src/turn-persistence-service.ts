@@ -27,64 +27,66 @@ export function createTurnPersistenceService(options: {
 }
 
 export function persistCompletedTurn(db: DatabaseSync, turn: CompletedTurn): string {
-  const conversationRepository = createConversationRepository(db);
-  const messageRepository = createMessageRepository(db);
-  const captureEventRepository = createCaptureEventRepository(db);
+  return runInTransaction(db, () => {
+    const conversationRepository = createConversationRepository(db);
+    const messageRepository = createMessageRepository(db);
+    const captureEventRepository = createCaptureEventRepository(db);
 
-  const conversationId = conversationRepository.resolve({
-    provider: turn.provider,
-    remoteConversationId: turn.conversationId,
-    sourceSessionKey: turn.sourceSessionKey,
-    pageUrl: turn.pageUrl,
-    title: turn.title,
-    titleSource: turn.titleSource,
-    createdAt: turn.messages[0]?.createdAt ?? turn.capturedAt,
-    updatedAt: turn.capturedAt,
-  });
+    const conversationId = conversationRepository.resolve({
+      provider: turn.provider,
+      remoteConversationId: turn.conversationId,
+      sourceSessionKey: turn.sourceSessionKey,
+      pageUrl: turn.pageUrl,
+      title: turn.title,
+      titleSource: turn.titleSource,
+      createdAt: turn.messages[0]?.createdAt ?? turn.capturedAt,
+      updatedAt: turn.capturedAt,
+    });
 
-  const insertedMessages = messageRepository.insertMany({
-    conversationId,
-    provider: turn.provider,
-    remoteConversationId: turn.conversationId,
-    source: turn.source,
-    capturedAt: turn.capturedAt,
-    messages: turn.messages,
-  });
-  const messageCount = messageRepository.countByConversation(conversationId);
-  conversationRepository.updateMessageCount(conversationId, messageCount, turn.capturedAt);
+    const insertedMessages = messageRepository.insertMany({
+      conversationId,
+      provider: turn.provider,
+      remoteConversationId: turn.conversationId,
+      source: turn.source,
+      capturedAt: turn.capturedAt,
+      messages: turn.messages,
+    });
+    const messageCount = messageRepository.countByConversation(conversationId);
+    conversationRepository.updateMessageCount(conversationId, messageCount, turn.capturedAt);
 
-  turn.messages.forEach((message) => {
+    turn.messages.forEach((message) => {
+      captureEventRepository.insert({
+        provider: turn.provider,
+        source: turn.source,
+        sourceSessionKey: turn.sourceSessionKey,
+        pageUrl: turn.pageUrl,
+        remoteConversationId: turn.conversationId,
+        eventKind: 'message_persisted',
+        payloadJson: JSON.stringify({
+          role: message.role,
+          content: message.content,
+          createdAt: message.createdAt,
+        }),
+        createdAt: turn.capturedAt,
+      });
+    });
+
     captureEventRepository.insert({
       provider: turn.provider,
       source: turn.source,
       sourceSessionKey: turn.sourceSessionKey,
       pageUrl: turn.pageUrl,
       remoteConversationId: turn.conversationId,
-      eventKind: 'message_persisted',
+      eventKind: 'turn_persisted',
       payloadJson: JSON.stringify({
-        role: message.role,
-        content: message.content,
-        createdAt: message.createdAt,
+        insertedMessages,
+        messageCount,
       }),
       createdAt: turn.capturedAt,
     });
-  });
 
-  captureEventRepository.insert({
-    provider: turn.provider,
-    source: turn.source,
-    sourceSessionKey: turn.sourceSessionKey,
-    pageUrl: turn.pageUrl,
-    remoteConversationId: turn.conversationId,
-    eventKind: 'turn_persisted',
-    payloadJson: JSON.stringify({
-      insertedMessages,
-      messageCount,
-    }),
-    createdAt: turn.capturedAt,
+    return conversationId;
   });
-
-  return conversationId;
 }
 
 export function toCaptureEnvelope(turn: CompletedTurn): CaptureEnvelope {
@@ -99,4 +101,17 @@ export function toCaptureEnvelope(turn: CompletedTurn): CaptureEnvelope {
     titleSource: turn.titleSource,
     messages: turn.messages,
   };
+}
+
+function runInTransaction<T>(db: DatabaseSync, work: () => T): T {
+  db.exec('BEGIN');
+
+  try {
+    const result = work();
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }

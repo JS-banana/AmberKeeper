@@ -13,7 +13,14 @@ export function ProviderIcon(props: {
   variant?: 'default' | 'rail';
 }) {
   const branding = getProviderBranding(props.providerId);
-  const { iconSrc, resolved, onError, onLoad } = useCachedIcon(props.providerId, props.homeUrl);
+  const { iconSrc, resolved, onError, onLoad } = useCachedIcon(
+    props.providerId,
+    props.homeUrl,
+    branding.iconUrl,
+    {
+      preferredCandidates: branding.remoteIconUrls,
+    }
+  );
   const [useLocalFallback, setUseLocalFallback] = useState(false);
   const shouldPreferBundledAsset = props.variant === 'rail' || !resolved || useLocalFallback || !iconSrc;
   const isRail = props.variant === 'rail';
@@ -88,7 +95,7 @@ function renderProviderIconVisual(input: {
       <span
         aria-hidden="true"
         className={cn(
-          'inline-flex items-center justify-center [&>svg]:block [&>svg]:w-full [&>svg]:h-full',
+          'inline-flex items-center justify-center w-full h-full [&>svg]:block [&>svg]:w-full [&>svg]:h-full',
           `provider-icon__visual--${input.providerId}`,
         )}
         dangerouslySetInnerHTML={{ __html: input.branding.assetMarkup }}
