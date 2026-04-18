@@ -288,7 +288,7 @@ export function LibraryPage(props: {
         >
           <strong>缓存提示：</strong>
           {cacheDisabledProviders.map((provider) => provider.name).join('、')}
-          已关闭后续本地缓存，历史数据仍可在这里查看。界面语言设置仅作用于 AmberKeeper 自身。
+          已关闭后续本地缓存，历史数据仍可在这里查看。
         </div>
       ) : null}
 

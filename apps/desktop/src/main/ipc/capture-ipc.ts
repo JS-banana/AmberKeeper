@@ -25,6 +25,7 @@ export function registerCaptureIpc(options: {
   moveProvider: (providerId: string, direction: 'up' | 'down') => unknown;
   getShellInfo: () => unknown;
   setInterfaceLanguage: (language: string) => unknown;
+  getInterfaceLocaleConfig: () => { locale: string; languages: string[] };
   setNativeStageVisible: (visible: boolean) => void;
   getRuntimeStatus: () => unknown;
   triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
@@ -78,6 +79,9 @@ export function registerCaptureIpc(options: {
   ipcMain.handle('settings:setInterfaceLanguage', (_event, language: string) =>
     options.setInterfaceLanguage(language)
   );
+  ipcMain.on('settings:getInterfaceLocaleConfig', (event) => {
+    event.returnValue = options.getInterfaceLocaleConfig();
+  });
   ipcMain.handle('shell:setNativeStageVisible', (_event, visible: boolean) => {
     options.setNativeStageVisible(visible);
   });

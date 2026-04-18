@@ -406,8 +406,7 @@ export function resolveAcceptLanguagesForInterfaceLanguage(
   interfaceLanguage: InterfaceLanguage,
   systemLocale: string
 ): string {
-  const effectiveLocale = resolveEffectiveInterfaceLocale(interfaceLanguage, systemLocale);
-  const candidates = dedupeLocaleChain([effectiveLocale, ...fallbackLocalesFor(effectiveLocale)]);
+  const candidates = resolveLocalePreferenceChain(interfaceLanguage, systemLocale);
 
   return candidates
     .map((locale, index) => {
@@ -432,6 +431,14 @@ export function applyInterfaceLanguageToWebContents(
   );
   webContents.setUserAgent(webContents.getUserAgent(), acceptLanguages);
   return acceptLanguages;
+}
+
+export function resolveLocalePreferenceChain(
+  interfaceLanguage: InterfaceLanguage,
+  systemLocale: string
+): string[] {
+  const effectiveLocale = resolveEffectiveInterfaceLocale(interfaceLanguage, systemLocale);
+  return dedupeLocaleChain([effectiveLocale, ...fallbackLocalesFor(effectiveLocale)]);
 }
 
 const CHAT_CAPTURE_COMMAND_TIMEOUT_MS = 2_500;

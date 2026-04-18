@@ -6,6 +6,7 @@ import {
   executeChatCaptureScript,
   resolveAcceptLanguagesForInterfaceLanguage,
   resolveEffectiveInterfaceLocale,
+  resolveLocalePreferenceChain,
   resolveBrowserSessionConfig,
 } from '../src/main/runtime/browser-session';
 import { AMBERKEEPER_CHAT_CAPTURE_WORLD_ID } from '../src/shared/chat-capture-bridge';
@@ -129,6 +130,16 @@ describe('browser-session', () => {
     expect(resolveAcceptLanguagesForInterfaceLanguage('system', 'en-US')).toBe(
       'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7'
     );
+  });
+
+  test('keeps the system locale preference chain when the OS prefers chinese', () => {
+    expect(resolveLocalePreferenceChain('system', 'zh-Hans-CN')).toEqual([
+      'zh-Hans-CN',
+      'zh-CN',
+      'zh',
+      'en-US',
+      'en',
+    ]);
   });
 
   test('applies the selected interface language to webContents user agent preferences', () => {

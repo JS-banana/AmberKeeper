@@ -40,6 +40,8 @@ import {
   buildCustomBrowserSessionConfig,
   createBrowserSessionRuntime,
   createBrowserSessionRuntimeWithConfig,
+  resolveEffectiveInterfaceLocale,
+  resolveLocalePreferenceChain,
   resolveBrowserSessionConfig,
   type BrowserSessionProviderId,
   type BrowserSessionRuntime,
@@ -738,7 +740,17 @@ function getConfiguredInterfaceLanguage(): InterfaceLanguage {
 }
 
 function getConfiguredSystemLocale(): string {
-  return app.getLocale();
+  return app.getPreferredSystemLanguages()[0] ?? app.getLocale();
+}
+
+function getInterfaceLocaleConfig(): { locale: string; languages: string[] } {
+  const interfaceLanguage = getConfiguredInterfaceLanguage();
+  const systemLocale = getConfiguredSystemLocale();
+
+  return {
+    locale: resolveEffectiveInterfaceLocale(interfaceLanguage, systemLocale),
+    languages: resolveLocalePreferenceChain(interfaceLanguage, systemLocale),
+  };
 }
 
 function applyConfiguredInterfaceLanguageToResolvedRuntimes(): void {
@@ -1071,6 +1083,7 @@ registerAppLifecycle({
         shellSettingsService?.setInterfaceLanguage(
           language as import('@amberkeeper/shared-types').InterfaceLanguage
         ) ?? 'system',
+      getInterfaceLocaleConfig,
       setNativeStageVisible,
       getRuntimeStatus: () => diagnosticsService?.getRuntimeStatus() ?? {
         debuggerAttached: false,
