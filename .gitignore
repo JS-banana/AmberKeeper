@@ -13,13 +13,7 @@ dist-ssr
 out
 .sisyphus
 .vscode
-docs/*
-!docs/architecture/
-!docs/architecture/**
-!docs/plans/
-!docs/plans/**
-!docs/research/
-!docs/research/**
+docs/
 *.local
 .worktrees
 

@@ -67,27 +67,6 @@ AmberKeeper 做的事很简单——**让这些对话变成你自己的资产**�
 
 ---
 
-## 给开发者
-
-如果你是想参与开发或者想本地跑起来看看的朋友：
-
-```bash
-pnpm install
-pnpm desktop:dev
-```
-
-架构、代码边界、provider 扩展方式、持久化契约等工程细节，都收在 `docs/` 里：
-
-- 架构总览：[`docs/architecture/amberkeeper-overview.md`](docs/architecture/amberkeeper-overview.md)
-- 领域模型：[`docs/architecture/domain-model.md`](docs/architecture/domain-model.md)
-- 持久化契约：[`docs/architecture/persistence-contracts.md`](docs/architecture/persistence-contracts.md)
-- 运行时生命周期：[`docs/architecture/runtime-lifecycle.md`](docs/architecture/runtime-lifecycle.md)
-- 工程边界规则：[`docs/engineering/boundary-rules.md`](docs/engineering/boundary-rules.md)
-
-项目当前由 `anyChat` 的 Electron 主线拆分独立而来，作为 AmberKeeper 的正式主仓继续演进。
-
----
-
 <p align="center">
   <sub>每一抹灵光，皆有所归。</sub>
 </p>
