@@ -51,6 +51,11 @@ def parse_args() -> argparse.Namespace:
         default="build/icons",
         help="Output directory relative to apps/desktop (default: build/icons)",
     )
+    parser.add_argument(
+        "--tray-source",
+        default=None,
+        help="Optional source image used only for trayTemplate assets (defaults to the main source image)",
+    )
     return parser.parse_args(argv)
 
 
@@ -120,8 +125,15 @@ def main() -> int:
     if not source_path.is_absolute():
         source_path = (desktop_root / source_path).resolve()
 
+    tray_source_path = Path(args.tray_source) if args.tray_source else source_path
+    if not tray_source_path.is_absolute():
+        tray_source_path = (desktop_root / tray_source_path).resolve()
+
     if not source_path.exists():
         print(f"error: source image not found: {source_path}", file=sys.stderr)
+        return 1
+    if not tray_source_path.exists():
+        print(f"error: tray source image not found: {tray_source_path}", file=sys.stderr)
         return 1
 
     output_dir = Path(args.output)
@@ -131,17 +143,24 @@ def main() -> int:
 
     with Image.open(source_path) as opened:
         image = ensure_rgba_square(opened)
+    with Image.open(tray_source_path) as opened:
+        tray_image = ensure_rgba_square(opened)
 
     source_copy = output_dir / "source.png"
     image.save(source_copy)
+    if tray_source_path != source_path:
+        tray_source_copy = output_dir / "tray-source.png"
+        tray_image.save(tray_source_copy)
 
     write_png_variants(image, output_dir)
     write_ico(image, output_dir)
-    write_tray_templates(image, output_dir)
+    write_tray_templates(tray_image, output_dir)
     write_icns(image, output_dir)
 
     print(f"Generated Electron icons in: {output_dir}")
     print(f"  - source.png")
+    if tray_source_path != source_path:
+        print(f"  - tray-source.png")
     print(f"  - icon.png")
     print(f"  - icon.ico")
     print(f"  - icon.icns")
