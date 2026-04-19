@@ -12,6 +12,10 @@ files:
 extraResources:
   - from: build/icons/icon.png
     to: build/icons/icon.png
+  - from: build/icons/trayColor.png
+    to: build/icons/trayColor.png
+  - from: build/icons/trayColor@2x.png
+    to: build/icons/trayColor@2x.png
   - from: build/icons/trayTemplate.png
     to: build/icons/trayTemplate.png
   - from: build/icons/trayTemplate@2x.png

@@ -70,7 +70,7 @@ test('resolves tray icon paths for development and packaged apps', () => {
       isPackaged: false,
       resourcesPath: '/ignored',
     })
-  ).toBe('/repo/apps/desktop/build/icons/trayTemplate.png');
+  ).toBe('/repo/apps/desktop/build/icons/trayColor.png');
 
   expect(
     resolveTrayIconPath({
@@ -78,7 +78,7 @@ test('resolves tray icon paths for development and packaged apps', () => {
       isPackaged: true,
       resourcesPath: '/AmberKeeper.app/Contents/Resources',
     })
-  ).toBe('/AmberKeeper.app/Contents/Resources/build/icons/trayTemplate.png');
+  ).toBe('/AmberKeeper.app/Contents/Resources/build/icons/trayColor.png');
 });
 
 test('creates a colored tray icon on macOS and toggles window visibility on click', () => {
@@ -87,7 +87,7 @@ test('creates a colored tray icon on macOS and toggles window visibility on clic
   let visible = false;
 
   createAppTray({
-    trayIconPath: '/tmp/trayTemplate.png',
+    trayIconPath: '/tmp/trayColor.png',
     productName: 'AmberKeeper',
     platform: 'darwin',
     onShow,
@@ -96,7 +96,7 @@ test('creates a colored tray icon on macOS and toggles window visibility on clic
     isWindowVisible: () => visible,
   });
 
-  expect(createFromPath).toHaveBeenCalledWith('/tmp/trayTemplate.png');
+  expect(createFromPath).toHaveBeenCalledWith('/tmp/trayColor.png');
   expect(setTemplateImage).toHaveBeenCalledWith(false);
   expect(traySetToolTip).toHaveBeenCalledWith('AmberKeeper');
   expect(buildFromTemplate).toHaveBeenCalledWith(

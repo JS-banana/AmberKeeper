@@ -20,6 +20,10 @@ TRAY_SPECS = [
     ("trayTemplate.png", 16),
     ("trayTemplate@2x.png", 32),
 ]
+TRAY_COLOR_SPECS = [
+    ("trayColor.png", 16),
+    ("trayColor@2x.png", 32),
+]
 ICONSET_SPECS = [
     ("icon_16x16.png", 16),
     ("icon_16x16@2x.png", 32),
@@ -97,6 +101,12 @@ def write_tray_templates(image: Image.Image, output_dir: Path) -> None:
         tray_icon.save(output_dir / filename)
 
 
+def write_tray_color_icons(image: Image.Image, output_dir: Path) -> None:
+    for filename, size in TRAY_COLOR_SPECS:
+        resized = image.resize((size, size), Image.Resampling.LANCZOS)
+        resized.save(output_dir / filename)
+
+
 def write_icns(image: Image.Image, output_dir: Path) -> None:
     iconset_dir = output_dir / "icon.iconset"
     if iconset_dir.exists():
@@ -155,6 +165,7 @@ def main() -> int:
     write_png_variants(image, output_dir)
     write_ico(image, output_dir)
     write_tray_templates(tray_image, output_dir)
+    write_tray_color_icons(tray_image, output_dir)
     write_icns(image, output_dir)
 
     print(f"Generated Electron icons in: {output_dir}")
@@ -166,6 +177,8 @@ def main() -> int:
     print(f"  - icon.icns")
     print(f"  - trayTemplate.png")
     print(f"  - trayTemplate@2x.png")
+    print(f"  - trayColor.png")
+    print(f"  - trayColor@2x.png")
     print(f"  - png/icon-{{16,32,64,128,256,512,1024}}.png")
     return 0
 

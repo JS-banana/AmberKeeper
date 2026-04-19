@@ -8,10 +8,10 @@ export function resolveTrayIconPath(options: {
   resourcesPath: string;
 }): string {
   if (options.isPackaged) {
-    return path.join(options.resourcesPath, 'build', 'icons', 'trayTemplate.png');
+    return path.join(options.resourcesPath, 'build', 'icons', 'trayColor.png');
   }
 
-  return path.resolve(options.currentDir, '../../build/icons/trayTemplate.png');
+  return path.resolve(options.currentDir, '../../build/icons/trayColor.png');
 }
 
 export function createAppTray(options: {
