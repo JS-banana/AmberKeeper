@@ -75,6 +75,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PANEL_WIDTH = 66;
 const DOM_CAPTURE_POLL_INTERVAL_MS = 400;
 const DOM_CAPTURE_POLL_ATTEMPTS = 24;
+const DEV_APP_ICON_PATH = path.resolve(__dirname, '../../build/icons/icon.png');
 
 type TrackedRequest = {
   provider: ProviderId;
@@ -157,6 +158,7 @@ function createDesktopWindow(): void {
   mainWindow = createMainWindow({
     rendererPreloadPath: path.join(__dirname, '../preload/renderer.cjs'),
     rendererHtmlPath: path.join(__dirname, '../renderer/index.html'),
+    appIconPath: resolveAppIconPath(),
   });
   stageController = createProviderStageController(mainWindow, PANEL_WIDTH);
 
@@ -838,6 +840,14 @@ function getActiveRuntimeWithAdapter():
 
 function getPersistedActiveProviderHomeUrl(): string {
   return captureStore?.getActiveProvider()?.homeUrl ?? '';
+}
+
+function resolveAppIconPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'build', 'icons', 'icon.png');
+  }
+
+  return DEV_APP_ICON_PATH;
 }
 
 function getPersistedActiveServiceLaunchUrl(): string {

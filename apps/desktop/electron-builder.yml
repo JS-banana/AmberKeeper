@@ -1,0 +1,35 @@
+appId: com.amberkeeper.desktop
+productName: AmberKeeper
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+extraResources:
+  - from: build/icons/icon.png
+    to: build/icons/icon.png
+
+mac:
+  category: public.app-category.productivity
+  icon: icons/icon.icns
+  target:
+    - dmg
+    - zip
+
+dmg:
+  icon: icons/icon.icns
+
+win:
+  icon: icons/icon.ico
+  target:
+    - nsis
+    - zip
+
+linux:
+  icon: icons/icon.png
+  target:
+    - AppImage

@@ -1,4 +1,5 @@
-import { app, BrowserWindow, WebContentsView } from 'electron';
+import { existsSync } from 'node:fs';
+import { app, BrowserWindow, WebContentsView, nativeImage } from 'electron';
 
 export interface StageViewBounds {
   x: number;
@@ -17,7 +18,10 @@ export interface ProviderStageView<
 export function createMainWindow(options: {
   rendererPreloadPath: string;
   rendererHtmlPath: string;
+  appIconPath?: string;
 }): BrowserWindow {
+  const resolvedIconPath = resolveWindowIconPath(options.appIconPath);
+  const icon = resolvedIconPath ? nativeImage.createFromPath(resolvedIconPath) : undefined;
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -25,10 +29,15 @@ export function createMainWindow(options: {
     minHeight: 720,
     backgroundColor: '#0b1020',
     titleBarStyle: 'hiddenInset',
+    icon,
     webPreferences: {
       ...buildMainRendererWebPreferences(options.rendererPreloadPath),
     },
   });
+
+  if (process.platform === 'darwin' && icon && !icon.isEmpty()) {
+    app.dock?.setIcon(icon);
+  }
 
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -143,4 +152,12 @@ export function buildMainRendererWebPreferences(preloadPath: string) {
     webSecurity: true,
     webviewTag: false,
   };
+}
+
+function resolveWindowIconPath(appIconPath: string | undefined): string | undefined {
+  if (!appIconPath || !existsSync(appIconPath)) {
+    return undefined;
+  }
+
+  return appIconPath;
 }
