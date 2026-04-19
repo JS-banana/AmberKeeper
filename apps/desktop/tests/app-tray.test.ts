@@ -81,7 +81,7 @@ test('resolves tray icon paths for development and packaged apps', () => {
   ).toBe('/AmberKeeper.app/Contents/Resources/build/icons/trayTemplate.png');
 });
 
-test('creates a template tray icon on macOS and toggles window visibility on click', () => {
+test('creates a colored tray icon on macOS and toggles window visibility on click', () => {
   const onShow = vi.fn();
   const onHide = vi.fn();
   let visible = false;
@@ -97,7 +97,7 @@ test('creates a template tray icon on macOS and toggles window visibility on cli
   });
 
   expect(createFromPath).toHaveBeenCalledWith('/tmp/trayTemplate.png');
-  expect(setTemplateImage).toHaveBeenCalledWith(true);
+  expect(setTemplateImage).toHaveBeenCalledWith(false);
   expect(traySetToolTip).toHaveBeenCalledWith('AmberKeeper');
   expect(buildFromTemplate).toHaveBeenCalledWith(
     expect.arrayContaining([

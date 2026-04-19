@@ -27,7 +27,7 @@ export function createAppTray(options: {
   const platform = options.platform ?? process.platform;
 
   if (platform === 'darwin' && !trayImage.isEmpty()) {
-    trayImage.setTemplateImage(true);
+    trayImage.setTemplateImage(false);
   }
 
   const tray = new Tray(trayImage);
