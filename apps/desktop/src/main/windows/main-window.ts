@@ -102,9 +102,14 @@ export function applyProviderStageLayout<TView extends { setBounds(bounds: Stage
 export function createProviderStageController(mainWindow: BrowserWindow, panelWidth: number) {
   let providerViews: Array<ProviderStageView<WebContentsView>> = [];
   let activeProviderId: string | null = null;
+  let destroyed = false;
   const attachedViews = new WeakSet<WebContentsView>();
 
   const syncBounds = () => {
+    if (destroyed || isBrowserWindowDestroyed(mainWindow)) {
+      return;
+    }
+
     applyProviderStageLayout({
       providerViews,
       activeProviderId,
@@ -122,9 +127,18 @@ export function createProviderStageController(mainWindow: BrowserWindow, panelWi
   };
 
   mainWindow.on('resize', syncBounds);
+  mainWindow.on('closed', () => {
+    destroyed = true;
+    providerViews = [];
+    activeProviderId = null;
+  });
 
   return {
     sync(nextProviderViews: Array<ProviderStageView<WebContentsView>>, nextActiveProviderId: string | null): void {
+      if (destroyed || isBrowserWindowDestroyed(mainWindow)) {
+        return;
+      }
+
       providerViews = nextProviderViews;
       activeProviderId = nextActiveProviderId;
       syncBounds();
@@ -134,8 +148,12 @@ export function createProviderStageController(mainWindow: BrowserWindow, panelWi
         return;
       }
 
-      mainWindow.contentView.removeChildView(view);
       attachedViews.delete(view);
+      if (destroyed || isBrowserWindowDestroyed(mainWindow)) {
+        return;
+      }
+
+      mainWindow.contentView.removeChildView(view);
     },
   };
 }
@@ -160,4 +178,10 @@ function resolveWindowIconPath(appIconPath: string | undefined): string | undefi
   }
 
   return appIconPath;
+}
+
+function isBrowserWindowDestroyed(
+  mainWindow: Pick<BrowserWindow, 'isDestroyed'> | { isDestroyed?: () => boolean }
+): boolean {
+  return typeof mainWindow.isDestroyed === 'function' ? mainWindow.isDestroyed() : false;
 }
