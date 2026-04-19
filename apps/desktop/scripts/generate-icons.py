@@ -16,6 +16,10 @@ except Exception as exc:  # pragma: no cover - runtime guard
 
 PNG_SIZES = [16, 32, 64, 128, 256, 512, 1024]
 ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
+TRAY_SPECS = [
+    ("trayTemplate.png", 16),
+    ("trayTemplate@2x.png", 32),
+]
 ICONSET_SPECS = [
     ("icon_16x16.png", 16),
     ("icon_16x16@2x.png", 32),
@@ -78,6 +82,16 @@ def write_ico(image: Image.Image, output_dir: Path) -> None:
     image.save(icon_path, format="ICO", sizes=[(size, size) for size in ICO_SIZES])
 
 
+def write_tray_templates(image: Image.Image, output_dir: Path) -> None:
+    alpha = image.getchannel("A")
+
+    for filename, size in TRAY_SPECS:
+        tray_icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        resized_alpha = alpha.resize((size, size), Image.Resampling.LANCZOS)
+        tray_icon.putalpha(resized_alpha)
+        tray_icon.save(output_dir / filename)
+
+
 def write_icns(image: Image.Image, output_dir: Path) -> None:
     iconset_dir = output_dir / "icon.iconset"
     if iconset_dir.exists():
@@ -123,6 +137,7 @@ def main() -> int:
 
     write_png_variants(image, output_dir)
     write_ico(image, output_dir)
+    write_tray_templates(image, output_dir)
     write_icns(image, output_dir)
 
     print(f"Generated Electron icons in: {output_dir}")
@@ -130,6 +145,8 @@ def main() -> int:
     print(f"  - icon.png")
     print(f"  - icon.ico")
     print(f"  - icon.icns")
+    print(f"  - trayTemplate.png")
+    print(f"  - trayTemplate@2x.png")
     print(f"  - png/icon-{{16,32,64,128,256,512,1024}}.png")
     return 0
 

@@ -19,7 +19,7 @@ import type {
   ServiceRecord,
   ShellInfo,
 } from '@amberkeeper/shared-types';
-import { app, BrowserWindow, dialog, nativeTheme } from 'electron';
+import { app, BrowserWindow, Tray, dialog, nativeTheme } from 'electron';
 nativeTheme.themeSource = 'light';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -69,9 +69,11 @@ import {
 import { CaptureStore } from './storage/capture-store';
 import { createAppSettingsRepository } from './storage/app-settings-repository';
 import { createShellSettingsService } from './storage/shell-settings-service';
+import { createAppTray, resolveTrayIconPath } from './tray/app-tray';
 import { createMainWindow, createProviderStageController } from './windows/main-window';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PRODUCT_NAME = 'AmberKeeper';
 const PANEL_WIDTH = 66;
 const DOM_CAPTURE_POLL_INTERVAL_MS = 400;
 const DOM_CAPTURE_POLL_ATTEMPTS = 24;
@@ -115,6 +117,7 @@ type CustomServiceRuntimeContext = ShellRuntimeContext & {
 };
 
 let mainWindow: BrowserWindow | null = null;
+let appTray: Tray | null = null;
 let stageController: ReturnType<typeof createProviderStageController> | null = null;
 let browserSession: BrowserSessionRuntime | null = null;
 let cdpObserver: ReturnType<typeof createCdpObserver> | null = null;
@@ -143,6 +146,7 @@ let currentUrl = '';
 let lastCaptureAt: string | null = null;
 let domCaptureInFlight = false;
 let nativeStageVisible = true;
+let isAppQuitting = false;
 const providerPageTitles = new Map<ProviderId, string>();
 
 const trackedRequests = new Map<string, TrackedRequest>();
@@ -161,6 +165,15 @@ function createDesktopWindow(): void {
     appIconPath: resolveAppIconPath(),
   });
   stageController = createProviderStageController(mainWindow, PANEL_WIDTH);
+
+  mainWindow.on('close', (event) => {
+    if (process.platform !== 'darwin' || isAppQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow?.hide();
+  });
 
   mainWindow.on('closed', () => {
     disposeAllShellRuntimes();
@@ -217,6 +230,55 @@ function createDesktopWindow(): void {
   });
 
   syncRuntimeRegistryFromStore();
+}
+
+function ensureAppTray(): void {
+  if (process.platform !== 'darwin' || appTray) {
+    return;
+  }
+
+  appTray = createAppTray({
+    trayIconPath: resolveTrayIconPath({
+      currentDir: __dirname,
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+    }),
+    productName: PRODUCT_NAME,
+    onShow: () => {
+      showMainWindow();
+    },
+    onHide: () => {
+      hideMainWindow();
+    },
+    onQuit: () => {
+      isAppQuitting = true;
+      app.quit();
+    },
+    isWindowVisible: () => Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()),
+  });
+}
+
+function showMainWindow(): void {
+  createDesktopWindow();
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function hideMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.hide();
 }
 
 function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext {
@@ -1139,17 +1201,25 @@ registerAppLifecycle({
     });
 
     createDesktopWindow();
+    ensureAppTray();
     liveProbeService?.startIfEnabled();
     liveProbeService?.attachAppLifecycle();
   },
   onWindowAllClosed: () => {
-    liveProbeService?.stop();
-    captureStore?.close();
     if (process.platform !== 'darwin') {
       app.quit();
     }
   },
   onActivate: () => {
-    createDesktopWindow();
+    showMainWindow();
   },
+});
+
+app.once('before-quit', () => {
+  isAppQuitting = true;
+  liveProbeService?.stop();
+  captureStore?.close();
+  captureStore = null;
+  appTray?.destroy();
+  appTray = null;
 });
