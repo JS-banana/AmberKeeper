@@ -10,9 +10,5 @@ export function registerAppLifecycle(options: {
   configureLegacyCompatibleUserDataPath(app);
   app.whenReady().then(options.onReady);
   app.on('window-all-closed', options.onWindowAllClosed);
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      options.onActivate();
-    }
-  });
+  app.on('activate', options.onActivate);
 }

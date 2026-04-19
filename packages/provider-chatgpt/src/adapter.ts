@@ -102,6 +102,25 @@ export const chatgptAdapter = {
       streamStatus,
     };
   },
+  extractHistoryCapture(input: InterpretResponseBodyInput) {
+    if (input.method !== 'GET') {
+      return null;
+    }
+
+    const messages = parseChatGptHistoryResponse(input.body);
+    if (messages.length === 0) {
+      return null;
+    }
+
+    return {
+      conversationId:
+        messages.find((message) => typeof message.remoteConversationId === 'string')
+          ?.remoteConversationId ??
+        extractConversationIdFromUrl(input.url) ??
+        extractConversationIdFromUrl(input.pageUrl),
+      messages,
+    };
+  },
   interpretDomSnapshot(input: InterpretDomSnapshotInput): {
     signals: ProviderSignal[];
     stable: boolean;

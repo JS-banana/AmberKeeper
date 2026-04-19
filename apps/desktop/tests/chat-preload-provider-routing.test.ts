@@ -68,6 +68,95 @@ describe('chat preload provider routing', () => {
       `,
       expectedMessage: 'Hello from Gemini',
     },
+    {
+      name: 'grok',
+      url: 'https://grok.com/chat/conv-1',
+      title: 'Grok',
+      sourceSessionKey: 'grok-primary-view',
+      html: `
+        <div class="conversation-message user-message">
+          <div class="message-content">Hello Grok</div>
+        </div>
+        <div class="conversation-message assistant-message">
+          <div class="message-content">Hello from Grok</div>
+        </div>
+      `,
+      expectedMessage: 'Hello from Grok',
+    },
+    {
+      name: 'kimi',
+      url: 'https://www.kimi.com/chat/conv-1',
+      title: 'Kimi',
+      sourceSessionKey: 'kimi-primary-view',
+      html: `
+        <div class="chat-message">
+          <div class="user-message">
+            <div class="message-content">Hello Kimi</div>
+          </div>
+        </div>
+        <div class="chat-message">
+          <div class="assistant-message">
+            <div class="message-content">Hello from Kimi</div>
+          </div>
+        </div>
+      `,
+      expectedMessage: 'Hello from Kimi',
+    },
+    {
+      name: 'qianwen',
+      url: 'https://www.qianwen.com/chat/conv-1',
+      title: 'Qianwen',
+      sourceSessionKey: 'qianwen-primary-view',
+      html: `
+        <div class="chat-message">
+          <div class="user-message">
+            <div class="message-content">Hello Qianwen</div>
+          </div>
+        </div>
+        <div class="chat-message">
+          <div class="assistant-message">
+            <div class="message-content">Hello from Qianwen</div>
+          </div>
+        </div>
+      `,
+      expectedMessage: 'Hello from Qianwen',
+    },
+    {
+      name: 'doubao',
+      url: 'https://www.doubao.com/chat/conv-1',
+      title: 'Doubao',
+      sourceSessionKey: 'doubao-primary-view',
+      html: `
+        <div class="chat-message">
+          <div class="user-message">
+            <div class="message-content">Hello Doubao</div>
+          </div>
+        </div>
+        <div class="chat-message">
+          <div class="assistant-message">
+            <div class="message-content">Hello from Doubao</div>
+          </div>
+        </div>
+      `,
+      expectedMessage: 'Hello from Doubao',
+    },
+    {
+      name: 'xiaomi-aistudio',
+      url: 'https://aistudio.xiaomimimo.com/chat/conv-1',
+      title: 'Xiaomi AI Studio',
+      sourceSessionKey: 'xiaomi-aistudio-primary-view',
+      html: `
+        <div class="message-list">
+          <div class="user message-bubble">
+            <div class="message-content">Hello Xiaomi</div>
+          </div>
+          <div class="assistant message-bubble">
+            <div class="message-content">Hello from Xiaomi</div>
+          </div>
+        </div>
+      `,
+      expectedMessage: 'Hello from Xiaomi',
+    },
   ])('creates $name capture bridge from provider-specific DOM', (fixture) => {
     document.title = fixture.title;
     document.body.innerHTML = fixture.html;

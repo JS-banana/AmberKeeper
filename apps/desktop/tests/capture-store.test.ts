@@ -64,9 +64,19 @@ describe('capture-store', () => {
     ]);
   });
 
-  test('deduplicates messages by provider, conversation, role, and content hash', () => {
+  test('deduplicates identical messages when the same remote message id is persisted twice', () => {
     const store = new CaptureStore(dbPath);
-    const envelope = buildEnvelope({ remoteConversationId: 'conv-123' });
+    const envelope = buildEnvelope({
+      remoteConversationId: 'conv-123',
+      messages: [
+        {
+          role: 'assistant',
+          content: 'Same assistant answer',
+          createdAt: '2026-03-19T10:00:02.000Z',
+          remoteMessageId: 'msg-1',
+        },
+      ],
+    });
 
     store.persistEnvelope(envelope);
     store.persistEnvelope(envelope);
@@ -74,6 +84,49 @@ describe('capture-store', () => {
     const [session] = store.listSessions();
 
     expect(store.listMessages(session.id)).toHaveLength(1);
+  });
+
+  test('keeps repeated same-content messages when they are distinct conversation events', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        remoteConversationId: 'conv-123',
+        messages: [
+          {
+            role: 'user',
+            content: 'Repeat after me',
+            createdAt: '2026-03-19T10:00:00.000Z',
+          },
+        ],
+      })
+    );
+
+    store.persistEnvelope(
+      buildEnvelope({
+        remoteConversationId: 'conv-123',
+        capturedAt: '2026-03-19T10:00:05.000Z',
+        messages: [
+          {
+            role: 'user',
+            content: 'Repeat after me',
+            createdAt: '2026-03-19T10:00:05.000Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listMessages(sessionId)).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: 'Repeat after me',
+        createdAt: '2026-03-19T10:00:00.000Z',
+      }),
+      expect.objectContaining({
+        role: 'user',
+        content: 'Repeat after me',
+        createdAt: '2026-03-19T10:00:05.000Z',
+      }),
+    ]);
   });
 
   test('replaces existing session messages when hydrating selected session history', () => {
@@ -131,6 +184,93 @@ describe('capture-store', () => {
     ]);
   });
 
+  test('only replaces the targeted session when hydrating selected session history', () => {
+    const store = new CaptureStore(dbPath);
+    const firstSessionId = store.persistEnvelope(
+      buildEnvelope({
+        remoteConversationId: 'conv-123',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'First placeholder answer',
+            createdAt: '2026-03-19T10:00:01.000Z',
+          },
+        ],
+      })
+    );
+    const secondSessionId = store.persistEnvelope(
+      buildEnvelope({
+        remoteConversationId: 'conv-456',
+        pageUrl: 'https://chatgpt.com/c/conv-456',
+        capturedAt: '2026-03-19T10:02:00.000Z',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'Second session answer',
+            createdAt: '2026-03-19T10:02:00.000Z',
+          },
+        ],
+      })
+    );
+
+    store.replaceSessionEnvelope(
+      firstSessionId,
+      buildEnvelope({
+        source: 'preload-dom',
+        capturedAt: '2026-03-19T10:05:00.000Z',
+        messages: [
+          {
+            role: 'user',
+            content: 'Recovered prompt',
+            createdAt: '2026-03-19T10:04:59.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'Recovered answer',
+            createdAt: '2026-03-19T10:05:00.000Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listMessages(firstSessionId)).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: 'Recovered prompt',
+      }),
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Recovered answer',
+      }),
+    ]);
+    expect(store.listMessages(secondSessionId)).toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Second session answer',
+      }),
+    ]);
+  });
+
+  test('finds sessions by provider and remote conversation id', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        provider: 'claude',
+        remoteConversationId: 'claude-conv-1',
+        pageUrl: 'https://claude.ai/chat/claude-conv-1',
+      })
+    );
+
+    expect(store.findSessionByRemoteConversation('claude', 'claude-conv-1')).toEqual(
+      expect.objectContaining({
+        id: sessionId,
+        provider: 'claude',
+        remoteConversationId: 'claude-conv-1',
+      })
+    );
+    expect(store.findSessionByRemoteConversation('claude', 'missing-conv')).toBeNull();
+  });
+
   test('persists sessions and messages across store instances', () => {
     const firstStore = new CaptureStore(dbPath);
     const sessionId = firstStore.persistEnvelope(buildEnvelope({ remoteConversationId: 'conv-123' }));
@@ -176,6 +316,131 @@ describe('capture-store', () => {
     expect(countRows(db, 'messages')).toBe(2);
     expect(countRows(db, 'capture_events')).toBeGreaterThan(0);
 
+    db.close();
+  });
+
+  test('rolls back persistEnvelope when capture-event persistence fails late', () => {
+    const store = new CaptureStore(dbPath);
+    store.getDb().exec(`
+      CREATE TRIGGER fail_capture_events_before_insert
+      BEFORE INSERT ON capture_events
+      BEGIN
+        SELECT RAISE(ABORT, 'capture event insert failed');
+      END;
+    `);
+
+    expect(() =>
+      store.persistEnvelope(
+        buildEnvelope({
+          remoteConversationId: 'conv-atomic-fail',
+        })
+      )
+    ).toThrow('capture event insert failed');
+
+    const db = new DatabaseSync(dbPath);
+    expect(countRows(db, 'conversations')).toBe(0);
+    expect(countRows(db, 'messages')).toBe(0);
+    expect(countRows(db, 'capture_events')).toBe(0);
+    db.close();
+  });
+
+  test('rolls back replaceSessionEnvelope and preserves the original session when later writes fail', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        remoteConversationId: 'conv-replace-safe',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'Original answer',
+            createdAt: '2026-03-19T10:00:01.000Z',
+          },
+        ],
+      })
+    );
+
+    store.getDb().exec(`
+      CREATE TRIGGER fail_capture_events_before_insert
+      BEFORE INSERT ON capture_events
+      BEGIN
+        SELECT RAISE(ABORT, 'replace capture event insert failed');
+      END;
+    `);
+
+    expect(() =>
+      store.replaceSessionEnvelope(
+        sessionId,
+        buildEnvelope({
+          source: 'preload-dom',
+          capturedAt: '2026-03-19T10:05:00.000Z',
+          messages: [
+            {
+              role: 'user',
+              content: 'Recovered prompt',
+              createdAt: '2026-03-19T10:04:59.000Z',
+            },
+            {
+              role: 'assistant',
+              content: 'Recovered answer',
+              createdAt: '2026-03-19T10:05:00.000Z',
+            },
+          ],
+        })
+      )
+    ).toThrow('replace capture event insert failed');
+
+    expect(store.listMessages(sessionId)).toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Original answer',
+      }),
+    ]);
+    expect(store.listSessions()).toEqual([
+      expect.objectContaining({
+        id: sessionId,
+        remoteConversationId: 'conv-replace-safe',
+        messageCount: 1,
+      }),
+    ]);
+  });
+
+  test('rolls back completed-turn persistence when capture-event persistence fails', () => {
+    const store = new CaptureStore(dbPath);
+    store.getDb().exec(`
+      CREATE TRIGGER fail_capture_events_before_insert
+      BEFORE INSERT ON capture_events
+      BEGIN
+        SELECT RAISE(ABORT, 'completed turn capture event insert failed');
+      END;
+    `);
+
+    expect(() =>
+      store.persistTurn({
+        provider: 'chatgpt',
+        source: 'cdp-network',
+        sourceSessionKey: 'chatgpt-primary-view',
+        pageUrl: 'https://chatgpt.com/c/conv-turn-fail',
+        capturedAt: '2026-03-19T10:00:02.000Z',
+        conversationId: 'conv-turn-fail',
+        messages: [
+          {
+            role: 'user',
+            content: 'turn question',
+            createdAt: '2026-03-19T10:00:00.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'turn answer',
+            createdAt: '2026-03-19T10:00:01.000Z',
+          },
+        ],
+      })
+    ).toThrow('completed turn capture event insert failed');
+
+    const db = new DatabaseSync(dbPath);
+    expect(countRows(db, 'conversations')).toBe(0);
+    expect(countRows(db, 'messages')).toBe(0);
+    expect(countRows(db, 'capture_events')).toBe(0);
     db.close();
   });
 

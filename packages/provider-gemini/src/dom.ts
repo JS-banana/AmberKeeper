@@ -16,21 +16,27 @@ export function collectGeminiStructuredMessages(
 ): GeminiDomSnapshotMessageInput[] {
   const containers = Array.from(root.querySelectorAll('.conversation-container'));
   if (containers.length > 0) {
-    return containers
-      .map((node) => extractGeminiMessage(node as HTMLElement))
+    const messages = containers
+      .flatMap((node) => extractGeminiMessages(node as HTMLElement))
       .filter(isCompleteGeminiDomSnapshotMessage);
+    if (messages.length > 0) {
+      return messages;
+    }
   }
 
-  return Array.from(root.querySelectorAll('.query-content, .response-container'))
+  return Array.from(root.querySelectorAll('.query-content, .response-container, .model-response'))
     .map((node) => {
       const element = node as HTMLElement;
+      const role = element.matches('.query-content') ? 'user' : 'assistant';
+      const content = readGeminiVisibleText(
+        element,
+        role === 'user'
+          ? ['.query-text', '.markdown', '.message-text']
+          : ['.markdown', '.message-text', '.response-content', '.model-response-text']
+      );
       return {
-        role: element.matches('.query-content') ? 'user' : 'assistant',
-        content: (
-          element.querySelector('.markdown') ??
-          element.querySelector('.message-text') ??
-          element
-        )?.textContent?.trim(),
+        role,
+        content: role === 'user' ? normalizeGeminiUserText(content) : content,
       };
     })
     .filter(isCompleteGeminiDomSnapshotMessage);
@@ -125,21 +131,32 @@ export function getLatestGeminiAssistantContent(messages: NormalizedMessage[]): 
   return null;
 }
 
-function extractGeminiMessage(node: HTMLElement): GeminiDomSnapshotMessageInput {
+function extractGeminiMessages(node: HTMLElement): GeminiDomSnapshotMessageInput[] {
   const userNode = node.querySelector('.query-content');
   const assistantNode = node.querySelector('.response-container, .model-response');
-  const role = userNode ? 'user' : assistantNode ? 'assistant' : undefined;
-  const content = (
-    userNode ??
-    assistantNode?.querySelector('.markdown') ??
-    assistantNode?.querySelector('.message-text') ??
-    assistantNode
-  )?.textContent?.trim();
+  const messages: GeminiDomSnapshotMessageInput[] = [];
 
-  return {
-    role,
-    content,
-  };
+  if (userNode instanceof HTMLElement) {
+    const content = readGeminiVisibleText(userNode, ['.query-text', '.markdown', '.message-text']);
+    messages.push({
+      role: 'user',
+      content: normalizeGeminiUserText(content),
+    });
+  }
+
+  if (assistantNode instanceof HTMLElement) {
+    messages.push({
+      role: 'assistant',
+      content: readGeminiVisibleText(assistantNode, [
+        '.markdown',
+        '.message-text',
+        '.response-content',
+        '.model-response-text',
+      ]),
+    });
+  }
+
+  return messages;
 }
 
 function isCompleteGeminiDomSnapshotMessage(
@@ -169,4 +186,40 @@ function findLatestUserIndex(messages: NormalizedMessage[]): number {
   }
 
   return -1;
+}
+
+function readGeminiVisibleText(element: HTMLElement, selectors: string[]): string | undefined {
+  const preferred = selectors
+    .map((selector) => element.querySelector(selector))
+    .find((node): node is HTMLElement => node instanceof HTMLElement);
+  const target = preferred ?? element;
+  const clone = target.cloneNode(true) as HTMLElement;
+
+  clone
+    .querySelectorAll('button, svg, img, [aria-hidden="true"], [hidden], script, style')
+    .forEach((node) => node.remove());
+
+  const normalized = ((clone.innerText || clone.textContent || '') as string)
+    .replace(/\u200B/g, '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
+  return normalized || undefined;
+}
+
+function normalizeGeminiUserText(input: string | undefined): string | undefined {
+  if (!input) {
+    return undefined;
+  }
+
+  const normalized = input
+    .replace(/^(?:you said[:\s]*)+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return normalized || undefined;
 }

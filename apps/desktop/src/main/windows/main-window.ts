@@ -1,5 +1,5 @@
-import type { ProviderId } from '@amberkeeper/shared-types';
-import { app, BrowserWindow, WebContentsView } from 'electron';
+import { existsSync } from 'node:fs';
+import { app, BrowserWindow, WebContentsView, nativeImage } from 'electron';
 
 export interface StageViewBounds {
   x: number;
@@ -11,14 +11,17 @@ export interface StageViewBounds {
 export interface ProviderStageView<
   TView extends { setBounds(bounds: StageViewBounds): void } = WebContentsView,
 > {
-  providerId: ProviderId;
+  providerId: string;
   view: TView;
 }
 
 export function createMainWindow(options: {
   rendererPreloadPath: string;
   rendererHtmlPath: string;
+  appIconPath?: string;
 }): BrowserWindow {
+  const resolvedIconPath = resolveWindowIconPath(options.appIconPath);
+  const icon = resolvedIconPath ? nativeImage.createFromPath(resolvedIconPath) : undefined;
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -26,12 +29,15 @@ export function createMainWindow(options: {
     minHeight: 720,
     backgroundColor: '#0b1020',
     titleBarStyle: 'hiddenInset',
+    icon,
     webPreferences: {
-      preload: options.rendererPreloadPath,
-      contextIsolation: true,
-      sandbox: false,
+      ...buildMainRendererWebPreferences(options.rendererPreloadPath),
     },
   });
+
+  if (process.platform === 'darwin' && icon && !icon.isEmpty()) {
+    app.dock?.setIcon(icon);
+  }
 
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -65,7 +71,7 @@ export function attachChatView(
 export function applyProviderStageLayout<TView extends { setBounds(bounds: StageViewBounds): void }>(
   options: {
     providerViews: Array<ProviderStageView<TView>>;
-    activeProviderId: ProviderId | null;
+    activeProviderId: string | null;
     panelWidth: number;
     contentBounds: {
       width: number;
@@ -95,10 +101,15 @@ export function applyProviderStageLayout<TView extends { setBounds(bounds: Stage
 
 export function createProviderStageController(mainWindow: BrowserWindow, panelWidth: number) {
   let providerViews: Array<ProviderStageView<WebContentsView>> = [];
-  let activeProviderId: ProviderId | null = null;
+  let activeProviderId: string | null = null;
+  let destroyed = false;
   const attachedViews = new WeakSet<WebContentsView>();
 
   const syncBounds = () => {
+    if (destroyed || isBrowserWindowDestroyed(mainWindow)) {
+      return;
+    }
+
     applyProviderStageLayout({
       providerViews,
       activeProviderId,
@@ -116,12 +127,61 @@ export function createProviderStageController(mainWindow: BrowserWindow, panelWi
   };
 
   mainWindow.on('resize', syncBounds);
+  mainWindow.on('closed', () => {
+    destroyed = true;
+    providerViews = [];
+    activeProviderId = null;
+  });
 
   return {
-    sync(nextProviderViews: Array<ProviderStageView<WebContentsView>>, nextActiveProviderId: ProviderId | null): void {
+    sync(nextProviderViews: Array<ProviderStageView<WebContentsView>>, nextActiveProviderId: string | null): void {
+      if (destroyed || isBrowserWindowDestroyed(mainWindow)) {
+        return;
+      }
+
       providerViews = nextProviderViews;
       activeProviderId = nextActiveProviderId;
       syncBounds();
     },
+    detach(view: WebContentsView): void {
+      if (!attachedViews.has(view)) {
+        return;
+      }
+
+      attachedViews.delete(view);
+      if (destroyed || isBrowserWindowDestroyed(mainWindow)) {
+        return;
+      }
+
+      mainWindow.contentView.removeChildView(view);
+    },
   };
+}
+
+export function buildMainRendererWebPreferences(preloadPath: string) {
+  return {
+    preload: preloadPath,
+    contextIsolation: true,
+    // Runtime evidence: sandboxing the local renderer breaks the shell bridge and
+    // causes the left navigation/menu surfaces to disappear. Keep the shell renderer
+    // unsandboxed for now; remote-content surfaces stay sandboxed separately.
+    sandbox: false,
+    nodeIntegration: false,
+    webSecurity: true,
+    webviewTag: false,
+  };
+}
+
+function resolveWindowIconPath(appIconPath: string | undefined): string | undefined {
+  if (!appIconPath || !existsSync(appIconPath)) {
+    return undefined;
+  }
+
+  return appIconPath;
+}
+
+function isBrowserWindowDestroyed(
+  mainWindow: Pick<BrowserWindow, 'isDestroyed'> | { isDestroyed?: () => boolean }
+): boolean {
+  return typeof mainWindow.isDestroyed === 'function' ? mainWindow.isDestroyed() : false;
 }

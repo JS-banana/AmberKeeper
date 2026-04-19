@@ -83,6 +83,61 @@ describe('history-hydration', () => {
         'https://chat.deepseek.com/'
       )
     ).toBe('https://chat.deepseek.com/a/chat/s/deepseek-conv');
+
+    expect(
+      resolveSessionNavigationUrl(
+        buildSession({
+          provider: 'grok',
+          pageUrl: '',
+          remoteConversationId: 'grok-conv',
+        }),
+        'https://grok.com/'
+      )
+    ).toBe('https://grok.com/c/grok-conv');
+
+    expect(
+      resolveSessionNavigationUrl(
+        buildSession({
+          provider: 'kimi',
+          pageUrl: '',
+          remoteConversationId: 'kimi-conv',
+        }),
+        'https://www.kimi.com/'
+      )
+    ).toBe('https://www.kimi.com/chat/kimi-conv');
+
+    expect(
+      resolveSessionNavigationUrl(
+        buildSession({
+          provider: 'qianwen',
+          pageUrl: '',
+          remoteConversationId: 'qianwen-conv',
+        }),
+        'https://www.qianwen.com/'
+      )
+    ).toBe('https://www.qianwen.com/chat/qianwen-conv');
+
+    expect(
+      resolveSessionNavigationUrl(
+        buildSession({
+          provider: 'doubao',
+          pageUrl: '',
+          remoteConversationId: 'doubao-conv',
+        }),
+        'https://www.doubao.com/chat'
+      )
+    ).toBe('https://www.doubao.com/chat/doubao-conv');
+
+    expect(
+      resolveSessionNavigationUrl(
+        buildSession({
+          provider: 'xiaomi-aistudio',
+          pageUrl: '',
+          remoteConversationId: 'xiaomi-conv',
+        }),
+        'https://aistudio.xiaomimimo.com/'
+      )
+    ).toBe('https://aistudio.xiaomimimo.com/#/chat/xiaomi-conv');
   });
 
   test('summarizes DeepSeek hydration diagnostics with trimmed DOM samples', () => {
@@ -115,9 +170,6 @@ describe('history-hydration', () => {
               },
             ],
           },
-          relayBridgeType: 'object',
-          relaySendType: 'function',
-          relayInstalled: true,
         })
       )
     ).toEqual({
@@ -147,9 +199,6 @@ describe('history-hydration', () => {
           },
         ],
       },
-      relayBridgeType: 'object',
-      relaySendType: 'function',
-      relayInstalled: true,
     });
   });
 });

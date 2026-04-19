@@ -38,3 +38,4 @@ archive/tauri-mainline/src-tauri/target
 .agent
 .agents
 .omx
+.omx/

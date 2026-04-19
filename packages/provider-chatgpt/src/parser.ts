@@ -45,7 +45,10 @@ export function computeContentHash(content: string): string {
 }
 
 export function parseChatGptRequestBody(body: string): NormalizedMessage[] {
-  const parsed = JSON.parse(body) as ChatGptConversationRequest;
+  const parsed = safeParseJson<ChatGptConversationRequest>(body);
+  if (!parsed) {
+    return [];
+  }
   const normalized: NormalizedMessage[] = [];
 
   for (const message of parsed.messages ?? []) {
@@ -75,7 +78,10 @@ export function parseChatGptSseResponse(body: string): NormalizedMessage[] {
       continue;
     }
 
-    const parsed = JSON.parse(raw) as ChatGptSseEvent;
+    const parsed = safeParseJson<ChatGptSseEvent>(raw);
+    if (!parsed) {
+      continue;
+    }
     const message = parsed.message;
     if (message?.author?.role !== 'assistant') {
       continue;
@@ -96,7 +102,10 @@ export function parseChatGptSseResponse(body: string): NormalizedMessage[] {
 }
 
 export function parseChatGptHistoryResponse(body: string): NormalizedMessage[] {
-  const parsed = JSON.parse(body) as ChatGptConversationResponse;
+  const parsed = safeParseJson<ChatGptConversationResponse>(body);
+  if (!parsed) {
+    return [];
+  }
   const normalized: NormalizedMessage[] = [];
 
   for (const node of Object.values(parsed.mapping ?? {})) {
@@ -111,7 +120,10 @@ export function parseChatGptHistoryResponse(body: string): NormalizedMessage[] {
 }
 
 export function parseChatGptStreamStatus(body: string): 'COMPLETE' | null {
-  const parsed = JSON.parse(body) as ChatGptStreamStatusResponse;
+  const parsed = safeParseJson<ChatGptStreamStatusResponse>(body);
+  if (!parsed) {
+    return null;
+  }
   return parsed.status === 'COMPLETE' ? 'COMPLETE' : null;
 }
 
@@ -152,4 +164,12 @@ function toIsoTimestamp(input?: number): string {
   }
 
   return new Date(0).toISOString();
+}
+
+function safeParseJson<T>(input: string): T | null {
+  try {
+    return JSON.parse(input) as T;
+  } catch {
+    return null;
+  }
 }

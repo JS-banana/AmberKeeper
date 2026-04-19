@@ -7,6 +7,11 @@
     "desktop:dev": "pnpm --dir apps/desktop dev",
     "desktop:test": "pnpm --dir apps/desktop test",
     "desktop:build": "pnpm --dir apps/desktop build",
+    "desktop:icons": "pnpm --dir apps/desktop icons",
+    "desktop:dist:dir": "pnpm --dir apps/desktop run dist:dir",
+    "desktop:dist": "pnpm --dir apps/desktop dist",
+    "desktop:dist:mac": "pnpm --dir apps/desktop dist:mac",
+    "desktop:dist:win": "pnpm --dir apps/desktop dist:win",
     "desktop:gemini:dry-run": "pnpm --dir apps/desktop gemini:dirty-data:dry-run",
     "desktop:gemini:cleanup": "pnpm --dir apps/desktop gemini:dirty-data:cleanup"
   },

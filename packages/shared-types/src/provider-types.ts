@@ -32,6 +32,43 @@ export interface ProviderInterpretResponseResult<TSignal = unknown> {
   streamStatus: 'COMPLETE' | null;
 }
 
+export interface ProviderHistoryCaptureResult {
+  conversationId?: string | null;
+  messages: NormalizedMessage[];
+}
+
+export type ProviderLiveSubmitStrategy =
+  | 'button-or-enter'
+  | 'button-only'
+  | 'enter-only'
+  | 'meta-enter'
+  | 'ctrl-enter';
+
+export interface ProviderLiveNewMessageSpec {
+  readySelectors?: string[];
+  launcherButtonSelectors?: string[];
+  launcherButtonTextCandidates?: string[];
+  composerSelectors: string[];
+  sendButtonSelectors?: string[];
+  submitButtonTextCandidates?: string[];
+  submitStrategy?: ProviderLiveSubmitStrategy;
+}
+
+export interface ProviderLiveHistoryClickSpec {
+  readySelectors?: string[];
+  itemSelectors: string[];
+  ignoreTextPatterns?: string[];
+  routeFragments?: string[];
+  maxItems?: number;
+}
+
+export interface ProviderLiveAutomationSpec {
+  id?: ProviderId;
+  providerId?: ProviderId;
+  newMessage: ProviderLiveNewMessageSpec;
+  historyClick: ProviderLiveHistoryClickSpec;
+}
+
 export interface ProviderInterpretDomSnapshotResult<TSignal = unknown> {
   signals: TSignal[];
   stable: boolean;
@@ -55,6 +92,7 @@ export interface ProviderAdapter<
   classifyRequest(input: ProviderRequestContextInput): ProviderRequestClassification;
   interpretRequest(input: ProviderInterpretRequestInput): TSignal[];
   interpretResponseBody(input: ProviderInterpretResponseBodyInput): ProviderInterpretResponseResult<TSignal>;
+  extractHistoryCapture?(input: ProviderInterpretResponseBodyInput): ProviderHistoryCaptureResult | null;
   interpretDomSnapshot(
     input: ProviderInterpretDomSnapshotInput<TDomSnapshotMessage>
   ): ProviderInterpretDomSnapshotResult<TSignal>;

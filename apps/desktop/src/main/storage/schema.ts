@@ -36,11 +36,45 @@ CREATE INDEX IF NOT EXISTS idx_providers_active
   ON providers(active);
 `;
 
+const APP_SETTINGS_SCHEMA = `
+CREATE TABLE IF NOT EXISTS app_settings (
+  id INTEGER PRIMARY KEY,
+  interface_language TEXT NOT NULL DEFAULT 'system',
+  active_service_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`;
+
+const CUSTOM_SERVICES_SCHEMA = `
+CREATE TABLE IF NOT EXISTS custom_services (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  display_url TEXT NOT NULL,
+  launch_url TEXT NOT NULL,
+  icon_url TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_custom_services_enabled
+  ON custom_services(enabled);
+
+CREATE INDEX IF NOT EXISTS idx_custom_services_sort_order
+  ON custom_services(sort_order);
+`;
+
 export function ensureCaptureStoreSchema(db: DatabaseSync): void {
   ensureCaptureCorePersistenceSchema(db);
   db.exec(PROVIDERS_SCHEMA);
   ensureProvidersSortOrderColumn(db);
+  ensureProvidersCacheEnabledColumn(db);
   db.exec(CAPTURE_ATTEMPT_LOGS_SCHEMA);
+  db.exec(APP_SETTINGS_SCHEMA);
+  ensureAppSettingsActiveServiceIdColumn(db);
+  db.exec(CUSTOM_SERVICES_SCHEMA);
 }
 
 export function hasTable(db: DatabaseSync, tableName: string): boolean {
@@ -57,6 +91,22 @@ export function hasTable(db: DatabaseSync, tableName: string): boolean {
   return Boolean(row?.name);
 }
 
+function ensureProvidersCacheEnabledColumn(db: DatabaseSync): void {
+  const columns = db
+    .prepare(
+      `
+        PRAGMA table_info(providers)
+      `
+    )
+    .all() as Array<{ name?: string }>;
+
+  if (columns.some((column) => column.name === 'cache_enabled')) {
+    return;
+  }
+
+  db.exec('ALTER TABLE providers ADD COLUMN cache_enabled INTEGER NOT NULL DEFAULT 1;');
+}
+
 function ensureProvidersSortOrderColumn(db: DatabaseSync): void {
   const columns = db
     .prepare(
@@ -71,4 +121,20 @@ function ensureProvidersSortOrderColumn(db: DatabaseSync): void {
   }
 
   db.exec('ALTER TABLE providers ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;');
+}
+
+function ensureAppSettingsActiveServiceIdColumn(db: DatabaseSync): void {
+  const columns = db
+    .prepare(
+      `
+        PRAGMA table_info(app_settings)
+      `
+    )
+    .all() as Array<{ name?: string }>;
+
+  if (columns.some((column) => column.name === 'active_service_id')) {
+    return;
+  }
+
+  db.exec('ALTER TABLE app_settings ADD COLUMN active_service_id TEXT;');
 }

@@ -2,6 +2,7 @@ import { startTransition, useEffect, useEffectEvent, useState } from 'react';
 import type {
   CaptureMessageRecord,
   CaptureSessionRecord,
+  GeminiThemeDiagnosticReport,
   RuntimeStatus,
 } from '@amberkeeper/shared-types';
 
@@ -19,6 +20,9 @@ export function useDiagnosticsStore() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<CaptureMessageRecord[]>([]);
   const [snapshotFeedback, setSnapshotFeedback] = useState('');
+  const [geminiDiagnosticReport, setGeminiDiagnosticReport] =
+    useState<GeminiThemeDiagnosticReport | null>(null);
+  const [geminiDiagnosticFeedback, setGeminiDiagnosticFeedback] = useState('');
 
   const selectedSession =
     sessions.find((session) => session.id === selectedSessionId) ?? null;
@@ -59,6 +63,21 @@ export function useDiagnosticsStore() {
     await refreshData();
 
     return result;
+  });
+
+  const runGeminiThemeDiagnostic = useEffectEvent(async () => {
+    try {
+      const report = await window.captureApi.runGeminiThemeDiagnostic();
+      startTransition(() => {
+        setGeminiDiagnosticReport(report);
+        setGeminiDiagnosticFeedback(`Gemini 诊断完成：${report.summary}`);
+      });
+      return report;
+    } catch (error) {
+      const message = formatError(error);
+      startTransition(() => setGeminiDiagnosticFeedback(message));
+      throw error;
+    }
   });
 
   const selectSession = useEffectEvent(async (sessionId: string) => {
@@ -105,8 +124,11 @@ export function useDiagnosticsStore() {
     selectedSession,
     messages,
     snapshotFeedback,
+    geminiDiagnosticReport,
+    geminiDiagnosticFeedback,
     selectSession,
     triggerSnapshot,
+    runGeminiThemeDiagnostic,
   };
 }
 

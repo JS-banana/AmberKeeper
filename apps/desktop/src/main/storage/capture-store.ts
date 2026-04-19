@@ -14,12 +14,18 @@ import type {
   CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
+  CreateCustomServiceInput,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
+  ServiceMoveDirection,
+  ServiceRecord,
 } from '@amberkeeper/shared-types';
 import { resolveSessionTitle } from '../../shared/session-title';
+import { createAppSettingsRepository } from './app-settings-repository';
 import { createProviderSettingsRepository } from './provider-settings-repository';
+import { createServiceSettingsRepository } from './service-settings-repository';
+import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { ensureCaptureStoreSchema, hasTable } from './schema';
 
 export class CaptureStore {
@@ -27,7 +33,10 @@ export class CaptureStore {
   private readonly conversationRepository: ReturnType<typeof createConversationRepository>;
   private readonly messageRepository: ReturnType<typeof createMessageRepository>;
   private readonly captureEventRepository: ReturnType<typeof createCaptureEventRepository>;
+  private readonly appSettingsRepository: ReturnType<typeof createAppSettingsRepository>;
   private readonly providerSettingsRepository: ReturnType<typeof createProviderSettingsRepository>;
+  private readonly serviceSettingsRepository: ReturnType<typeof createServiceSettingsRepository>;
+  private readonly settingsWriteCoordinator: ReturnType<typeof createSettingsWriteCoordinator>;
 
   constructor(filePath: string) {
     this.database = new DatabaseSync(filePath);
@@ -38,78 +47,143 @@ export class CaptureStore {
     this.conversationRepository = createConversationRepository(this.database);
     this.messageRepository = createMessageRepository(this.database);
     this.captureEventRepository = createCaptureEventRepository(this.database);
+    this.appSettingsRepository = createAppSettingsRepository(this.database);
     this.providerSettingsRepository = createProviderSettingsRepository(this.database);
+    this.serviceSettingsRepository = createServiceSettingsRepository(this.database, {
+      getActiveProviderId: () => this.providerSettingsRepository.getActive()?.id ?? null,
+      setActiveServiceId: (serviceId) => this.appSettingsRepository.setActiveServiceId(serviceId),
+      getActiveServiceId: () => this.appSettingsRepository.getActiveServiceId(),
+    });
+    this.settingsWriteCoordinator = createSettingsWriteCoordinator({
+      db: this.database,
+      listServices: () => this.serviceSettingsRepository.list(),
+      getActiveServiceId: () => this.appSettingsRepository.getActiveServiceId(),
+      setActiveServiceId: (serviceId) => this.appSettingsRepository.setActiveServiceId(serviceId),
+      setProviderEnabledWithinTransaction: (providerId, enabled) =>
+        this.providerSettingsRepository.setEnabledWithinTransaction(providerId, enabled),
+    });
+  }
+
+  getDb(): DatabaseSync {
+    return this.database;
   }
 
   persistEnvelope(envelope: CaptureEnvelope): string {
-    const conversationId = this.conversationRepository.resolve({
-      provider: envelope.provider,
-      remoteConversationId: envelope.remoteConversationId,
-      sourceSessionKey: envelope.sourceSessionKey,
-      pageUrl: envelope.pageUrl,
-      title: envelope.title,
-      titleSource: envelope.titleSource,
-      createdAt: envelope.messages[0]?.createdAt ?? envelope.capturedAt,
-      updatedAt: envelope.capturedAt,
-    });
-    const insertedMessages = this.messageRepository.insertMany({
-      conversationId,
-      provider: envelope.provider,
-      remoteConversationId: envelope.remoteConversationId,
-      source: envelope.source,
-      capturedAt: envelope.capturedAt,
-      messages: envelope.messages,
-    });
-    const messageCount = this.messageRepository.countByConversation(conversationId);
+    return runInTransaction(this.database, () => {
+      const conversationId = this.conversationRepository.resolve({
+        provider: envelope.provider,
+        remoteConversationId: envelope.remoteConversationId,
+        sourceSessionKey: envelope.sourceSessionKey,
+        pageUrl: envelope.pageUrl,
+        title: envelope.title,
+        titleSource: envelope.titleSource,
+        createdAt: envelope.messages[0]?.createdAt ?? envelope.capturedAt,
+        updatedAt: envelope.capturedAt,
+      });
+      const insertedMessages = this.messageRepository.insertMany({
+        conversationId,
+        provider: envelope.provider,
+        remoteConversationId: envelope.remoteConversationId,
+        source: envelope.source,
+        capturedAt: envelope.capturedAt,
+        messages: envelope.messages,
+      });
+      const messageCount = this.messageRepository.countByConversation(conversationId);
 
-    this.conversationRepository.updateMessageCount(
-      conversationId,
-      messageCount,
-      envelope.capturedAt
-    );
-    this.recordCaptureEvents(envelope, {
-      insertedMessages,
-      messageCount,
-    });
+      this.conversationRepository.updateMessageCount(
+        conversationId,
+        messageCount,
+        envelope.capturedAt
+      );
+      this.recordCaptureEvents(envelope, {
+        insertedMessages,
+        messageCount,
+      });
 
-    return conversationId;
+      return conversationId;
+    });
   }
 
-  replaceSessionEnvelope(_sessionId: string, envelope: CaptureEnvelope): string {
-    const conversationId = this.conversationRepository.resolve({
-      provider: envelope.provider,
-      remoteConversationId: envelope.remoteConversationId,
-      sourceSessionKey: envelope.sourceSessionKey,
-      pageUrl: envelope.pageUrl,
-      title: envelope.title,
-      titleSource: envelope.titleSource,
-      createdAt: envelope.messages[0]?.createdAt ?? envelope.capturedAt,
-      updatedAt: envelope.capturedAt,
+  replaceSessionEnvelope(sessionId: string, envelope: CaptureEnvelope): string {
+    return runInTransaction(this.database, () => {
+      const existingSession = this.getSessionById(sessionId);
+
+      if (!existingSession) {
+        throw new Error(`Unknown session: ${sessionId}.`);
+      }
+
+      if (existingSession.provider !== envelope.provider) {
+        throw new Error(
+          `Session ${sessionId} belongs to ${existingSession.provider}, not ${envelope.provider}.`
+        );
+      }
+
+      const remoteConversationId =
+        envelope.remoteConversationId ?? existingSession.remoteConversationId ?? null;
+      const nextTitle = envelope.title ?? existingSession.title ?? null;
+      const nextTitleSource = envelope.titleSource ?? existingSession.titleSource ?? 'fallback';
+
+      if (remoteConversationId) {
+        const conflictingSessionId = this.findSessionIdByRemoteConversation(
+          existingSession.provider,
+          remoteConversationId
+        );
+
+        if (conflictingSessionId && conflictingSessionId !== sessionId) {
+          throw new Error(
+            `Session ${sessionId} cannot be replaced with remote conversation ${remoteConversationId} because it already belongs to ${conflictingSessionId}.`
+          );
+        }
+      }
+
+      this.database
+        .prepare(
+          `
+            UPDATE conversations
+            SET
+              remote_conversation_id = ?,
+              source_session_key = ?,
+              page_url = ?,
+              title = ?,
+              title_source = ?,
+              updated_at = ?
+            WHERE id = ?
+          `
+        )
+        .run(
+          remoteConversationId,
+          envelope.sourceSessionKey,
+          envelope.pageUrl,
+          nextTitle,
+          nextTitleSource,
+          envelope.capturedAt,
+          sessionId
+        );
+
+      this.messageRepository.deleteByConversation(sessionId);
+
+      const insertedMessages = this.messageRepository.insertMany({
+        conversationId: sessionId,
+        provider: envelope.provider,
+        remoteConversationId,
+        source: envelope.source,
+        capturedAt: envelope.capturedAt,
+        messages: envelope.messages,
+      });
+      const messageCount = this.messageRepository.countByConversation(sessionId);
+
+      this.conversationRepository.updateMessageCount(
+        sessionId,
+        messageCount,
+        envelope.capturedAt
+      );
+      this.recordCaptureEvents(envelope, {
+        insertedMessages,
+        messageCount,
+      });
+
+      return sessionId;
     });
-
-    this.messageRepository.deleteByConversation(conversationId);
-
-    const insertedMessages = this.messageRepository.insertMany({
-      conversationId,
-      provider: envelope.provider,
-      remoteConversationId: envelope.remoteConversationId,
-      source: envelope.source,
-      capturedAt: envelope.capturedAt,
-      messages: envelope.messages,
-    });
-    const messageCount = this.messageRepository.countByConversation(conversationId);
-
-    this.conversationRepository.updateMessageCount(
-      conversationId,
-      messageCount,
-      envelope.capturedAt
-    );
-    this.recordCaptureEvents(envelope, {
-      insertedMessages,
-      messageCount,
-    });
-
-    return conversationId;
   }
 
   persistTurn(turn: CompletedTurn): string {
@@ -179,6 +253,14 @@ export class CaptureStore {
       .all(sessionId) as unknown as CaptureMessageRecord[];
   }
 
+  findSessionByRemoteConversation(
+    provider: ProviderId,
+    remoteConversationId: string
+  ): CaptureSessionRecord | null {
+    const sessionId = this.findSessionIdByRemoteConversation(provider, remoteConversationId);
+    return sessionId ? this.getSessionById(sessionId) : null;
+  }
+
   deleteSession(sessionId: string): void {
     const result = this.database
       .prepare(
@@ -242,11 +324,54 @@ export class CaptureStore {
   }
 
   setProviderEnabled(providerId: ProviderId, enabled: boolean): ProviderRecord {
-    return this.providerSettingsRepository.setEnabled(providerId, enabled);
+    return this.settingsWriteCoordinator.setProviderEnabled(providerId, enabled);
+  }
+
+  setProviderCacheEnabled(providerId: ProviderId, cacheEnabled: boolean): ProviderRecord {
+    return this.providerSettingsRepository.setCacheEnabled(providerId, cacheEnabled);
   }
 
   moveProvider(providerId: ProviderId, direction: ProviderMoveDirection): ProviderRecord[] {
     return this.providerSettingsRepository.move(providerId, direction);
+  }
+
+  listServices(): ServiceRecord[] {
+    return this.serviceSettingsRepository.list();
+  }
+
+  getActiveService(): ServiceRecord | null {
+    return this.serviceSettingsRepository.getActive();
+  }
+
+  setActiveService(serviceId: string): ServiceRecord {
+    return this.serviceSettingsRepository.setActive(serviceId);
+  }
+
+  addCustomService(input: CreateCustomServiceInput): ServiceRecord {
+    return this.serviceSettingsRepository.addCustom(input);
+  }
+
+  removeCustomService(serviceId: string): void {
+    this.serviceSettingsRepository.removeCustom(serviceId);
+  }
+
+  setServiceEnabled(serviceId: string, enabled: boolean): ServiceRecord {
+    const service = this.serviceSettingsRepository.list().find((entry) => entry.id === serviceId) ?? null;
+
+    if (service?.kind === 'builtin') {
+      this.settingsWriteCoordinator.setProviderEnabled(service.id as ProviderId, enabled);
+      return this.serviceSettingsRepository.list().find((entry) => entry.id === serviceId) as ServiceRecord;
+    }
+
+    return this.serviceSettingsRepository.setEnabled(serviceId, enabled);
+  }
+
+  moveService(serviceId: string, direction: ServiceMoveDirection): ServiceRecord[] {
+    return this.serviceSettingsRepository.move(serviceId, direction);
+  }
+
+  updateCustomServiceIcon(serviceId: string, iconUrl: string | null): ServiceRecord {
+    return this.serviceSettingsRepository.updateCustomIcon(serviceId, iconUrl);
   }
 
   logAttempt(input: {
@@ -383,6 +508,24 @@ export class CaptureStore {
       }),
       createdAt: envelope.capturedAt,
     });
+  }
+
+  private findSessionIdByRemoteConversation(
+    provider: string,
+    remoteConversationId: string
+  ): string | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT id
+          FROM conversations
+          WHERE provider = ? AND remote_conversation_id = ?
+          LIMIT 1
+        `
+      )
+      .get(provider, remoteConversationId) as { id?: string } | undefined;
+
+    return row?.id ?? null;
   }
 
   private migrateLegacyData(): void {
@@ -615,4 +758,17 @@ function toFileSegment(input: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64) || 'session';
+}
+
+function runInTransaction<T>(db: DatabaseSync, work: () => T): T {
+  db.exec('BEGIN');
+
+  try {
+    const result = work();
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }

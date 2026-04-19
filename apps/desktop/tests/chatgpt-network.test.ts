@@ -74,6 +74,7 @@ describe('chatgpt-network', () => {
         'https://chatgpt.com/backend-api/conversation/conv-123/stream_status'
       )
     ).toBe('conv-123');
+    expect(extractConversationIdFromUrl('https://chatgpt.com/backend-api/conversation/init')).toBeNull();
     expect(extractConversationIdFromUrl('https://chatgpt.com/backend-api/models')).toBeNull();
   });
 

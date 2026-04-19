@@ -6,44 +6,78 @@ import {
   type RuntimeSignal,
 } from '@amberkeeper/capture-core';
 import type {
+  CaptureEnvelope,
   CaptureExportArtifact,
   CaptureExportFormat,
   CaptureSessionRecord,
+  InterfaceLanguage,
   ProviderId,
   ProviderMoveDirection,
   ProviderRecord,
   RuntimeStatus,
+  ServiceMoveDirection,
+  ServiceRecord,
   ShellInfo,
 } from '@amberkeeper/shared-types';
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, Tray, dialog, nativeTheme } from 'electron';
+nativeTheme.themeSource = 'light';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAppLifecycle } from './bootstrap/app';
+import { createCaptureSessionService } from './capture/capture-session-service';
+import { createHistoryDomHydrationService } from './capture/history-dom-hydration-service';
+import { createHistoryEnvelopeBuilderService } from './capture/history-envelope-builder-service';
+import { createHistoryCapturePersistenceService } from './capture/history-capture-persistence-service';
+import { createHistorySessionOpenService } from './capture/history-session-open-service';
+import { createNetworkResponseIngestionService } from './capture/network-response-ingestion-service';
+import { createRequestIngestionService } from './capture/request-ingestion-service';
+import { createDiagnosticsService } from './diagnostics/diagnostics-service';
+import { createLiveProbeService } from './diagnostics/live-probe-service';
 import { registerCaptureIpc } from './ipc/capture-ipc';
 import {
+  applyInterfaceLanguageToWebContents,
+  buildCustomBrowserSessionConfig,
   createBrowserSessionRuntime,
+  createBrowserSessionRuntimeWithConfig,
+  resolveEffectiveInterfaceLocale,
+  resolveLocalePreferenceChain,
   resolveBrowserSessionConfig,
   type BrowserSessionProviderId,
   type BrowserSessionRuntime,
 } from './runtime/browser-session';
-import { getProviderAdapter } from './runtime/provider-adapters';
+import { getProviderAdapter, getProviderLiveAutomationSpec } from './runtime/provider-adapters';
 import { createCdpObserver } from './runtime/cdp-observer';
 import {
-  normalizeHydratedDomMessages,
-  resolveSessionNavigationUrl,
-  summarizeDeepSeekHydrationDiagnostics,
-} from './runtime/history-hydration';
-import { resolveConversationIdSignal } from './runtime/conversation-id-resolution';
-import { shouldRecordParsedResponseDiagnostics } from './runtime/response-diagnostics';
+  buildGeminiThemeDiagnosticConfig,
+  buildGeminiThemeProbeScript,
+} from './runtime/gemini-theme-diagnostics';
+import {
+  createOldSessionAutoCacheKey,
+  resolveDiscoveryAutoCacheCandidate,
+} from './runtime/old-session-auto-cache';
+import { discoverSiteIcon } from './runtime/site-icon-discovery';
 import { createProviderRuntimeRegistry } from './runtime/provider-runtime-registry';
+import { createServiceRuntimeRegistry } from './runtime/service-runtime-registry';
+import {
+  getActiveShellRuntime,
+  isProviderRuntime,
+  listResolvedShellRuntimes,
+  syncCustomServiceRuntimes,
+  syncShellStageController,
+} from './runtime/shell-runtime-coordination';
 import { CaptureStore } from './storage/capture-store';
+import { createAppSettingsRepository } from './storage/app-settings-repository';
+import { createShellSettingsService } from './storage/shell-settings-service';
+import { createAppTray, resolveTrayIconPath } from './tray/app-tray';
 import { createMainWindow, createProviderStageController } from './windows/main-window';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PRODUCT_NAME = 'AmberKeeper';
 const PANEL_WIDTH = 66;
 const DOM_CAPTURE_POLL_INTERVAL_MS = 400;
 const DOM_CAPTURE_POLL_ATTEMPTS = 24;
+const DEV_APP_ICON_PATH = path.resolve(__dirname, '../../build/icons/icon.png');
 
 type TrackedRequest = {
   provider: ProviderId;
@@ -57,33 +91,66 @@ type TrackedRequest = {
   classification: 'capture' | 'discover';
 };
 
-type ProviderRuntimeContext = {
-  providerId: BrowserSessionProviderId;
+type ShellRuntimeContext = {
+  serviceId: string;
+  providerId: ProviderId | null;
+  homeUrl: string;
   view: BrowserSessionRuntime['view'];
   loadInitialUrl: () => Promise<void>;
   loadUrl: (url: string) => Promise<void>;
+  evaluateJavaScript: <T = unknown>(code: string, userGesture?: boolean) => Promise<T>;
+  runDomSnapshot: () => Promise<{ message: string; detail: string }>;
+  readStructuredDomSnapshot: (
+    fallbackUrl: string
+  ) => Promise<{ url: string; title: string; messages: Array<{ role?: string; content?: string }> }>;
   browserSession: BrowserSessionRuntime;
   cdpObserver: ReturnType<typeof createCdpObserver> | null;
   currentUrl: string;
 };
 
+type ProviderRuntimeContext = ShellRuntimeContext & {
+  providerId: BrowserSessionProviderId;
+};
+
+type CustomServiceRuntimeContext = ShellRuntimeContext & {
+  providerId: null;
+};
+
 let mainWindow: BrowserWindow | null = null;
+let appTray: Tray | null = null;
 let stageController: ReturnType<typeof createProviderStageController> | null = null;
 let browserSession: BrowserSessionRuntime | null = null;
 let cdpObserver: ReturnType<typeof createCdpObserver> | null = null;
 let runtimeRegistry: ReturnType<typeof createProviderRuntimeRegistry<ProviderRuntimeContext>> | null =
   null;
+let customRuntimeRegistry: ReturnType<typeof createServiceRuntimeRegistry<CustomServiceRuntimeContext>> | null =
+  null;
 let captureStore: CaptureStore | null = null;
+let appSettingsRepo: ReturnType<typeof createAppSettingsRepository> | null = null;
+let shellSettingsService: ReturnType<typeof createShellSettingsService> | null = null;
+let captureSessionService: ReturnType<typeof createCaptureSessionService> | null = null;
+let historyDomHydrationService: ReturnType<typeof createHistoryDomHydrationService<ProviderRuntimeContext>> | null = null;
+let historyEnvelopeBuilderService: ReturnType<typeof createHistoryEnvelopeBuilderService> | null = null;
+let historyCapturePersistenceService: ReturnType<typeof createHistoryCapturePersistenceService> | null = null;
+let historySessionOpenService: ReturnType<typeof createHistorySessionOpenService> | null = null;
+let networkResponseIngestionService: ReturnType<typeof createNetworkResponseIngestionService> | null = null;
+let requestIngestionService: ReturnType<typeof createRequestIngestionService> | null = null;
+let diagnosticsService: ReturnType<typeof createDiagnosticsService> | null = null;
+let liveProbeService: ReturnType<typeof createLiveProbeService> | null = null;
 let captureOrchestrator: ReturnType<typeof createCaptureOrchestrator> | null = null;
 let turnPersistenceService: ReturnType<typeof createTurnPersistenceService> | null = null;
 let activeProviderId: ProviderId | null = null;
+let selectedProviderId: ProviderId | null = null;
+let activeServiceId: string | null = null;
 let currentUrl = '';
 let lastCaptureAt: string | null = null;
 let domCaptureInFlight = false;
 let nativeStageVisible = true;
+let isAppQuitting = false;
 const providerPageTitles = new Map<ProviderId, string>();
 
 const trackedRequests = new Map<string, TrackedRequest>();
+const oldSessionAutoCacheInFlight = new Map<string, Promise<{ message: string; detail: string }>>();
 const seenObservationKeys: string[] = [];
 const seenObservationKeySet = new Set<string>();
 
@@ -93,22 +160,37 @@ function createDesktopWindow(): void {
   }
 
   mainWindow = createMainWindow({
-    rendererPreloadPath: path.join(__dirname, '../preload/renderer.mjs'),
+    rendererPreloadPath: path.join(__dirname, '../preload/renderer.cjs'),
     rendererHtmlPath: path.join(__dirname, '../renderer/index.html'),
+    appIconPath: resolveAppIconPath(),
   });
   stageController = createProviderStageController(mainWindow, PANEL_WIDTH);
 
+  mainWindow.on('close', (event) => {
+    if (process.platform !== 'darwin' || isAppQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow?.hide();
+  });
+
   mainWindow.on('closed', () => {
+    disposeAllShellRuntimes();
     mainWindow = null;
     stageController = null;
     browserSession = null;
     cdpObserver = null;
     runtimeRegistry = null;
+    customRuntimeRegistry = null;
     activeProviderId = null;
-    currentUrl = getPersistedActiveProviderHomeUrl();
+    selectedProviderId = null;
+    activeServiceId = null;
+    currentUrl = getPersistedActiveServiceLaunchUrl();
     domCaptureInFlight = false;
     nativeStageVisible = true;
     trackedRequests.clear();
+    oldSessionAutoCacheInFlight.clear();
   });
 
   runtimeRegistry = createProviderRuntimeRegistry({
@@ -119,32 +201,84 @@ function createDesktopWindow(): void {
     },
     onStateChanged({ runtimes, activeProviderId: nextActiveProviderId }) {
       activeProviderId = nextActiveProviderId;
-      const activeRuntime =
-        nextActiveProviderId === null
-          ? null
-          : runtimes.find((runtime) => runtime.providerId === nextActiveProviderId) ?? null;
+      const activeRuntime = getActiveShellRuntime({
+        activeServiceId,
+        activeProviderId,
+        runtimeRegistry,
+        customRuntimeRegistry,
+      }) as ShellRuntimeContext | null;
 
-      stageController?.sync(
-        runtimes.map(({ providerId, view }) => ({
-          providerId,
-          view,
-        })),
-        nativeStageVisible ? nextActiveProviderId : null
-      );
-
-      browserSession = activeRuntime?.browserSession ?? null;
-      cdpObserver = activeRuntime?.cdpObserver ?? null;
-      currentUrl = activeRuntime?.currentUrl ?? getPersistedActiveProviderHomeUrl();
-
-      if (activeRuntime) {
+      if (isProviderRuntime(activeRuntime)) {
         void attachObserver(activeRuntime);
       }
 
-      publishRuntimeStatus();
+      syncStageController();
+    },
+  });
+  customRuntimeRegistry = createServiceRuntimeRegistry({
+    services: (captureStore?.listServices() ?? []).filter((service) => service.kind === 'custom'),
+    activeServiceId: null,
+    createRuntime(service) {
+      return createCustomServiceRuntime(service);
+    },
+    disposeRuntime(runtime) {
+      disposeShellRuntime(runtime);
+    },
+    onStateChanged() {
+      syncStageController();
     },
   });
 
   syncRuntimeRegistryFromStore();
+}
+
+function ensureAppTray(): void {
+  if (process.platform !== 'darwin' || appTray) {
+    return;
+  }
+
+  appTray = createAppTray({
+    trayIconPath: resolveTrayIconPath({
+      currentDir: __dirname,
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+    }),
+    productName: PRODUCT_NAME,
+    onShow: () => {
+      showMainWindow();
+    },
+    onHide: () => {
+      hideMainWindow();
+    },
+    onQuit: () => {
+      isAppQuitting = true;
+      app.quit();
+    },
+    isWindowVisible: () => Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()),
+  });
+}
+
+function showMainWindow(): void {
+  createDesktopWindow();
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function hideMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.hide();
 }
 
 function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext {
@@ -153,13 +287,16 @@ function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext
   const runtime = {} as ProviderRuntimeContext;
   const browserSessionRuntime = createBrowserSessionRuntime({
     providerId: provider.id,
-    chatPreloadPath: path.join(__dirname, '../preload/chat.mjs'),
+    chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
+    interfaceLanguage: getConfiguredInterfaceLanguage(),
+    systemLocale: getConfiguredSystemLocale(),
     onUrlChanged(url) {
       runtime.currentUrl = url;
 
-      if (activeProviderId === provider.id) {
+      if (activeServiceId === provider.id) {
         currentUrl = url;
         publishRuntimeStatus();
+        void maybeAutoCacheRemoteConversation(provider.id, url);
       }
     },
   });
@@ -177,14 +314,72 @@ function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext
     : null;
 
   runtime.providerId = provider.id;
+  runtime.serviceId = provider.id;
+  runtime.homeUrl = config.homeUrl;
   runtime.view = browserSessionRuntime.view;
   runtime.loadInitialUrl = browserSessionRuntime.loadInitialUrl;
   runtime.loadUrl = browserSessionRuntime.loadUrl;
+  runtime.evaluateJavaScript = browserSessionRuntime.executeJavaScript;
+  runtime.runDomSnapshot = browserSessionRuntime.runDomSnapshot;
+  runtime.readStructuredDomSnapshot = browserSessionRuntime.readStructuredDomSnapshot;
   runtime.browserSession = browserSessionRuntime;
   runtime.cdpObserver = observer;
   runtime.currentUrl = config.homeUrl;
 
   return runtime;
+}
+
+function createCustomServiceRuntime(service: ServiceRecord): CustomServiceRuntimeContext {
+  const config = buildCustomBrowserSessionConfig({
+    id: service.id,
+    name: service.name,
+    launchUrl: service.launchUrl,
+  });
+  const runtime = {} as CustomServiceRuntimeContext;
+  const browserSessionRuntime = createBrowserSessionRuntimeWithConfig({
+    config,
+    chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
+    interfaceLanguage: getConfiguredInterfaceLanguage(),
+    systemLocale: getConfiguredSystemLocale(),
+    onUrlChanged(url) {
+      runtime.currentUrl = url;
+
+      if (activeServiceId === service.id) {
+        currentUrl = url;
+        publishRuntimeStatus();
+      }
+    },
+  });
+
+  runtime.serviceId = service.id;
+  runtime.providerId = null;
+  runtime.homeUrl = config.homeUrl;
+  runtime.view = browserSessionRuntime.view;
+  runtime.loadInitialUrl = browserSessionRuntime.loadInitialUrl;
+  runtime.loadUrl = browserSessionRuntime.loadUrl;
+  runtime.evaluateJavaScript = browserSessionRuntime.executeJavaScript;
+  runtime.runDomSnapshot = browserSessionRuntime.runDomSnapshot;
+  runtime.readStructuredDomSnapshot = browserSessionRuntime.readStructuredDomSnapshot;
+  runtime.browserSession = browserSessionRuntime;
+  runtime.cdpObserver = null;
+  runtime.currentUrl = config.homeUrl;
+
+  return runtime;
+}
+
+function disposeShellRuntime(runtime: ShellRuntimeContext): void {
+  stageController?.detach(runtime.view);
+  runtime.browserSession.dispose();
+}
+
+function disposeAllShellRuntimes(): void {
+  for (const runtime of runtimeRegistry?.listResolvedRuntimes() ?? []) {
+    disposeShellRuntime(runtime);
+  }
+
+  for (const runtime of customRuntimeRegistry?.listResolvedRuntimes() ?? []) {
+    disposeShellRuntime(runtime);
+  }
 }
 
 async function attachObserver(runtime: ProviderRuntimeContext): Promise<void> {
@@ -230,77 +425,14 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
   }
 
   if (signal.kind === 'requestSeen') {
-    const classification = adapter.classifyRequest({
-      url: signal.url,
-      method: signal.method,
-    });
-    if (classification === 'ignore') {
-      return;
-    }
-
-    const tracked = {
-      provider: signal.provider,
-      sourceSessionKey: signal.sourceSessionKey,
-      url: signal.url,
-      method: signal.method,
-      postData: signal.postData,
-      pageUrl: signal.pageUrl,
-      capturedAt: signal.capturedAt,
-      resourceType: signal.resourceType,
-      classification,
-    } satisfies TrackedRequest;
-    trackedRequests.set(getTrackedRequestKey(signal.provider, signal.requestId), tracked);
-
-    const requestConversationSignal = resolveConversationIdSignal({
-      provider: signal.provider,
-      source: 'cdp-network',
-      sourceSessionKey: signal.sourceSessionKey,
-      pageUrl: signal.pageUrl,
-      capturedAt: signal.capturedAt,
-      urls: [signal.pageUrl, signal.url],
+    const tracked = requestIngestionService?.handleRequestSeen({
+      signal,
       adapter,
     });
-    if (requestConversationSignal) {
-      emitProviderSignals([requestConversationSignal]);
+    if (!tracked) {
+      return;
     }
-
-    if (
-      adapter.classifyRequest({ url: tracked.url, method: 'GET' }) !== 'ignore' &&
-      ['Fetch', 'XHR'].includes(tracked.resourceType)
-    ) {
-      recordUniqueObservation(`request:${tracked.method}:${tracked.url}:${tracked.resourceType}`, {
-        source: 'cdp-network',
-        stage: classification === 'capture' ? 'request-candidate' : 'request-discovery',
-        status: 'info',
-        message: `${tracked.method} ${tracked.resourceType} ${tracked.url}`,
-        detail: tracked.postData ? tracked.postData.slice(0, 400) : tracked.pageUrl,
-        createdAt: tracked.capturedAt,
-      });
-    }
-
-    if (classification === 'capture' && tracked.method === 'POST' && tracked.postData) {
-      const signals = adapter.interpretRequest({
-        url: tracked.url,
-        method: tracked.method,
-        body: tracked.postData,
-        pageUrl: tracked.pageUrl,
-        capturedAt: tracked.capturedAt,
-        sourceSessionKey: tracked.sourceSessionKey,
-      });
-
-      if (signals.length > 0) {
-        emitProviderSignals(signals);
-      } else {
-        recordAttempt({
-          source: 'cdp-network',
-          stage: 'request-parse-empty',
-          status: 'info',
-          message: 'Request matched capture route but yielded no normalized user message.',
-          detail: tracked.url,
-          createdAt: tracked.capturedAt,
-        });
-      }
-    }
+    trackedRequests.set(getTrackedRequestKey(signal.provider, signal.requestId), tracked);
 
     publishRuntimeStatus();
     return;
@@ -311,75 +443,29 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
     if (!tracked) {
       return;
     }
-
-    if (
-      adapter.classifyRequest({ url: signal.url, method: 'GET' }) !== 'ignore' &&
-      ['Fetch', 'XHR'].includes(tracked.resourceType)
-    ) {
-      recordUniqueObservation(
-        `response:${tracked.method}:${signal.url}:${signal.status}:${signal.mimeType}`,
-        {
-          source: 'cdp-network',
-          stage: tracked.classification === 'capture' ? 'response-candidate' : 'response-discovery',
-          status: 'info',
-          message: `${tracked.method} ${signal.status ?? 'unknown'} ${signal.mimeType ?? 'unknown'} ${signal.url}`,
-          detail: tracked.pageUrl,
-          createdAt: signal.capturedAt,
-        }
-      );
-    }
-
-    const responseConversationSignal = resolveConversationIdSignal({
-      provider: signal.provider,
-      source: 'cdp-network',
-      sourceSessionKey: tracked.sourceSessionKey,
-      pageUrl: signal.pageUrl,
-      capturedAt: signal.capturedAt,
-      urls: [signal.pageUrl, signal.url],
+    requestIngestionService?.handleResponseMetaSeen({
+      signal,
+      tracked,
       adapter,
     });
-    if (responseConversationSignal) {
-      emitProviderSignals([responseConversationSignal]);
-    }
-
-    if (
-      adapter.shouldTriggerDomAutoCapture({
-        url: tracked.url,
-        method: tracked.method,
-        streamStatus: null,
-      })
-    ) {
-      void captureConversationFromDom(tracked.pageUrl);
-    }
 
     return;
   }
 
   if (signal.kind === 'websocketSeen') {
-    if (!adapter.matchesView(signal.url)) {
-      return;
-    }
-
-    recordUniqueObservation(`websocket:${signal.url}`, {
-      source: 'cdp-network',
-      stage: 'websocket-created',
-      status: 'info',
-      message: `WebSocket observed: ${signal.url}`,
-      detail: signal.pageUrl,
-      createdAt: signal.capturedAt,
+    requestIngestionService?.handleWebsocketSeen({
+      signal,
+      adapter,
     });
     return;
   }
 
   if (signal.kind === 'responseBodyFailed') {
+    const tracked = trackedRequests.get(getTrackedRequestKey(signal.provider, signal.requestId));
     trackedRequests.delete(getTrackedRequestKey(signal.provider, signal.requestId));
-    recordAttempt({
-      source: 'cdp-network',
-      stage: 'response-body',
-      status: 'error',
-      message: 'Failed to retrieve or parse a ChatGPT response body.',
-      detail: formatError(signal.error),
-      createdAt: signal.capturedAt,
+    networkResponseIngestionService?.handleResponseBodyFailed({
+      tracked: tracked ?? null,
+      signal,
     });
     publishRuntimeStatus();
     return;
@@ -395,55 +481,11 @@ async function handleRuntimeSignal(signal: RuntimeSignal): Promise<void> {
   }
 
   trackedRequests.delete(getTrackedRequestKey(signal.provider, signal.requestId));
-
-  const text = signal.base64Encoded ? Buffer.from(signal.body, 'base64').toString('utf8') : signal.body;
-  const response = adapter.interpretResponseBody({
-    url: tracked.url,
-    method: tracked.method,
-    body: text,
-    pageUrl: tracked.pageUrl,
-    capturedAt: signal.capturedAt,
-    sourceSessionKey: tracked.sourceSessionKey,
+  await networkResponseIngestionService?.handleResponseBodySeen({
+    tracked,
+    signal,
+    adapter,
   });
-
-  if (response.signals.length > 0) {
-    if (
-      shouldRecordParsedResponseDiagnostics({
-        provider: tracked.provider,
-        classification: tracked.classification,
-      })
-    ) {
-      recordAttempt({
-        source: 'cdp-network',
-        stage: 'response-parsed',
-        status: 'info',
-        message: `Parsed ${response.signals.length} signal(s) from ${tracked.provider} response.`,
-        detail: [
-          tracked.url,
-          summarizeSignalsForDiagnostics(response.signals),
-          adapter.summarizeResponseBody(text, 800),
-        ]
-          .filter(Boolean)
-          .join('\n'),
-        createdAt: signal.capturedAt,
-      });
-    }
-
-    emitProviderSignals(response.signals);
-  } else if (tracked.classification === 'capture') {
-    recordAttempt({
-      source: 'cdp-network',
-      stage: tracked.method === 'POST' ? 'response-sse' : 'history-json',
-      status: 'info',
-      message: `Matched ${tracked.provider} request but parsed no normalized messages.`,
-      detail: `${tracked.url}\n${adapter.summarizeResponseBody(text)}`,
-      createdAt: signal.capturedAt,
-    });
-  }
-
-  if (response.streamStatus === 'COMPLETE') {
-    await captureConversationFromDom(tracked.pageUrl);
-  }
 
   publishRuntimeStatus();
 }
@@ -456,24 +498,6 @@ function emitProviderSignals(signals: ProviderSignal[]): void {
   signals.forEach((signal) => {
     captureOrchestrator?.consume(signal);
   });
-}
-
-function summarizeSignalsForDiagnostics(signals: ProviderSignal[]): string {
-  return JSON.stringify(
-    signals.map((signal) => ({
-      kind: signal.kind,
-      conversationId: 'conversationId' in signal ? (signal.conversationId ?? null) : null,
-      createdAt: 'createdAt' in signal ? (signal.createdAt ?? null) : null,
-      remoteMessageId: 'remoteMessageId' in signal ? (signal.remoteMessageId ?? null) : null,
-      stable: 'stable' in signal ? (signal.stable ?? null) : null,
-      content:
-        'content' in signal && typeof signal.content === 'string'
-          ? signal.content.slice(0, 160)
-          : null,
-    })),
-    null,
-    2
-  );
 }
 
 async function captureConversationFromDom(pageUrl: string): Promise<void> {
@@ -572,154 +596,122 @@ function resolveActiveRuntimeTitle(providerId: ProviderId): string | null {
   return title || null;
 }
 
-async function runDomSnapshot(): Promise<{ message: string; detail: string }> {
-  if (!browserSession) {
-    return {
-      message: 'Chat view is not ready yet.',
-      detail: '',
-    };
-  }
-
-  return browserSession.runDomSnapshot();
-}
-
 async function openSession(sessionId: string): Promise<{ message: string; detail: string }> {
-  if (!captureStore) {
-    return {
+  return (
+    historySessionOpenService?.openSession(sessionId) ?? {
       message: 'Capture store is not ready yet.',
       detail: '',
-    };
+    }
+  );
+}
+
+function maybeAutoCacheRemoteConversation(providerId: ProviderId, targetUrl: string): void {
+  const adapter = getProviderAdapter(providerId);
+  if (!adapter || !captureStore) {
+    return;
   }
 
-  const session = captureStore.listSessions().find((entry) => entry.id === sessionId) ?? null;
-  if (!session) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Requested hydration for an unknown session.',
-      detail: `session=${sessionId}`,
-      createdAt: new Date().toISOString(),
-    });
-    throw new Error(`Unknown session: ${sessionId}.`);
-  }
-
-  recordAttempt({
-    source: 'preload-dom',
-    stage: 'history-hydration',
-    status: 'info',
-    message: 'Requested hydration for the selected session.',
-    detail: [
-      `session=${session.id}`,
-      `provider=${session.provider}`,
-      `activeProvider=${activeProviderId ?? ''}`,
-      `remoteConversationId=${session.remoteConversationId ?? ''}`,
-      `pageUrl=${session.pageUrl}`,
-    ].join('\n'),
-    createdAt: new Date().toISOString(),
-  });
-
-  if (session.provider !== activeProviderId) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Selected session does not belong to the active provider.',
-      detail: [
-        `session=${session.id}`,
-        `provider=${session.provider}`,
-        `activeProvider=${activeProviderId ?? ''}`,
-      ].join('\n'),
-      createdAt: new Date().toISOString(),
-    });
-    throw new Error(`Session ${sessionId} does not belong to the active provider.`);
-  }
-
-  const provider = captureStore.listProviders().find((entry) => entry.id === session.provider) ?? null;
-  if (!provider) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Selected session provider could not be resolved.',
-      detail: [`session=${session.id}`, `provider=${session.provider}`].join('\n'),
-      createdAt: new Date().toISOString(),
-    });
-    throw new Error(`Unknown provider for session ${sessionId}.`);
+  const remoteConversationId = adapter.extractConversationIdFromUrl(targetUrl)?.trim();
+  if (!remoteConversationId) {
+    return;
   }
 
   const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
-  if (!runtime || runtime.providerId !== session.provider) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Active runtime is not ready for the selected session provider.',
-      detail: [
-        `session=${session.id}`,
-        `provider=${session.provider}`,
-        `runtimeProvider=${runtime?.providerId ?? ''}`,
-      ].join('\n'),
-      createdAt: new Date().toISOString(),
-    });
-    throw new Error(`Active runtime is not ready for provider ${session.provider}.`);
+  if (!runtime || runtime.providerId !== providerId) {
+    return;
   }
 
-  const targetUrl = resolveSessionNavigationUrl(session, provider.homeUrl);
-  recordAttempt({
-    source: 'preload-dom',
-    stage: 'history-hydration',
-    status: 'info',
-    message: 'Resolved selected session navigation target.',
-    detail: [
-      `session=${session.id}`,
-      `currentUrl=${runtime.currentUrl}`,
-      `targetUrl=${targetUrl}`,
-    ].join('\n'),
-    createdAt: new Date().toISOString(),
+  void captureConversationHistoryFromDom({
+    providerId,
+    runtime,
+    targetUrl,
+    preferredConversationId: remoteConversationId,
+    existingSessionId: captureStore.findSessionByRemoteConversation(providerId, remoteConversationId)?.id ?? null,
+    stage: 'history-auto-cache',
+    emptyMessage: 'No DOM history was available for the selected remote conversation.',
   });
-
-  try {
-    if (runtime.currentUrl !== targetUrl) {
-      await runtime.loadUrl(targetUrl);
-
-      recordAttempt({
-        source: 'preload-dom',
-        stage: 'history-hydration',
-        status: 'info',
-        message: 'Navigated the active runtime to the selected session URL.',
-        detail: [`session=${session.id}`, `targetUrl=${targetUrl}`].join('\n'),
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    return hydrateSessionHistory(session, runtime, targetUrl);
-  } catch (error) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'error',
-      message: 'Selected session hydration failed before persistence.',
-      detail: [
-        `session=${session.id}`,
-        `targetUrl=${targetUrl}`,
-        formatError(error),
-      ].join('\n'),
-      createdAt: new Date().toISOString(),
-    });
-
-    throw error;
-  }
 }
 
-function getRuntimeStatus(): RuntimeStatus {
-  return {
-    debuggerAttached: cdpObserver?.isAttached() ?? false,
-    currentUrl,
-    lastCaptureAt,
-    pendingRequestCount: trackedRequests.size,
-    recentAttempts: captureStore?.listAttemptLogs(8) ?? [],
-  };
+function maybeAutoCacheDiscoveredConversation(input: {
+  classification: 'capture' | 'discover' | 'ignore';
+  providerId: ProviderId;
+  remoteConversationId: string | null;
+  pageUrl: string;
+}): void {
+  const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
+  const candidate = resolveDiscoveryAutoCacheCandidate({
+    classification: input.classification,
+    activeProviderId,
+    runtimeProviderId: runtime?.providerId ?? null,
+    signalProviderId: input.providerId,
+    remoteConversationId: input.remoteConversationId,
+    pageUrl: input.pageUrl,
+  });
+  if (!candidate || !captureStore || !runtime) {
+    return;
+  }
+
+  void captureConversationHistoryFromDom({
+    providerId: candidate.providerId,
+    runtime,
+    targetUrl: candidate.targetUrl,
+    preferredConversationId: candidate.remoteConversationId,
+    existingSessionId:
+      captureStore.findSessionByRemoteConversation(
+        candidate.providerId,
+        candidate.remoteConversationId
+      )?.id ?? null,
+    stage: 'history-auto-cache',
+    emptyMessage: 'No DOM history was available for the discovered remote conversation.',
+  });
+}
+
+function captureConversationHistoryFromDom(input: {
+  providerId: ProviderId;
+  runtime: ProviderRuntimeContext;
+  targetUrl: string;
+  preferredConversationId?: string | null;
+  existingSessionId?: string | null;
+  stage: 'history-hydration' | 'history-auto-cache';
+  emptyMessage: string;
+}): Promise<{ message: string; detail: string }> {
+  const adapter = getProviderAdapter(input.providerId);
+  const conversationKey =
+    input.preferredConversationId?.trim() ??
+    adapter?.extractConversationIdFromUrl(input.targetUrl) ??
+    input.targetUrl;
+  const key = createOldSessionAutoCacheKey(
+    input.providerId,
+    conversationKey
+  );
+  const inFlight = oldSessionAutoCacheInFlight.get(key);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const next = runConversationHistoryCaptureFromDom(input).finally(() => {
+    oldSessionAutoCacheInFlight.delete(key);
+  });
+  oldSessionAutoCacheInFlight.set(key, next);
+
+  return next;
+}
+
+async function runConversationHistoryCaptureFromDom(input: {
+  providerId: ProviderId;
+  runtime: ProviderRuntimeContext;
+  targetUrl: string;
+  preferredConversationId?: string | null;
+  existingSessionId?: string | null;
+  stage: 'history-hydration' | 'history-auto-cache';
+  emptyMessage: string;
+}): Promise<{ message: string; detail: string }> {
+  return (
+    historyDomHydrationService?.runConversationHistoryCaptureFromDom(input) ?? {
+      message: input.emptyMessage,
+      detail: input.targetUrl,
+    }
+  );
 }
 
 async function hydrateSessionHistory(
@@ -727,267 +719,27 @@ async function hydrateSessionHistory(
   runtime: ProviderRuntimeContext,
   targetUrl: string
 ): Promise<{ message: string; detail: string }> {
-  recordAttempt({
-    source: 'preload-dom',
+  return captureConversationHistoryFromDom({
+    providerId: session.provider,
+    runtime,
+    targetUrl,
+    preferredConversationId: session.remoteConversationId,
+    existingSessionId: session.id,
     stage: 'history-hydration',
-    status: 'info',
-    message: 'Started DOM hydration for the selected session.',
-    detail: [`session=${session.id}`, `targetUrl=${targetUrl}`].join('\n'),
-    createdAt: new Date().toISOString(),
+    emptyMessage: 'No DOM history was available for the selected session.',
   });
-
-  const adapter = getProviderAdapter(session.provider);
-  let previousSignature: string | null = null;
-  let bestSnapshot:
-    | {
-        url: string;
-        title: string;
-        conversationId: string | null;
-        messages: Array<{ role?: string; content?: string }>;
-      }
-    | null = null;
-
-  for (let attempt = 0; attempt < DOM_CAPTURE_POLL_ATTEMPTS; attempt += 1) {
-    const snapshot = await runtime.browserSession.readStructuredDomSnapshot(runtime.currentUrl || targetUrl);
-    const conversationId =
-      adapter?.extractConversationIdFromUrl(snapshot.url) ?? session.remoteConversationId ?? null;
-    const normalized = normalizeHydratedDomMessages(snapshot.messages, {
-      capturedAt: new Date().toISOString(),
-      conversationId,
-    });
-
-    if (normalized.length > 0) {
-      bestSnapshot = {
-        url: snapshot.url || targetUrl,
-        title: snapshot.title ?? '',
-        conversationId,
-        messages: snapshot.messages,
-      };
-
-      const signature = createHydrationSignature(snapshot.messages);
-      if (signature === previousSignature) {
-        return persistHydratedSessionSnapshot(session, runtime, bestSnapshot, targetUrl);
-      }
-
-      previousSignature = signature;
-    }
-
-    await wait(DOM_CAPTURE_POLL_INTERVAL_MS);
-  }
-
-  if (bestSnapshot) {
-    return persistHydratedSessionSnapshot(session, runtime, bestSnapshot, targetUrl);
-  }
-
-  const deepSeekHistoryDiagnostics =
-    session.provider === 'deepseek'
-      ? await collectDeepSeekHistoryFetchDiagnostics(runtime, session.remoteConversationId)
-      : null;
-
-  const createdAt = new Date().toISOString();
-  recordAttempt({
-    source: 'preload-dom',
-    stage: 'history-hydration',
-    status: 'info',
-    message: 'Opened remote session but found no DOM messages to hydrate.',
-    detail: [
-      targetUrl,
-      `session=${session.id}`,
-      deepSeekHistoryDiagnostics ? `deepseekHistory=${deepSeekHistoryDiagnostics}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    createdAt,
-  });
-
-  return {
-    message: 'No DOM history was available for the selected session.',
-    detail: targetUrl,
-  };
 }
 
 async function collectDeepSeekHistoryFetchDiagnostics(
   runtime: ProviderRuntimeContext,
   remoteConversationId: string | null
 ): Promise<string | null> {
-  if (!remoteConversationId) {
-    return 'missing-remote-conversation-id';
-  }
-
-  try {
-    const diagnostics = (await runtime.view.webContents.executeJavaScript(
-      `
-        (async () => {
-          const chatSessionId = ${JSON.stringify(remoteConversationId)};
-          const queryCount = (selector) => {
-            try {
-              return document.querySelectorAll(selector).length;
-            } catch {
-              return -1;
-            }
-          };
-          const sampleNodes = (selector, limit = 3) => {
-            try {
-              return Array.from(document.querySelectorAll(selector))
-                .slice(0, limit)
-                .map((node) => ({
-                  selector,
-                  tagName: node.tagName,
-                  className: typeof node.className === 'string' ? node.className : '',
-                  textSample: node.textContent ?? '',
-                  htmlSample: node instanceof HTMLElement ? node.outerHTML : '',
-                }));
-            } catch {
-              return [];
-            }
-          };
-          const main = document.querySelector('main');
-
-          let historyFetch;
-          try {
-            const response = await fetch(
-              '/api/v0/chat/history_messages?chat_session_id=' + encodeURIComponent(chatSessionId),
-              {
-                credentials: 'include',
-                headers: {
-                  accept: 'application/json, text/plain, */*',
-                },
-              }
-            );
-            const text = await response.text();
-            historyFetch = {
-              ok: response.ok,
-              status: response.status,
-              url: response.url,
-              preview: text.slice(0, 2000),
-            };
-          } catch (error) {
-            historyFetch = {
-              ok: false,
-              status: null,
-              url: '',
-              preview: String(error),
-            };
-          }
-
-          return {
-            historyFetch,
-            dom: {
-              locationHref: location.href,
-              title: document.title,
-              bodyTextSample: document.body?.innerText ?? '',
-              mainHtmlSample: main?.innerHTML ?? '',
-              selectorCounts: {
-                '.message-item': queryCount('.message-item'),
-                '.user-message': queryCount('.user-message'),
-                '.assistant-message': queryCount('.assistant-message'),
-                '[data-testid*="message"]': queryCount('[data-testid*="message"]'),
-                '[class*="message"]': queryCount('[class*="message"]'),
-                'main': queryCount('main'),
-              },
-              candidateNodes: [
-                ...sampleNodes('[class*="message"]'),
-                ...sampleNodes('[data-testid*="message"]'),
-                ...sampleNodes('[role="listitem"]'),
-              ].slice(0, 6),
-            },
-            relayBridgeType: typeof window.amberkeeperPageNetworkRelay,
-            relaySendType: typeof window.amberkeeperPageNetworkRelay?.send,
-            relayInstalled: window.__amberkeeperPageNetworkCaptureInstalled ?? null,
-          };
-        })();
-      `,
-      true
-    )) as {
-      historyFetch?: {
-        ok?: boolean;
-        status?: number | null;
-        url?: string;
-        preview?: string;
-      } | null;
-      dom?: {
-        locationHref?: string;
-        title?: string;
-        bodyTextSample?: string;
-        mainHtmlSample?: string;
-        selectorCounts?: Record<string, number>;
-      } | null;
-      relayBridgeType?: string;
-      relaySendType?: string;
-      relayInstalled?: boolean | null;
-    } | null;
-
-    return summarizeDeepSeekHydrationDiagnostics({
-      historyFetch: diagnostics?.historyFetch ?? null,
-      dom: diagnostics?.dom ?? null,
-      relayBridgeType: diagnostics?.relayBridgeType ?? '',
-      relaySendType: diagnostics?.relaySendType ?? '',
-      relayInstalled: diagnostics?.relayInstalled ?? null,
-    });
-  } catch (error) {
-    return `executeJavaScript failed: ${formatError(error)}`;
-  }
-}
-
-function persistHydratedSessionSnapshot(
-  session: CaptureSessionRecord,
-  runtime: ProviderRuntimeContext,
-  snapshot: {
-    url: string;
-    title: string;
-    conversationId: string | null;
-    messages: Array<{ role?: string; content?: string }>;
-  },
-  targetUrl: string
-): { message: string; detail: string } {
-  const capturedAt = new Date().toISOString();
-  const messages = normalizeHydratedDomMessages(snapshot.messages, {
-    capturedAt,
-    conversationId: snapshot.conversationId,
-  });
-
-  if (messages.length === 0) {
-    recordAttempt({
-      source: 'preload-dom',
-      stage: 'history-hydration',
-      status: 'info',
-      message: 'Opened remote session but normalized history was empty.',
-      detail: `${targetUrl}\nsession=${session.id}`,
-      createdAt: capturedAt,
-    });
-
-    return {
-      message: 'The selected session did not expose any normalized history yet.',
-      detail: targetUrl,
-    };
-  }
-
-  captureStore?.replaceSessionEnvelope(session.id, {
-    provider: session.provider,
-    source: 'preload-dom',
-    pageUrl: snapshot.url || targetUrl,
-    capturedAt,
-    sourceSessionKey: runtime.browserSession.config.sourceSessionKey,
-    remoteConversationId: snapshot.conversationId ?? session.remoteConversationId ?? undefined,
-    title: snapshot.title?.trim() || session.title,
-    titleSource: snapshot.title?.trim() ? 'provider' : session.titleSource ?? 'fallback',
-    messages,
-  });
-  lastCaptureAt = capturedAt;
-
-  recordAttempt({
-    source: 'preload-dom',
-    stage: 'history-hydration',
-    status: 'captured',
-    message: `Hydrated ${messages.length} message(s) from the selected session.`,
-    detail: `${snapshot.url || targetUrl}\nsession=${session.id}`,
-    createdAt: capturedAt,
-  });
-
-  return {
-    message: `Hydrated ${messages.length} message(s) from the selected session.`,
-    detail: snapshot.url || targetUrl,
-  };
+  return (
+    historyDomHydrationService?.collectDeepSeekHistoryFetchDiagnostics(
+      runtime,
+      remoteConversationId
+    ) ?? null
+  );
 }
 
 function publishRuntimeStatus(): void {
@@ -995,7 +747,13 @@ function publishRuntimeStatus(): void {
     return;
   }
 
-  mainWindow.webContents.send('capture:runtime-status', getRuntimeStatus());
+  mainWindow.webContents.send('capture:runtime-status', diagnosticsService?.getRuntimeStatus() ?? {
+    debuggerAttached: cdpObserver?.isAttached() ?? false,
+    currentUrl,
+    lastCaptureAt,
+    pendingRequestCount: trackedRequests.size,
+    recentAttempts: captureStore?.listAttemptLogs(8) ?? [],
+  });
 }
 
 function createHydrationSignature(messages: Array<{ role?: string; content?: string }>): string {
@@ -1014,115 +772,86 @@ function createHydrationSignature(messages: Array<{ role?: string; content?: str
 
 function syncRuntimeRegistryFromStore(): void {
   const providers = captureStore?.listProviders() ?? [];
+  const services = captureStore?.listServices() ?? [];
   const persistedActiveProvider = captureStore?.getActiveProvider() ?? null;
+  const persistedActiveService = captureStore?.getActiveService() ?? null;
 
-  activeProviderId = persistedActiveProvider?.id ?? null;
-  currentUrl = persistedActiveProvider?.homeUrl ?? '';
+  selectedProviderId = persistedActiveProvider?.id ?? null;
+  activeServiceId = persistedActiveService?.id ?? null;
+  activeProviderId = persistedActiveService?.providerId ?? null;
+  currentUrl = persistedActiveService?.launchUrl ?? persistedActiveProvider?.homeUrl ?? '';
 
+  syncCustomServiceRuntimes({
+    services,
+    activeServiceId,
+    customRuntimeRegistry,
+  });
   runtimeRegistry?.syncProviders(providers, activeProviderId);
-  publishRuntimeStatus();
-}
-
-function setActiveProvider(providerId: ProviderId): ProviderRecord | null {
-  if (!captureStore) {
-    return null;
-  }
-
-  const provider = captureStore.setActiveProvider(providerId);
-  syncRuntimeRegistryFromStore();
-
-  return provider;
-}
-
-function setProviderEnabled(providerId: ProviderId, enabled: boolean): ProviderRecord | null {
-  if (!captureStore) {
-    return null;
-  }
-
-  const provider = captureStore.setProviderEnabled(providerId, enabled);
-  syncRuntimeRegistryFromStore();
-
-  return provider;
-}
-
-function moveProvider(
-  providerId: ProviderId,
-  direction: ProviderMoveDirection
-): ProviderRecord[] | null {
-  if (!captureStore) {
-    return null;
-  }
-
-  const providers = captureStore.moveProvider(providerId, direction);
-  syncRuntimeRegistryFromStore();
-
-  return providers;
-}
-
-async function deleteSession(sessionId: string): Promise<{ message: string; detail: string }> {
-  if (!captureStore) {
-    throw new Error('Capture store is not ready yet.');
-  }
-
-  captureStore.deleteSession(sessionId);
-  publishRuntimeStatus();
-
-  return {
-    message: '已删除该会话的本地缓存。',
-    detail: `session=${sessionId}`,
-  };
-}
-
-async function exportSession(
-  sessionId: string,
-  format: CaptureExportFormat
-): Promise<{ message: string; detail: string }> {
-  if (!captureStore) {
-    throw new Error('Capture store is not ready yet.');
-  }
-
-  const artifact = captureStore.exportSession(sessionId, format);
-  const savedPath = await saveExportArtifact(artifact);
-  return {
-    message: '已导出当前会话。',
-    detail: savedPath,
-  };
-}
-
-async function exportProviderSessions(
-  providerId: ProviderId,
-  format: CaptureExportFormat
-): Promise<{ message: string; detail: string }> {
-  if (!captureStore) {
-    throw new Error('Capture store is not ready yet.');
-  }
-
-  const artifact = captureStore.exportProviderSessions(providerId, format);
-  const savedPath = await saveExportArtifact(artifact);
-  return {
-    message: '已导出当前 provider 的会话档案。',
-    detail: savedPath,
-  };
+  syncStageController();
 }
 
 function getShellInfo(): ShellInfo {
   return {
     diagnosticsEnabled: !app.isPackaged || process.env.AMBERKEEPER_ENABLE_DIAGNOSTICS === '1',
     isPackaged: app.isPackaged,
+    appVersion: app.getVersion(),
+    interfaceLanguage: getConfiguredInterfaceLanguage(),
   };
+}
+
+function getConfiguredInterfaceLanguage(): InterfaceLanguage {
+  return appSettingsRepo?.getInterfaceLanguage() ?? 'system';
+}
+
+function getConfiguredSystemLocale(): string {
+  return app.getPreferredSystemLanguages()[0] ?? app.getLocale();
+}
+
+function getInterfaceLocaleConfig(): { locale: string; languages: string[] } {
+  const interfaceLanguage = getConfiguredInterfaceLanguage();
+  const systemLocale = getConfiguredSystemLocale();
+
+  return {
+    locale: resolveEffectiveInterfaceLocale(interfaceLanguage, systemLocale),
+    languages: resolveLocalePreferenceChain(interfaceLanguage, systemLocale),
+  };
+}
+
+function applyConfiguredInterfaceLanguageToResolvedRuntimes(): void {
+  const interfaceLanguage = getConfiguredInterfaceLanguage();
+  const systemLocale = getConfiguredSystemLocale();
+
+  for (const runtime of listResolvedShellRuntimes({
+    runtimeRegistry,
+    customRuntimeRegistry,
+  }) as ShellRuntimeContext[]) {
+    applyInterfaceLanguageToWebContents(
+      runtime.view.webContents,
+      interfaceLanguage,
+      systemLocale
+    );
+  }
+}
+
+async function reloadActiveRuntimeAfterLanguageChange(): Promise<void> {
+  const activeRuntime = getActiveShellRuntime({
+    activeServiceId,
+    activeProviderId,
+    runtimeRegistry,
+    customRuntimeRegistry,
+  }) as ShellRuntimeContext | null;
+
+  if (!activeRuntime) {
+    return;
+  }
+
+  const targetUrl = activeRuntime.currentUrl || activeRuntime.homeUrl;
+  await activeRuntime.loadUrl(targetUrl);
 }
 
 function setNativeStageVisible(visible: boolean): void {
   nativeStageVisible = visible;
-  const runtimes = runtimeRegistry?.listResolvedRuntimes() ?? [];
-
-  stageController?.sync(
-    runtimes.map(({ providerId, view }) => ({
-      providerId,
-      view,
-    })),
-    nativeStageVisible ? activeProviderId : null
-  );
+  syncStageController();
 }
 
 async function saveExportArtifact(artifact: CaptureExportArtifact): Promise<string> {
@@ -1149,9 +878,14 @@ async function saveExportArtifact(artifact: CaptureExportArtifact): Promise<stri
 function getActiveRuntimeWithAdapter():
   | (ProviderRuntimeContext & { adapter: NonNullable<ReturnType<typeof getProviderAdapter>> })
   | null {
-  const runtime = runtimeRegistry?.getActiveRuntime() ?? null;
+  const runtime = getActiveShellRuntime({
+    activeServiceId,
+    activeProviderId,
+    runtimeRegistry,
+    customRuntimeRegistry,
+  }) as ShellRuntimeContext | null;
 
-  if (!runtime) {
+  if (!isProviderRuntime(runtime)) {
     return null;
   }
 
@@ -1168,6 +902,36 @@ function getActiveRuntimeWithAdapter():
 
 function getPersistedActiveProviderHomeUrl(): string {
   return captureStore?.getActiveProvider()?.homeUrl ?? '';
+}
+
+function resolveAppIconPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'build', 'icons', 'icon.png');
+  }
+
+  return DEV_APP_ICON_PATH;
+}
+
+function getPersistedActiveServiceLaunchUrl(): string {
+  return captureStore?.getActiveService()?.launchUrl ?? getPersistedActiveProviderHomeUrl();
+}
+
+function syncStageController(): void {
+  const { activeRuntime } = syncShellStageController({
+    stageController,
+    activeServiceId,
+    activeProviderId,
+    nativeStageVisible,
+    runtimeRegistry,
+    customRuntimeRegistry,
+  });
+  const resolvedActiveRuntime = activeRuntime as ShellRuntimeContext | null;
+
+  browserSession = resolvedActiveRuntime?.browserSession ?? null;
+  cdpObserver = resolvedActiveRuntime?.cdpObserver ?? null;
+  currentUrl = resolvedActiveRuntime?.currentUrl ?? getPersistedActiveServiceLaunchUrl();
+
+  publishRuntimeStatus();
 }
 
 function getTrackedRequestKey(providerId: ProviderId, requestId: string): string {
@@ -1214,35 +978,6 @@ function recordUniqueObservation(
   recordAttempt(input);
 }
 
-function handleRelayedNetworkPayload(payload: {
-  url?: string;
-  method?: string;
-  status?: number | null;
-  body?: string;
-  pageUrl?: string;
-  capturedAt?: string;
-}): void {
-  if (!payload.url || !payload.method || typeof payload.body !== 'string') {
-    return;
-  }
-
-  recordAttempt({
-    source: 'runtime',
-    stage: 'page-network-relay',
-    status: 'info',
-    message: 'Relayed page-owned network response body.',
-    detail: [
-      payload.url,
-      `status=${payload.status ?? ''}`,
-      payload.pageUrl ? `pageUrl=${payload.pageUrl}` : '',
-      payload.body.slice(0, 2000),
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    createdAt: payload.capturedAt ?? new Date().toISOString(),
-  });
-}
-
 function formatError(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
@@ -1256,7 +991,123 @@ function wait(milliseconds: number): Promise<void> {
 registerAppLifecycle({
   onReady: () => {
     captureStore = new CaptureStore(path.join(app.getPath('userData'), 'capture-lab.db'));
-    currentUrl = getPersistedActiveProviderHomeUrl();
+    appSettingsRepo = createAppSettingsRepository(captureStore.getDb());
+    shellSettingsService = createShellSettingsService({
+      getCaptureStore: () => captureStore,
+      getAppSettingsRepository: () => appSettingsRepo,
+      afterStoreMutation: () => syncRuntimeRegistryFromStore(),
+      afterInterfaceLanguageMutation: () => {
+        applyConfiguredInterfaceLanguageToResolvedRuntimes();
+        void reloadActiveRuntimeAfterLanguageChange().catch((error) => {
+          console.error('[settings] failed to reload active runtime after language change:', error);
+        });
+      },
+    });
+    captureSessionService = createCaptureSessionService({
+      getCaptureStore: () => captureStore,
+      publishRuntimeStatus,
+      saveExportArtifact,
+    });
+    historyEnvelopeBuilderService = createHistoryEnvelopeBuilderService({
+      getProviderAdapter,
+      resolveActiveRuntimeTitle,
+    });
+    historyCapturePersistenceService = createHistoryCapturePersistenceService({
+      getCaptureStore: () => captureStore,
+      setLastCaptureAt: (capturedAt) => {
+        lastCaptureAt = capturedAt;
+      },
+      recordAttempt,
+    });
+    networkResponseIngestionService = createNetworkResponseIngestionService({
+      buildHistoryEnvelopeFromTrackedResponse: (tracked, body) =>
+        historyEnvelopeBuilderService?.buildHistoryEnvelopeFromTrackedResponse(tracked, body) ?? null,
+      persistAutoCachedEnvelope: (envelope, input) =>
+        historyCapturePersistenceService?.persistAutoCachedEnvelope(envelope, input) ?? null,
+      emitProviderSignals,
+      captureConversationFromDom,
+      recordAttempt: (input) => recordAttempt(input),
+      formatError,
+    });
+    requestIngestionService = createRequestIngestionService({
+      maybeAutoCacheDiscoveredConversation,
+      emitProviderSignals,
+      recordUniqueObservation: (key, input) => recordUniqueObservation(key, input),
+      recordAttempt: (input) => recordAttempt(input),
+      persistEnvelope: (envelope) => captureStore?.persistEnvelope(envelope),
+      resolveActiveRuntimeTitle,
+      captureConversationFromDom,
+    });
+    historyDomHydrationService = createHistoryDomHydrationService({
+      getProviderAdapter,
+      wait,
+      formatError,
+      recordAttempt: (input) => recordAttempt(input),
+      persistHydratedConversationSnapshot: (input) =>
+        historyCapturePersistenceService?.persistHydratedConversationSnapshot(input) ?? {
+          message: 'Capture persistence service is not ready yet.',
+          detail: input.targetUrl,
+        },
+      domCapturePollAttempts: DOM_CAPTURE_POLL_ATTEMPTS,
+      domCapturePollIntervalMs: DOM_CAPTURE_POLL_INTERVAL_MS,
+    });
+    historySessionOpenService = createHistorySessionOpenService({
+      getCaptureStore: () => captureStore,
+      getSelectedProviderId: () => selectedProviderId,
+      resolveRuntime: (providerId) => runtimeRegistry?.resolveRuntime(providerId) ?? null,
+      hydrateSessionHistory,
+      recordAttempt,
+      formatError,
+    });
+    diagnosticsService = createDiagnosticsService({
+      createBrowserSessionRuntime: ({ config }) =>
+        createBrowserSessionRuntimeWithConfig({
+          config,
+          chatPreloadPath: path.join(__dirname, '../preload/chat.cjs'),
+          interfaceLanguage: getConfiguredInterfaceLanguage(),
+          systemLocale: getConfiguredSystemLocale(),
+          onUrlChanged: () => undefined,
+        }),
+      getBrowserSession: () => browserSession,
+      getRuntimeStatusInput: () => ({
+        debuggerAttached: cdpObserver?.isAttached() ?? false,
+        currentUrl,
+        lastCaptureAt,
+        pendingRequestCount: trackedRequests.size,
+        recentAttempts: captureStore?.listAttemptLogs(8) ?? [],
+      }),
+      wait,
+    });
+    liveProbeService = createLiveProbeService({
+      manifestPath: path.join(app.getPath('userData'), 'provider-live-probe-server.json'),
+      diagnosticsEnabled: () => getShellInfo().diagnosticsEnabled,
+      recordAttempt,
+      formatError,
+      activateProvider: async (providerId) => {
+        shellSettingsService?.setActiveProvider(providerId);
+        await wait(900);
+      },
+      resolveRuntime: (providerId) => {
+        const runtime = runtimeRegistry?.resolveRuntime(providerId) ?? null;
+        if (!runtime || runtime.providerId !== providerId) {
+          return null;
+        }
+
+        return {
+          providerId: runtime.providerId,
+          currentUrl: runtime.currentUrl,
+          homeUrl: runtime.browserSession.config.homeUrl,
+          loadUrl: runtime.loadUrl,
+          browserSession: runtime.browserSession,
+          view: runtime.view,
+        };
+      },
+      getAutomationSpec: getProviderLiveAutomationSpec,
+      listProviderSessions: (providerId) =>
+        captureStore?.listSessions().filter((session) => session.provider === providerId) ?? [],
+      listAttemptLogs: (limit) => captureStore?.listAttemptLogs(limit) ?? [],
+    });
+    currentUrl = getPersistedActiveServiceLaunchUrl();
     turnPersistenceService = createTurnPersistenceService({
       persistTurn,
     });
@@ -1270,23 +1121,53 @@ registerAppLifecycle({
       listSessions: () => captureStore?.listSessions() ?? [],
       listMessages: (sessionId) => captureStore?.listMessages(sessionId) ?? [],
       openSession,
-      deleteSession,
+      deleteSession: (sessionId) => captureSessionService?.deleteSession(sessionId) ?? Promise.reject(new Error('Capture session service is not ready yet.')),
       exportSession: (sessionId, format) =>
-        exportSession(sessionId, format as CaptureExportFormat),
+        captureSessionService?.exportSession(sessionId, format as CaptureExportFormat) ??
+        Promise.reject(new Error('Capture session service is not ready yet.')),
       exportProviderSessions: (providerId, format) =>
-        exportProviderSessions(providerId as ProviderId, format as CaptureExportFormat),
+        captureSessionService?.exportProviderSessions(providerId as ProviderId, format as CaptureExportFormat) ??
+        Promise.reject(new Error('Capture session service is not ready yet.')),
+      listServices: () => captureStore?.listServices() ?? [],
+      getActiveService: () => captureStore?.getActiveService() ?? null,
+      setActiveService: (serviceId) => shellSettingsService?.setActiveService(serviceId) ?? null,
+      addCustomService: (input) => shellSettingsService?.addCustomService(input) ?? null,
+      removeCustomService: (serviceId) => shellSettingsService?.removeCustomService(serviceId),
+      setServiceEnabled: (serviceId, enabled) =>
+        shellSettingsService?.setServiceEnabled(serviceId, enabled) ?? null,
+      moveService: (serviceId, direction) =>
+        shellSettingsService?.moveService(serviceId, direction as ServiceMoveDirection) ?? null,
+      updateCustomServiceIcon: (serviceId, iconUrl) =>
+        shellSettingsService?.updateCustomServiceIcon(serviceId, iconUrl) ?? null,
+      discoverSiteIcon,
       listProviders: () => captureStore?.listProviders() ?? [],
       getActiveProvider: () => captureStore?.getActiveProvider() ?? null,
-      setActiveProvider: (providerId) => setActiveProvider(providerId as ProviderId),
+      setActiveProvider: (providerId) =>
+        shellSettingsService?.setActiveProvider(providerId as ProviderId) ?? null,
       setProviderEnabled: (providerId, enabled) =>
-        setProviderEnabled(providerId as ProviderId, enabled),
+        shellSettingsService?.setProviderEnabled(providerId as ProviderId, enabled) ?? null,
+      setProviderCacheEnabled: (providerId, cacheEnabled) =>
+        captureStore?.setProviderCacheEnabled(providerId as ProviderId, cacheEnabled) ?? null,
       moveProvider: (providerId, direction) =>
-        moveProvider(providerId as ProviderId, direction as ProviderMoveDirection),
+        shellSettingsService?.moveProvider(providerId as ProviderId, direction as ProviderMoveDirection) ?? null,
       getShellInfo,
+      setInterfaceLanguage: (language) =>
+        shellSettingsService?.setInterfaceLanguage(
+          language as import('@amberkeeper/shared-types').InterfaceLanguage
+        ) ?? 'system',
+      getInterfaceLocaleConfig,
       setNativeStageVisible,
-      getRuntimeStatus,
+      getRuntimeStatus: () => diagnosticsService?.getRuntimeStatus() ?? {
+        debuggerAttached: false,
+        currentUrl,
+        lastCaptureAt,
+        pendingRequestCount: trackedRequests.size,
+        recentAttempts: captureStore?.listAttemptLogs(8) ?? [],
+      },
       triggerDomSnapshot: async () => {
-        const snapshot = await runDomSnapshot();
+        const snapshot = await (
+          diagnosticsService?.runDomSnapshot() ?? Promise.resolve({ message: 'Chat view is not ready yet.', detail: '' })
+        );
 
         recordAttempt({
           source: 'preload-dom',
@@ -1299,8 +1180,15 @@ registerAppLifecycle({
 
         return snapshot;
       },
+      runGeminiThemeDiagnostic: () =>
+        diagnosticsService?.runGeminiThemeDiagnostic() ??
+        Promise.resolve({
+          comparedAt: new Date().toISOString(),
+          summary: 'none',
+          entries: [],
+        }),
       onPageContext: (payload) => {
-        if (activeProviderId && payload.title?.trim()) {
+        if (activeServiceId === activeProviderId && activeProviderId && payload.title?.trim()) {
           providerPageTitles.set(activeProviderId, payload.title.trim());
         }
 
@@ -1310,18 +1198,28 @@ registerAppLifecycle({
 
         publishRuntimeStatus();
       },
-      onRelayedNetworkPayload: handleRelayedNetworkPayload,
     });
 
     createDesktopWindow();
+    ensureAppTray();
+    liveProbeService?.startIfEnabled();
+    liveProbeService?.attachAppLifecycle();
   },
   onWindowAllClosed: () => {
-    captureStore?.close();
     if (process.platform !== 'darwin') {
       app.quit();
     }
   },
   onActivate: () => {
-    createDesktopWindow();
+    showMainWindow();
   },
+});
+
+app.once('before-quit', () => {
+  isAppQuitting = true;
+  liveProbeService?.stop();
+  captureStore?.close();
+  captureStore = null;
+  appTray?.destroy();
+  appTray = null;
 });

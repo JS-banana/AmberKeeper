@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
-import { persistCompletedTurn } from '../src/turn-persistence-service';
+import { ensureCaptureCorePersistenceSchema, persistCompletedTurn } from '../src';
 
 describe('turn-persistence-service', () => {
   test('writes a conversation, two messages, and capture events for one completed turn', () => {
@@ -124,6 +124,45 @@ describe('turn-persistence-service', () => {
         model: null,
       },
     ]);
+  });
+
+  test('rolls back the completed turn when capture-event writes fail late', () => {
+    const db = new DatabaseSync(':memory:');
+    ensureCaptureCorePersistenceSchema(db);
+    db.exec(`
+      CREATE TRIGGER fail_capture_events_before_insert
+      BEFORE INSERT ON capture_events
+      BEGIN
+        SELECT RAISE(ABORT, 'capture event insert failed');
+      END;
+    `);
+
+    expect(() =>
+      persistCompletedTurn(db, {
+        provider: 'chatgpt',
+        source: 'cdp-network',
+        sourceSessionKey: 'chatgpt-primary-view',
+        pageUrl: 'https://chatgpt.com/c/conv-fail',
+        capturedAt: '2026-03-19T13:00:02.000Z',
+        conversationId: 'conv-fail',
+        messages: [
+          {
+            role: 'user',
+            content: 'hi',
+            createdAt: '2026-03-19T13:00:00.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'hello',
+            createdAt: '2026-03-19T13:00:01.000Z',
+          },
+        ],
+      })
+    ).toThrow('capture event insert failed');
+
+    expect(countRows(db, 'conversations')).toBe(0);
+    expect(countRows(db, 'messages')).toBe(0);
+    expect(countRows(db, 'capture_events')).toBe(0);
   });
 });
 

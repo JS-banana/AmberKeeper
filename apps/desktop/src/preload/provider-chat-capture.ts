@@ -1,25 +1,63 @@
 import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
+// Keep sandboxed preload bundles on DOM-only/provider-automation code paths.
+// Importing provider package roots can pull parser/network modules with Node-only
+// dependencies that do not load inside sandboxed remote-content preloads.
 import {
   buildClaudeDomSignal,
   buildClaudeDomSnapshot,
   collectClaudeStructuredMessages,
-} from '@amberkeeper/provider-claude';
+} from '../../../../packages/provider-claude/src/dom';
 import {
   buildDeepSeekDomSignal,
   buildDeepSeekDomSnapshot,
   collectDeepSeekStructuredMessages,
-} from '@amberkeeper/provider-deepseek';
+} from '../../../../packages/provider-deepseek/src/dom';
+import {
+  buildDoubaoDomSignal,
+  buildDoubaoDomSnapshot,
+  collectDoubaoStructuredMessages,
+} from '../../../../packages/provider-doubao/src/dom';
+import { doubaoLiveAutomationSpec } from '../../../../packages/provider-doubao/src/automation';
 import {
   buildGeminiDomSignal,
   buildGeminiDomSnapshot,
   collectGeminiStructuredMessages,
-} from '@amberkeeper/provider-gemini';
+} from '../../../../packages/provider-gemini/src/dom';
+import {
+  buildGrokDomSignal,
+  buildGrokDomSnapshot,
+  collectGrokStructuredMessages,
+} from '../../../../packages/provider-grok/src/dom';
+import { grokLiveAutomationSpec } from '../../../../packages/provider-grok/src/automation';
+import {
+  buildKimiDomSignal,
+  buildKimiDomSnapshot,
+  collectKimiStructuredMessages,
+} from '../../../../packages/provider-kimi/src/dom';
+import { kimiLiveAutomationSpec } from '../../../../packages/provider-kimi/src/automation';
+import {
+  buildQianwenDomSignal,
+  buildQianwenDomSnapshot,
+  collectQianwenStructuredMessages,
+} from '../../../../packages/provider-qianwen/src/dom';
+import { qianwenLiveAutomationSpec } from '../../../../packages/provider-qianwen/src/automation';
 import {
   buildChatGptDomSignal,
   buildChatGptDomSnapshot,
   collectChatGptStructuredMessages,
-} from '@amberkeeper/provider-chatgpt';
-import type { ProviderId } from '@amberkeeper/shared-types';
+} from '../../../../packages/provider-chatgpt/src/dom';
+import { chatgptLiveAutomationSpec } from '../../../../packages/provider-chatgpt/src/automation';
+import {
+  buildXiaomiAistudioDomSignal,
+  buildXiaomiAistudioDomSnapshot,
+  collectXiaomiAistudioStructuredMessages,
+} from '../../../../packages/provider-xiaomi-aistudio/src/dom';
+import { xiaomiAistudioLiveAutomationSpec } from '../../../../packages/provider-xiaomi-aistudio/src/automation';
+import type { ProviderId, ProviderLiveProbeRequest } from '@amberkeeper/shared-types';
+import {
+  runProviderLiveDomProbe,
+  type ProviderLiveDomProbeResult,
+} from './provider-live-automation';
 
 export interface StructuredSnapshotResult {
   url: string;
@@ -31,6 +69,7 @@ export interface ChatCaptureApi {
   snapshotDom: () => { message: string; detail: string };
   snapshotMessages: () => StructuredSnapshotResult;
   snapshotSignal: () => DomSnapshotSeenSignal | StructuredSnapshotResult;
+  runLiveProbe: (request: ProviderLiveProbeRequest) => ProviderLiveDomProbeResult;
 }
 
 interface ProviderDomCaptureContext {
@@ -47,6 +86,10 @@ interface ProviderDomCaptureDriver {
   snapshotDom: (context: ProviderDomCaptureContext) => { message: string; detail: string };
   snapshotMessages: (context: ProviderDomCaptureContext) => StructuredSnapshotResult;
   snapshotSignal: (context: ProviderDomCaptureContext) => DomSnapshotSeenSignal;
+  runLiveProbe: (
+    context: ProviderDomCaptureContext,
+    request: ProviderLiveProbeRequest
+  ) => ProviderLiveDomProbeResult;
 }
 
 export function createChatCaptureApi(input: {
@@ -70,6 +113,20 @@ export function createChatCaptureApi(input: {
       const context = getContext(input);
       const driver = resolveProviderDomCaptureDriver(context.url);
       return driver?.snapshotSignal(context) ?? buildEmptyStructuredSnapshot(context);
+    },
+    runLiveProbe: (request) => {
+      const context = getContext(input);
+      const driver = resolveProviderDomCaptureDriver(context.url);
+      return (
+        driver?.runLiveProbe(context, request) ?? {
+          action: {
+            ok: false,
+            reason: 'No provider-specific live probe is registered for the current page.',
+          },
+          availableHistoryItems: [],
+          notes: [],
+        }
+      );
     },
   };
 }
@@ -108,6 +165,7 @@ function createProviderDomCaptureDriver<TMessage extends { role?: string; conten
     messages: TMessage[];
     sourceSessionKey: string;
   }) => DomSnapshotSeenSignal;
+  liveAutomationSpec?: import('@amberkeeper/shared-types').ProviderLiveAutomationSpec;
 }): ProviderDomCaptureDriver {
   return {
     id: input.id,
@@ -121,10 +179,10 @@ function createProviderDomCaptureDriver<TMessage extends { role?: string; conten
         messages,
       });
 
-      if (input.id === 'claude' && messages.length === 0) {
+      if (messages.length === 0) {
         return {
           message: snapshot.message,
-          detail: appendClaudeDomDiagnostics(snapshot.detail, context.root),
+          detail: appendProviderDomDiagnostics(snapshot.detail, context.root, input.id),
         };
       }
 
@@ -143,20 +201,49 @@ function createProviderDomCaptureDriver<TMessage extends { role?: string; conten
         messages: input.collectMessages(context.root),
         sourceSessionKey: input.sourceSessionKey,
       }),
+    runLiveProbe: (context, request) => {
+      if (!input.liveAutomationSpec) {
+        return {
+          action: {
+            ok: false,
+            reason: 'No provider-specific live automation spec is registered for this page.',
+          },
+          availableHistoryItems: [],
+          notes: [],
+        };
+      }
+
+      return runProviderLiveDomProbe({
+        request,
+        spec: input.liveAutomationSpec,
+        root: context.root,
+      });
+    },
   };
 }
 
-function appendClaudeDomDiagnostics(detail: string, root: ParentNode): string {
+function appendProviderDomDiagnostics(
+  detail: string,
+  root: ParentNode,
+  providerId: ProviderId
+): string {
   const baseDetail = safeParseJsonObject(detail);
   const selectorCounts = {
     conversationTurn: root.querySelectorAll('[data-testid="conversation-turn"]').length,
     conversationLikeTestId: root.querySelectorAll('[data-testid*="conversation"]').length,
+    messageAuthorRole: root.querySelectorAll('[data-message-author-role]').length,
+    dataRole: root.querySelectorAll('[data-role]').length,
     humanMessage: root.querySelectorAll('.human-message').length,
     assistantMessage: root.querySelectorAll('.assistant-message').length,
+    userMessage: root.querySelectorAll('.user-message').length,
     prose: root.querySelectorAll('.prose').length,
     classContainsMessage: root.querySelectorAll('[class*="message"]').length,
     classContainsAssistant: root.querySelectorAll('[class*="assistant"]').length,
     classContainsHuman: root.querySelectorAll('[class*="human"]').length,
+    classContainsUser: root.querySelectorAll('[class*="user"]').length,
+    classContainsChat: root.querySelectorAll('[class*="chat"]').length,
+    roleArticle: root.querySelectorAll('[role="article"]').length,
+    mainArticle: root.querySelectorAll('main article').length,
   };
   const textSamples = Array.from(root.querySelectorAll('[data-testid], [class]'))
     .map((node) => ((node as HTMLElement).innerText || node.textContent || '').replace(/\s+/g, ' ').trim())
@@ -167,6 +254,7 @@ function appendClaudeDomDiagnostics(detail: string, root: ParentNode): string {
     {
       ...baseDetail,
       debug: {
+        providerId,
         selectorCounts,
         textSamples,
       },
@@ -227,6 +315,7 @@ const PROVIDER_DOM_CAPTURE_DRIVERS: ProviderDomCaptureDriver[] = [
     collectMessages: collectChatGptStructuredMessages,
     buildSnapshot: buildChatGptDomSnapshot,
     buildSignal: buildChatGptDomSignal,
+    liveAutomationSpec: chatgptLiveAutomationSpec,
   }),
   createProviderDomCaptureDriver({
     id: 'claude',
@@ -245,11 +334,68 @@ const PROVIDER_DOM_CAPTURE_DRIVERS: ProviderDomCaptureDriver[] = [
     buildSignal: buildDeepSeekDomSignal,
   }),
   createProviderDomCaptureDriver({
+    id: 'doubao',
+    sourceSessionKey: 'doubao-primary-view',
+    matches: (url) => matchesHost(url, 'www.doubao.com') || matchesHost(url, 'doubao.com'),
+    collectMessages: collectDoubaoStructuredMessages,
+    buildSnapshot: buildDoubaoDomSnapshot,
+    buildSignal: buildDoubaoDomSignal,
+    liveAutomationSpec: doubaoLiveAutomationSpec,
+  }),
+  createProviderDomCaptureDriver({
     id: 'gemini',
     sourceSessionKey: 'gemini-primary-view',
     matches: (url) => matchesHost(url, 'gemini.google.com'),
     collectMessages: collectGeminiStructuredMessages,
     buildSnapshot: buildGeminiDomSnapshot,
     buildSignal: buildGeminiDomSignal,
+  }),
+  createProviderDomCaptureDriver({
+    id: 'grok',
+    sourceSessionKey: 'grok-primary-view',
+    matches: (url) => {
+      if (matchesHost(url, 'grok.com')) {
+        return true;
+      }
+
+      try {
+        const parsed = new URL(url);
+        return parsed.hostname === 'x.com' && parsed.pathname.startsWith('/i/grok');
+      } catch {
+        return false;
+      }
+    },
+    collectMessages: collectGrokStructuredMessages,
+    buildSnapshot: buildGrokDomSnapshot,
+    buildSignal: buildGrokDomSignal,
+    liveAutomationSpec: grokLiveAutomationSpec,
+  }),
+  createProviderDomCaptureDriver({
+    id: 'kimi',
+    sourceSessionKey: 'kimi-primary-view',
+    matches: (url) => matchesHost(url, 'www.kimi.com') || matchesHost(url, 'kimi.moonshot.cn'),
+    collectMessages: collectKimiStructuredMessages,
+    buildSnapshot: buildKimiDomSnapshot,
+    buildSignal: buildKimiDomSignal,
+    liveAutomationSpec: kimiLiveAutomationSpec,
+  }),
+  createProviderDomCaptureDriver({
+    id: 'qianwen',
+    sourceSessionKey: 'qianwen-primary-view',
+    matches: (url) => matchesHost(url, 'www.qianwen.com') || matchesHost(url, 'qianwen.com'),
+    collectMessages: collectQianwenStructuredMessages,
+    buildSnapshot: buildQianwenDomSnapshot,
+    buildSignal: buildQianwenDomSignal,
+    liveAutomationSpec: qianwenLiveAutomationSpec,
+  }),
+  createProviderDomCaptureDriver({
+    id: 'xiaomi-aistudio',
+    sourceSessionKey: 'xiaomi-aistudio-primary-view',
+    matches: (url) =>
+      matchesHost(url, 'aistudio.xiaomimimo.com') || matchesHost(url, 'platform.xiaomimimo.com'),
+    collectMessages: collectXiaomiAistudioStructuredMessages,
+    buildSnapshot: buildXiaomiAistudioDomSnapshot,
+    buildSignal: buildXiaomiAistudioDomSignal,
+    liveAutomationSpec: xiaomiAistudioLiveAutomationSpec,
   }),
 ];
