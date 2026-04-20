@@ -2,6 +2,18 @@
   "name": "@amberkeeper/shared-types",
   "private": true,
   "version": "0.0.1",
+  "description": "Shared TypeScript types for AmberKeeper desktop and provider packages.",
+  "author": "JS-banana <oooooohoney@163.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/JS-banana/amberkeeper",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JS-banana/amberkeeper.git",
+    "directory": "packages/shared-types"
+  },
+  "bugs": {
+    "url": "https://github.com/JS-banana/amberkeeper/issues"
+  },
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

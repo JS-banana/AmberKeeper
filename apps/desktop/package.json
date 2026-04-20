@@ -2,6 +2,18 @@
   "name": "amberkeeper-desktop",
   "private": true,
   "version": "0.0.1",
+  "description": "Electron desktop app for capturing and managing conversations across mainstream AI providers.",
+  "author": "JS-banana <oooooohoney@163.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/JS-banana/amberkeeper",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JS-banana/amberkeeper.git",
+    "directory": "apps/desktop"
+  },
+  "bugs": {
+    "url": "https://github.com/JS-banana/amberkeeper/issues"
+  },
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
