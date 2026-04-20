@@ -2,6 +2,18 @@
   "name": "@amberkeeper/provider-qianwen",
   "private": true,
   "version": "0.0.1",
+  "description": "Qianwen provider adapter for AmberKeeper conversation capture.",
+  "author": "JS-banana <oooooohoney@163.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/JS-banana/amberkeeper",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JS-banana/amberkeeper.git",
+    "directory": "packages/provider-qianwen"
+  },
+  "bugs": {
+    "url": "https://github.com/JS-banana/amberkeeper/issues"
+  },
   "type": "module",
   "scripts": {
     "test": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run"
