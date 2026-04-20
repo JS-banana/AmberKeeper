@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./logo.png" width="88" height="88" alt="AmberKeeper Logo">
+</p>
+
 <h1 align="center">AmberKeeper</h1>
 
 <p align="center">
