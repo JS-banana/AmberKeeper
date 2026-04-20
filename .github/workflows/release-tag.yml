@@ -78,3 +78,13 @@ jobs:
 
           git tag -a "$TAG_NAME" -m "AmberKeeper $TAG_NAME"
           git push origin "$TAG_NAME"
+
+      - name: Dispatch release build
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN }}
+          TAG_NAME: ${{ steps.version.outputs.tag_name }}
+        run: |
+          gh workflow run release-build.yml \
+            --repo "${{ github.repository }}" \
+            --ref main \
+            -f tag_name="$TAG_NAME"
