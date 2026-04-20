@@ -68,14 +68,15 @@ jobs:
       - name: Build desktop installers
         run: pnpm desktop:dist
 
-      - name: Collect release assets
-        run: node scripts/ci/collect-release-assets.mjs apps/desktop/dist release-assets
-
       - name: Upload release assets
         uses: actions/upload-artifact@v4
         with:
           name: release-assets-${{ matrix.artifact_name }}
-          path: release-assets
+          path: |
+            apps/desktop/dist/*.dmg
+            apps/desktop/dist/*.zip
+            apps/desktop/dist/*.exe
+            apps/desktop/dist/*.AppImage
           if-no-files-found: error
 
   publish:
@@ -96,7 +97,7 @@ jobs:
           GH_TOKEN: ${{ secrets.TOKEN }}
           TAG_NAME: ${{ inputs.tag_name }}
         run: |
-          mapfile -t ARTIFACTS < <(find release-artifacts -maxdepth 1 -type f | sort)
+          mapfile -t ARTIFACTS < <(find release-artifacts -type f | sort)
 
           if [ "${#ARTIFACTS[@]}" -eq 0 ]; then
             echo "No release assets were downloaded."
