@@ -410,7 +410,11 @@ test('supports provider export and session delete actions from the data workspac
     expect(api.exportProviderSessions).toHaveBeenCalledWith('chatgpt', 'markdown');
   });
 
-  fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
+  const chatgptHistoryButton = screen.getByRole('button', { name: '查看 ChatGPT 记录' });
+  await waitFor(() => {
+    expect(chatgptHistoryButton).toBeEnabled();
+  });
+  fireEvent.click(chatgptHistoryButton);
   await screen.findByRole('list', { name: '历史记录列表' });
 
   fireEvent.change(await screen.findByRole('combobox', { name: '选择会话导出格式' }), {
@@ -470,7 +474,11 @@ test('lets operators manually refresh the data list so new sessions surface', as
     expect(api.listSessions.mock.calls.length).toBeGreaterThan(initialListSessionCalls);
   });
   expect(screen.queryByText('已刷新历史会话列表。')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: '查看 DeepSeek 记录' }));
+  const deepseekHistoryButton = screen.getByRole('button', { name: '查看 DeepSeek 记录' });
+  await waitFor(() => {
+    expect(deepseekHistoryButton).toBeEnabled();
+  });
+  fireEvent.click(deepseekHistoryButton);
   const historyList = await screen.findByRole('list', { name: '历史记录列表' });
   expect(await within(historyList).findByRole('button', { name: /DeepSeek launch summary/i })).toBeInTheDocument();
 });
