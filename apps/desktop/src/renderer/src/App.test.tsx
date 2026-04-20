@@ -411,8 +411,9 @@ test('supports provider export and session delete actions from the data workspac
   });
 
   fireEvent.click(screen.getByRole('button', { name: '查看 ChatGPT 记录' }));
+  await screen.findByRole('list', { name: '历史记录列表' });
 
-  fireEvent.change(screen.getByRole('combobox', { name: '选择会话导出格式' }), {
+  fireEvent.change(await screen.findByRole('combobox', { name: '选择会话导出格式' }), {
     target: { value: 'markdown' satisfies CaptureExportFormat },
   });
   fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
@@ -470,7 +471,8 @@ test('lets operators manually refresh the data list so new sessions surface', as
   });
   expect(screen.queryByText('已刷新历史会话列表。')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: '查看 DeepSeek 记录' }));
-  expect(await screen.findByRole('button', { name: /DeepSeek launch summary/i })).toBeInTheDocument();
+  const historyList = await screen.findByRole('list', { name: '历史记录列表' });
+  expect(await within(historyList).findByRole('button', { name: /DeepSeek launch summary/i })).toBeInTheDocument();
 });
 
 test('refreshes sessions after capture-driven runtime status updates', async () => {
