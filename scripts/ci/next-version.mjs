@@ -1,11 +1,33 @@
+function parseVersion(version, label) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match) {
+    throw new Error(`Invalid ${label}: ${version}`);
+  }
+
+  return match.slice(1).map((part) => Number(part));
+}
+
+function compareVersionTuple(left, right) {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] === right[index]) continue;
+    return left[index] > right[index] ? 1 : -1;
+  }
+
+  return 0;
+}
+
 export function resolveNextVersion(currentVersion, latestTag) {
+  const currentTuple = parseVersion(currentVersion, "currentVersion");
   if (!latestTag) return currentVersion;
 
   const tagVersion = latestTag.replace(/^v/, "");
-  if (tagVersion !== currentVersion) return currentVersion;
+  const tagTuple = parseVersion(tagVersion, "latestTag");
 
-  const [major, minor, patch] = tagVersion.split(".").map(Number);
-  return [major, minor, patch + 1].join(".");
+  if (compareVersionTuple(currentTuple, tagTuple) > 0) {
+    return currentVersion;
+  }
+
+  return [tagTuple[0], tagTuple[1], tagTuple[2] + 1].join(".");
 }
 
 function readInputValue(argIndex, envKey) {
