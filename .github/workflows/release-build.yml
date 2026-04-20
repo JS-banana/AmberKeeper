@@ -95,6 +95,7 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.TOKEN }}
+          GH_REPO: ${{ github.repository }}
           TAG_NAME: ${{ inputs.tag_name }}
         run: |
           mapfile -t ARTIFACTS < <(find release-artifacts -type f | sort)
@@ -104,11 +105,12 @@ jobs:
             exit 1
           fi
 
-          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" "${ARTIFACTS[@]}" --clobber
+          if gh release view "$TAG_NAME" -R "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "${ARTIFACTS[@]}" --clobber -R "$GH_REPO"
             exit 0
           fi
 
           gh release create "$TAG_NAME" "${ARTIFACTS[@]}" \
+            -R "$GH_REPO" \
             --title "AmberKeeper $TAG_NAME" \
             --generate-notes
