@@ -93,7 +93,7 @@ jobs:
 
       - name: Publish release
         env:
-          GH_TOKEN: ${{ github.TOKEN }}
+          GH_TOKEN: ${{ secrets.TOKEN }}
           TAG_NAME: ${{ inputs.tag_name }}
         run: |
           mapfile -t ARTIFACTS < <(find release-artifacts -maxdepth 1 -type f | sort)
