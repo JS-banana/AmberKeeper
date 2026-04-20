@@ -27,17 +27,10 @@
 </p>
 
 <p align="center">
-  <a href="#核心能力">核心能力</a> ·
-  <a href="#当前支持的-ai-provider">支持的 AI</a> ·
-  <a href="#快速开始">快速开始</a> ·
-  <a href="#项目结构">项目结构</a> ·
-  <a href="#许可证">许可证</a>
+  AmberKeeper 聚焦于多 provider 对话采集、缓存、重启持久化与本地工作台管理。
 </p>
 
-<p align="center">
-  AmberKeeper 从 <a href="https://github.com/JS-banana/anychat">anyChat</a> 的 Electron 主线独立演进，
-  聚焦于多 provider 对话采集、缓存、重启持久化与本地工作台管理。
-</p>
+> 如果 Mac 安装打开后提示 `“AmberKeeper”已损坏，无法打开。`，执行下 `xattr -rd com.apple.quarantine /Applications/AmberKeeper.app` 这个命令。
 
 ## 界面预览
 

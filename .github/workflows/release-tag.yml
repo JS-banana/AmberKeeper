@@ -1,0 +1,80 @@
+name: Release Tag
+
+# `secrets.TOKEN` must be a PAT or GitHub App token so the pushed tag can
+# trigger the downstream release-build workflow.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-tag-main
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TOKEN }}
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch tags
+        run: git fetch --force --tags origin
+
+      - name: Resolve next version
+        id: version
+        run: |
+          CURRENT_VERSION=$(node --input-type=module -e "import fs from 'node:fs'; const data=JSON.parse(fs.readFileSync('package.json','utf8')); process.stdout.write(data.version);")
+          LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          NEXT_VERSION=$(node scripts/ci/next-version.mjs "$CURRENT_VERSION" "$LATEST_TAG")
+          TAG_NAME="v$NEXT_VERSION"
+
+          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Sync workspace versions
+        run: node scripts/ci/sync-workspace-version.mjs "${{ steps.version.outputs.next_version }}"
+
+      - name: Commit version bump
+        run: |
+          if git diff --quiet -- package.json apps/desktop/package.json; then
+            echo "Version files already match ${{ steps.version.outputs.next_version }}."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json apps/desktop/package.json
+          git commit -m "chore: release ${{ steps.version.outputs.next_version }} [skip ci]"
+          git push origin HEAD:main
+
+      - name: Create and push tag
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+
+          git fetch --force --tags origin
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists."
+            exit 0
+          fi
+
+          git tag -a "$TAG_NAME" -m "AmberKeeper $TAG_NAME"
+          git push origin "$TAG_NAME"
