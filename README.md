@@ -128,6 +128,19 @@ pnpm desktop:build
 pnpm desktop:dist
 ```
 
+### 发布前检查
+
+```bash
+pnpm desktop:release:hygiene
+```
+
+这个命令只审计发布污染向量，本身不会改动本地运行时数据。它当前会检查：
+
+- 仓库已跟踪文件里没有误提交的运行时产物（如数据库、Cookies、Live Probe manifest 等）
+- `electron-builder` 打包配置没有误引用本机运行时目录或这些运行时产物
+
+同机升级连续性保持不变：现有运行时存储路径与 provider session 持久化代码没有改动，所以安装者自己机器上的本地数据与 provider 状态仍按原逻辑延续。
+
 ## 项目结构
 
 ```text

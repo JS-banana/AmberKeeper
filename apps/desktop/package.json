@@ -26,6 +26,8 @@
     "dist": "pnpm build && electron-builder --config electron-builder.yml --publish never",
     "dist:mac": "pnpm build && electron-builder --config electron-builder.yml --mac --publish never",
     "dist:win": "pnpm build && electron-builder --config electron-builder.yml --win --publish never",
+    "release:hygiene:repo": "node scripts/release-hygiene-audit.mjs repo",
+    "release:hygiene": "node scripts/release-hygiene-audit.mjs release",
     "live-probe": "node scripts/provider-live-probe.mjs",
     "page-eval": "node scripts/provider-page-eval.mjs",
     "gemini:dirty-data:dry-run": "node scripts/gemini-dirty-data-dry-run.mjs",

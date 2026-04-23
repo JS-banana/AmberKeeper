@@ -65,6 +65,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit tracked files and packaging config
+        run: pnpm desktop:release:hygiene
+
       - name: Build desktop installers
         run: pnpm desktop:dist
 
