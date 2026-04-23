@@ -23,6 +23,8 @@
     "desktop:dist": "pnpm --dir apps/desktop dist",
     "desktop:dist:mac": "pnpm --dir apps/desktop dist:mac",
     "desktop:dist:win": "pnpm --dir apps/desktop dist:win",
+    "desktop:release:hygiene:repo": "pnpm --dir apps/desktop run release:hygiene:repo",
+    "desktop:release:hygiene": "pnpm --dir apps/desktop run release:hygiene",
     "desktop:gemini:dry-run": "pnpm --dir apps/desktop gemini:dirty-data:dry-run",
     "desktop:gemini:cleanup": "pnpm --dir apps/desktop gemini:dirty-data:cleanup"
   },
