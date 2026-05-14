@@ -34,6 +34,8 @@
   AmberKeeper 聚焦于多 provider 对话采集、缓存、重启持久化与本地工作台管理。
 </p>
 
+> 如果您追求更轻量的安装体积而不需要数据管理功能，可以使用：[anyChat](https://github.com/JS-banana/anyChat)
+
 > 如果 Mac 安装打开后提示 `“AmberKeeper”已损坏，无法打开。`，执行下 `xattr -rd com.apple.quarantine /Applications/AmberKeeper.app` 这个命令。
 
 ## 界面预览
