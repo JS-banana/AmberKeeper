@@ -1,35 +1,50 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { CaptureSessionRecord } from '@amberkeeper/shared-types';
+import { cn } from '@/lib/cn';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  buildCaptureTrendData,
+  CAPTURE_TREND_RANGES,
+  type CaptureTrendRange,
+} from './capture-trend-data';
 
 export function CaptureTrendChart(props: { sessions: CaptureSessionRecord[] }) {
-  const data = useMemo(() => {
-    const now = new Date();
-    const days: Array<{ date: string; count: number }> = [];
-    const countMap = new Map<string, number>();
+  const [range, setRange] = useState<CaptureTrendRange>('month');
+  const data = useMemo(
+    () => buildCaptureTrendData({ sessions: props.sessions, range }),
+    [props.sessions, range]
+  );
 
-    for (const session of props.sessions) {
-      const d = session.createdAt.slice(0, 10); // 'YYYY-MM-DD'
-      countMap.set(d, (countMap.get(d) ?? 0) + 1);
-    }
-
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      days.push({ date: key, count: countMap.get(key) ?? 0 });
-    }
-
-    return days;
-  }, [props.sessions]);
-
-  const hasData = data.some((d) => d.count > 0);
+  const hasData = data.some((d) => typeof d.count === 'number' && d.count > 0);
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">30 天会话趋势</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2 space-y-0">
+        <CardTitle className="text-base">会话趋势</CardTitle>
+        <div className="inline-flex rounded-md bg-muted p-0.5" aria-label="选择会话趋势范围">
+          {CAPTURE_TREND_RANGES.map((option) => {
+            const active = option.id === range;
+
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setRange(option.id)}
+                className={cn(
+                  'min-w-12 rounded-[5px] px-2.5 py-1 text-xs font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                  active
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </CardHeader>
       <CardContent>
         {hasData ? (
@@ -43,8 +58,7 @@ export function CaptureTrendChart(props: { sessions: CaptureSessionRecord[] }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis
-                dataKey="date"
-                tickFormatter={(v: string) => v.slice(5)}
+                dataKey="label"
                 className="text-xs fill-muted-foreground"
                 tickLine={false}
                 axisLine={false}
@@ -57,6 +71,7 @@ export function CaptureTrendChart(props: { sessions: CaptureSessionRecord[] }) {
                 width={30}
               />
               <Tooltip
+                labelFormatter={(_, payload) => payload?.[0]?.payload?.key ?? ''}
                 contentStyle={{
                   borderRadius: '0.5rem',
                   border: '1px solid hsl(35, 20%, 84%)',
@@ -70,6 +85,7 @@ export function CaptureTrendChart(props: { sessions: CaptureSessionRecord[] }) {
                 stroke="hsl(32, 90%, 49%)"
                 strokeWidth={2}
                 fill="url(#fillAmber)"
+                connectNulls={false}
               />
             </AreaChart>
           </ResponsiveContainer>
