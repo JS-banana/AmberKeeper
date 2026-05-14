@@ -2,10 +2,12 @@ export type QianwenRequestClassification = 'capture' | 'discover' | 'ignore';
 
 const API_PREFIX = '/api/';
 const CAPTURE_PATH_PATTERNS = [
+  /^\/api\/v\d+\/chat$/,
   /^\/api\/(?:v\d+\/)?chat\/completions?$/,
   /^\/api\/(?:v\d+\/)?chat\/conversations\/[^/?#]+(?:\/messages)?$/,
   /^\/api\/(?:v\d+\/)?conversations\/[^/?#]+(?:\/messages)?$/,
   /^\/api\/(?:v\d+\/)?chat\/history\/[^/?#]+$/,
+  /^\/api\/v\d+\/session\/msg\/list$/,
 ];
 
 export function classifyQianwenRequest(
