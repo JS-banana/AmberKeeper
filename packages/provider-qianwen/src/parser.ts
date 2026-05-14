@@ -106,9 +106,13 @@ export function parseQianwenRequestBody(body: string): NormalizedMessage[] {
     ];
   }
 
-  const latestUser = [...(parsed.messages ?? [])]
-    .reverse()
-    .find((message) => extractString(message.role) === 'user' && extractString(message.content));
+  const latestUser =
+    [...(parsed.messages ?? [])]
+      .reverse()
+      .find((message) => extractString(message.role) === 'user' && extractString(message.content)) ??
+    [...(parsed.messages ?? [])]
+      .reverse()
+      .find((message) => !extractString(message.role) && extractString(message.content));
 
   const latestUserContent = extractString(latestUser?.content);
   if (!latestUserContent) {

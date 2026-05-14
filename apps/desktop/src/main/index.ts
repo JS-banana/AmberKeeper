@@ -1034,7 +1034,10 @@ registerAppLifecycle({
       emitProviderSignals,
       recordUniqueObservation: (key, input) => recordUniqueObservation(key, input),
       recordAttempt: (input) => recordAttempt(input),
-      persistEnvelope: (envelope) => captureStore?.persistEnvelope(envelope),
+      persistEnvelope: (envelope) => captureStore?.persistEnvelope(envelope) ?? null,
+      markCapturePersisted: (capturedAt) => {
+        lastCaptureAt = capturedAt;
+      },
       resolveActiveRuntimeTitle,
       captureConversationFromDom,
     });

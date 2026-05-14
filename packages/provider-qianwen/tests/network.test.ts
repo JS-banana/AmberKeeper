@@ -12,6 +12,15 @@ describe('qianwen-network', () => {
     expect(
       classifyQianwenRequest('https://www.qianwen.com/api/chat/completions', 'POST')
     ).toBe('capture');
+    expect(
+      classifyQianwenRequest('https://chat2.qianwen.com/api/v2/chat?biz_id=ai_qwen', 'POST')
+    ).toBe('capture');
+    expect(
+      classifyQianwenRequest(
+        'https://chat2-api.qianwen.com/api/v1/session/msg/list?session_id=qw-123',
+        'GET'
+      )
+    ).toBe('capture');
     expect(classifyQianwenRequest('https://www.qianwen.com/api/models', 'GET')).toBe('discover');
     expect(classifyQianwenRequest('https://example.com/api/chat/completions', 'POST')).toBe('ignore');
   });

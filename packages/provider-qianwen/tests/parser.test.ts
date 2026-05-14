@@ -31,6 +31,30 @@ describe('qianwen-parser', () => {
     ]);
   });
 
+  test('parses qianwen v2 chat request messages without explicit roles', () => {
+    const result = parseQianwenRequestBody(
+      JSON.stringify({
+        session_id: 'qw-v2-conv',
+        model: 'Qwen',
+        messages: [
+          {
+            content: 'Latest qianwen prompt',
+            mime_type: 'text/plain',
+          },
+        ],
+      })
+    );
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: 'Latest qianwen prompt',
+        remoteConversationId: 'qw-v2-conv',
+        model: 'Qwen',
+      }),
+    ]);
+  });
+
   test('parses streamed assistant responses into a final assistant message', () => {
     const result = parseQianwenSseResponse(
       [

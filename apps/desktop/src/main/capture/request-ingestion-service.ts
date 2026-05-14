@@ -42,7 +42,8 @@ export function createRequestIngestionService(options: {
     detail?: string | null;
     createdAt: string;
   }) => void;
-  persistEnvelope: (envelope: CaptureEnvelope) => void;
+  persistEnvelope: (envelope: CaptureEnvelope) => string | null | undefined;
+  markCapturePersisted: (capturedAt: string) => void;
   resolveActiveRuntimeTitle: (providerId: ProviderId) => string | null;
   captureConversationFromDom: (pageUrl: string) => Promise<void>;
 }) {
@@ -248,13 +249,19 @@ export function createRequestIngestionService(options: {
         ],
       };
 
-      options.persistEnvelope(envelope);
+      const sessionId = options.persistEnvelope(envelope);
+      if (!sessionId) {
+        return;
+      }
+
+      options.markCapturePersisted(tracked.capturedAt);
       options.recordAttempt({
         source: 'cdp-network',
         stage: 'request-user-persist',
         status: 'captured',
         message: `Persisted request-side user turn for ${tracked.provider}.`,
         detail: JSON.stringify({
+          sessionId,
           remoteConversationId: conversationId,
           pageUrl: tracked.pageUrl,
           preview: latestUserSignal.content.slice(0, 160),
