@@ -44,13 +44,18 @@ describe('buildCaptureTrendData', () => {
 
   test('uses local dates across the UTC midnight boundary', () => {
     const boundaryNow = new Date('2026-05-14T00:30:00+08:00');
+    const expectedKey = toLocalDayKey(boundaryNow);
     const data = buildCaptureTrendData({
       sessions: [buildSession('today', '2026-05-14T00:10:00+08:00')],
       range: '7d',
       now: boundaryNow,
     });
 
-    expect(data.at(-1)).toMatchObject({ key: '2026-05-14', label: '05-14', count: 1 });
+    expect(data.at(-1)).toMatchObject({
+      key: expectedKey,
+      label: expectedKey.slice(5),
+      count: 1,
+    });
   });
 
   test('aggregates the year range by local month and blanks future months', () => {
@@ -111,4 +116,12 @@ function buildSession(id: string, createdAt: string): CaptureSessionRecord {
     createdAt,
     updatedAt: createdAt,
   };
+}
+
+function toLocalDayKey(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, '0');
 }
