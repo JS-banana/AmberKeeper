@@ -1,7 +1,7 @@
 {
   "name": "amberkeeper",
   "private": true,
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Local-first Electron workspace for capturing and managing conversations across mainstream AI providers.",
   "author": "JS-banana <oooooohoney@163.com>",
   "license": "MIT",
