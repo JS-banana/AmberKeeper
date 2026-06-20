@@ -1,5 +1,6 @@
 import type {
   CaptureExportFormat,
+  CaptureExportMessageScope,
   CaptureMessageRecord,
   CaptureSessionRecord,
   CreateCustomServiceInput,
@@ -24,11 +25,17 @@ declare global {
       deleteSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
       exportSession: (
         sessionId: string,
-        format: CaptureExportFormat
+        format: CaptureExportFormat,
+        messageScope?: CaptureExportMessageScope
       ) => Promise<{ message: string; detail: string }>;
       exportProviderSessions: (
         providerId: ProviderId,
-        format: CaptureExportFormat
+        format: CaptureExportFormat,
+        messageScope?: CaptureExportMessageScope
+      ) => Promise<{ message: string; detail: string }>;
+      exportAllSessions: (
+        format: CaptureExportFormat,
+        messageScope?: CaptureExportMessageScope
       ) => Promise<{ message: string; detail: string }>;
       listServices: () => Promise<ServiceRecord[]>;
       getActiveService: () => Promise<ServiceRecord | null>;

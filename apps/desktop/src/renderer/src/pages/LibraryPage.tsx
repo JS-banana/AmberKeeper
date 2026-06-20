@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { LayoutGrid, RefreshCw, Download, MessagesSquare, TrendingUp, Database } from 'lucide-react';
+import { LayoutGrid, RefreshCw, Download, MessagesSquare, TrendingUp, Database, X } from 'lucide-react';
 import type {
   CaptureExportFormat,
+  CaptureExportMessageScope,
   CaptureMessageRecord,
   CaptureSessionRecord,
   ProviderRecord,
@@ -20,6 +21,13 @@ import { ProviderShareChart } from '../components/library/ProviderShareChart';
 
 type CaptureActionResult = { message: string; detail: string };
 type HistoryScope = 'all' | ProviderRecord['id'];
+type ExportTargetKind = 'session' | 'provider' | 'all';
+
+const EXPORT_SCOPE_LABELS: Record<CaptureExportMessageScope, string> = {
+  complete: '完整对话',
+  user: '仅我的消息',
+  assistant: '仅助手回复',
+};
 
 function KpiCard(props: { icon: ReactNode; label: string; value: number | string }) {
   return (
@@ -94,11 +102,17 @@ export function LibraryPage(props: {
   onDeleteSession: (sessionId: string) => Promise<CaptureActionResult>;
   onExportSession: (
     sessionId: string,
-    format: CaptureExportFormat
+    format: CaptureExportFormat,
+    messageScope?: CaptureExportMessageScope
   ) => Promise<CaptureActionResult>;
   onExportProviderSessions: (
     providerId: ProviderRecord['id'],
-    format: CaptureExportFormat
+    format: CaptureExportFormat,
+    messageScope?: CaptureExportMessageScope
+  ) => Promise<CaptureActionResult>;
+  onExportAllSessions: (
+    format: CaptureExportFormat,
+    messageScope?: CaptureExportMessageScope
   ) => Promise<CaptureActionResult>;
 }) {
   const enabledProviders = props.providers.filter((provider) => provider.enabled);
@@ -134,17 +148,16 @@ export function LibraryPage(props: {
   const latestUpdatedTitle = latestUpdatedSession
     ? resolveSessionTitle(latestUpdatedSession)
     : '等待首次本地采集';
-  const dataOperationsDescription =
-    enabledProviders.length > 0
-      ? `已启用 ${enabledProviders.length} 个服务，其中 ${cachedCount} 个开启本地缓存。按需刷新、导出和管理您的本地 AI 对话数据。`
-      : '当前未启用可管理的数据服务。';
-
   const [providerExportTarget, setProviderExportTarget] = useState<ProviderRecord['id'] | ''>(
     props.selectedSession?.provider ?? props.activeProvider?.id ?? enabledProviders[0]?.id ?? ''
   );
-  const [providerExportFormat, setProviderExportFormat] =
-    useState<CaptureExportFormat>('json');
-  const [providerActionBusy, setProviderActionBusy] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportTargetKind, setExportTargetKind] = useState<ExportTargetKind>('all');
+  const [exportFormat, setExportFormat] = useState<CaptureExportFormat>('markdown');
+  const [exportMessageScope, setExportMessageScope] =
+    useState<CaptureExportMessageScope>('complete');
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const scopedSessions =
     props.historyScope === 'all'
@@ -193,19 +206,37 @@ export function LibraryPage(props: {
 
   const exportProvider =
     enabledProviders.find((provider) => provider.id === providerExportTarget) ?? null;
+  const exportSession = props.selectedSession;
+  const canExportCurrentSession = Boolean(exportSession);
+  const canExportProvider = Boolean(exportProvider);
 
-  async function handleProviderExport() {
-    if (!providerExportTarget) {
-      return;
-    }
+  function openExportDialog(targetKind: ExportTargetKind) {
+    setExportTargetKind(targetKind);
+    setExportFeedback(null);
+    setExportDialogOpen(true);
+  }
 
-    setProviderActionBusy(true);
+  async function handleExport() {
+    setExportBusy(true);
     try {
-      await props.onExportProviderSessions(providerExportTarget, providerExportFormat);
-    } catch {
-      // Error state is surfaced by the shared workspace store; avoid persistent top-level feedback strips here.
+      const result =
+        exportTargetKind === 'session'
+          ? exportSession
+            ? await props.onExportSession(exportSession.id, exportFormat, exportMessageScope)
+            : null
+          : exportTargetKind === 'provider'
+            ? exportProvider
+              ? await props.onExportProviderSessions(exportProvider.id, exportFormat, exportMessageScope)
+              : null
+            : await props.onExportAllSessions(exportFormat, exportMessageScope);
+
+      if (result) {
+        setExportFeedback(result.detail || result.message);
+      }
+    } catch (error) {
+      setExportFeedback(error instanceof Error ? error.message : String(error));
     } finally {
-      setProviderActionBusy(false);
+      setExportBusy(false);
     }
   }
 
@@ -226,15 +257,15 @@ export function LibraryPage(props: {
       : 'grid grid-rows-[auto_minmax(0,1fr)] gap-5 h-full overflow-hidden'
     }>
       <h1 className="sr-only">数据</h1>
-      <div className="sticky top-0 z-[3] grid gap-2 px-3 pt-2 pb-3 bg-white/85 backdrop-blur-[18px] border-b border-[rgba(153,127,76,0.08)] -mx-4 -mt-6 mb-3">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1"
+      <div className="sticky top-0 z-[3] flex items-center justify-between gap-3 px-3 pt-2 pb-3 bg-white/85 backdrop-blur-[18px] border-b border-[rgba(153,127,76,0.08)] -mx-4 -mt-6 mb-3">
+        <div className="flex min-w-0 items-center gap-1 overflow-x-auto pb-1"
             aria-label="按服务筛选数据"
           >
             <button
               type="button"
               aria-label="查看全部记录"
               aria-pressed={props.historyScope === 'all'}
-              disabled={providerActionBusy || refreshBusy}
+              disabled={exportBusy || refreshBusy}
               onClick={() => props.onChangeHistoryScope('all')}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
@@ -256,7 +287,7 @@ export function LibraryPage(props: {
                   type="button"
                   aria-label={`查看 ${provider.name} 记录`}
                   aria-pressed={active}
-                  disabled={providerActionBusy || refreshBusy}
+                  disabled={exportBusy || refreshBusy}
                   onClick={() => props.onChangeHistoryScope(provider.id)}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
@@ -278,7 +309,26 @@ export function LibraryPage(props: {
                 </button>
               );
             })}
-          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <IconButton
+            label="刷新会话"
+            disabled={refreshBusy}
+            onClick={() => void handleRefresh()}
+          >
+            <RefreshCw className="size-4" />
+          </IconButton>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-2"
+            disabled={exportBusy || props.sessions.length === 0}
+            onClick={() => openExportDialog(props.historyScope === 'all' ? 'all' : 'provider')}
+          >
+            <Download className="size-4" />
+            导出
+          </Button>
+        </div>
       </div>
 
       {cacheDisabledProviders.length > 0 ? (
@@ -336,66 +386,6 @@ export function LibraryPage(props: {
             <ProviderShareChart sessions={props.sessions} providers={props.providers} />
           </div>
 
-          {/* Export Panel */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">数据操作</CardTitle>
-              <CardDescription>{dataOperationsDescription}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap items-center gap-3">
-                <Select
-                  value={providerExportTarget}
-                  onValueChange={(v) => setProviderExportTarget(v as ProviderRecord['id'])}
-                  disabled={providerActionBusy || enabledProviders.length === 0}
-                >
-                  <SelectTrigger className="w-40" aria-label="选择要导出的服务">
-                    <SelectValue placeholder="选择服务" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {enabledProviders.map((provider) => (
-                      <SelectItem key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={providerExportFormat}
-                  onValueChange={(v) => setProviderExportFormat(v as CaptureExportFormat)}
-                  disabled={!providerExportTarget || providerActionBusy}
-                >
-                  <SelectTrigger className="w-36" aria-label="选择导出格式">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="json">JSON 格式</SelectItem>
-                    <SelectItem value="markdown">Markdown 格式</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <IconButton
-                  label="刷新会话"
-                  disabled={refreshBusy}
-                  onClick={() => void handleRefresh()}
-                >
-                  <RefreshCw className="size-4" />
-                </IconButton>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!providerExportTarget || providerActionBusy}
-                  onClick={() => void handleProviderExport()}
-                  className="gap-2"
-                >
-                  <Download className="size-4" />
-                  {exportProvider ? `导出 ${exportProvider.name} 记录` : '导出记录'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       ) : (
         <div className="grid grid-cols-[minmax(220px,320px)_minmax(0,1fr)] gap-3 items-stretch flex-1 min-h-0 overflow-hidden">
@@ -409,10 +399,194 @@ export function LibraryPage(props: {
             messages={scopedMessages}
             loading={props.loading}
             onDeleteSession={props.onDeleteSession}
-            onExportSession={props.onExportSession}
+            onExportSession={() => openExportDialog('session')}
           />
         </div>
       )}
+      {exportDialogOpen ? (
+        <ExportDialog
+          targetKind={exportTargetKind}
+          onChangeTargetKind={setExportTargetKind}
+          selectedSession={exportSession}
+          providerExportTarget={providerExportTarget}
+          onChangeProviderExportTarget={setProviderExportTarget}
+          exportProvider={exportProvider}
+          providers={enabledProviders}
+          format={exportFormat}
+          onChangeFormat={setExportFormat}
+          messageScope={exportMessageScope}
+          onChangeMessageScope={setExportMessageScope}
+          busy={exportBusy}
+          feedback={exportFeedback}
+          canExportCurrentSession={canExportCurrentSession}
+          canExportProvider={canExportProvider}
+          onClose={() => setExportDialogOpen(false)}
+          onExport={() => void handleExport()}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function ExportDialog(props: {
+  targetKind: ExportTargetKind;
+  onChangeTargetKind: (targetKind: ExportTargetKind) => void;
+  selectedSession: CaptureSessionRecord | null;
+  providerExportTarget: ProviderRecord['id'] | '';
+  onChangeProviderExportTarget: (providerId: ProviderRecord['id']) => void;
+  exportProvider: ProviderRecord | null;
+  providers: ProviderRecord[];
+  format: CaptureExportFormat;
+  onChangeFormat: (format: CaptureExportFormat) => void;
+  messageScope: CaptureExportMessageScope;
+  onChangeMessageScope: (messageScope: CaptureExportMessageScope) => void;
+  busy: boolean;
+  feedback: string | null;
+  canExportCurrentSession: boolean;
+  canExportProvider: boolean;
+  onClose: () => void;
+  onExport: () => void;
+}) {
+  const canExport =
+    props.targetKind === 'session'
+      ? props.canExportCurrentSession
+      : props.targetKind === 'provider'
+        ? props.canExportProvider
+        : true;
+  const targetLabel =
+    props.targetKind === 'session'
+      ? props.selectedSession
+        ? resolveSessionTitle(props.selectedSession)
+        : '未选择记录'
+      : props.targetKind === 'provider'
+        ? props.exportProvider?.name ?? '未选择服务'
+        : '全部记录';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4" role="presentation">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-dialog-title"
+        className="w-full max-w-[520px] rounded-lg border border-border bg-white shadow-2xl"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <h2 id="export-dialog-title" className="m-0 text-base font-semibold text-foreground">
+              导出记录
+            </h2>
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {targetLabel}
+            </p>
+          </div>
+          <IconButton label="关闭导出面板" onClick={props.onClose} disabled={props.busy}>
+            <X className="size-4" />
+          </IconButton>
+        </div>
+
+        <div className="grid gap-4 px-4 py-4">
+          <label className="grid gap-1.5 text-sm font-medium text-foreground">
+            导出对象
+            <Select
+              value={props.targetKind}
+              onValueChange={(value) => props.onChangeTargetKind(value as ExportTargetKind)}
+              disabled={props.busy}
+            >
+              <SelectTrigger aria-label="选择导出对象">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="session" disabled={!props.canExportCurrentSession}>
+                  当前记录
+                </SelectItem>
+                <SelectItem value="provider" disabled={props.providers.length === 0}>
+                  当前服务
+                </SelectItem>
+                <SelectItem value="all">全部记录</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+
+          {props.targetKind === 'provider' ? (
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
+              服务
+              <Select
+                value={props.providerExportTarget}
+                onValueChange={(value) => props.onChangeProviderExportTarget(value as ProviderRecord['id'])}
+                disabled={props.busy || props.providers.length === 0}
+              >
+                <SelectTrigger aria-label="选择导出的服务">
+                  <SelectValue placeholder="选择服务" />
+                </SelectTrigger>
+                <SelectContent>
+                  {props.providers.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          ) : null}
+
+          <label className="grid gap-1.5 text-sm font-medium text-foreground">
+            导出范围
+            <Select
+              value={props.messageScope}
+              onValueChange={(value) => props.onChangeMessageScope(value as CaptureExportMessageScope)}
+              disabled={props.busy}
+            >
+              <SelectTrigger aria-label="选择导出范围">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(EXPORT_SCOPE_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-medium text-foreground">
+            格式
+            <Select
+              value={props.format}
+              onValueChange={(value) => props.onChangeFormat(value as CaptureExportFormat)}
+              disabled={props.busy}
+            >
+              <SelectTrigger aria-label="选择导出格式">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="markdown">Markdown 格式</SelectItem>
+                <SelectItem value="json">JSON 格式</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+
+          <p className="m-0 text-xs leading-relaxed text-muted-foreground">
+            导出只包含本地已经保存的消息。若某个 provider 尚未成功采集助手回复，完整对话也不会凭空补出回复内容。
+          </p>
+
+          {props.feedback ? (
+            <p className="m-0 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-foreground" aria-live="polite">
+              {props.feedback}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
+          <Button type="button" variant="ghost" onClick={props.onClose} disabled={props.busy}>
+            取消
+          </Button>
+          <Button type="button" className="gap-2" onClick={props.onExport} disabled={props.busy || !canExport}>
+            <Download className="size-4" />
+            {props.busy ? '导出中...' : '导出'}
+          </Button>
+        </div>
+      </section>
+    </div>
   );
 }

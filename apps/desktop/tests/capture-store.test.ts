@@ -544,6 +544,43 @@ describe('capture-store', () => {
     expect(artifact.content).not.toContain('## DeepSeek - Into the Unknown');
   });
 
+  test('filters exported messages by selected export scope', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        provider: 'chatgpt',
+        remoteConversationId: 'chatgpt-export-scope',
+        title: 'Provider export title',
+        titleSource: 'provider',
+        messages: [
+          {
+            role: 'user',
+            content: 'Keep my research prompt',
+            createdAt: '2026-03-19T10:00:00.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'Long assistant answer',
+            createdAt: '2026-03-19T10:00:02.000Z',
+          },
+        ],
+      })
+    );
+
+    const userArtifact = store.exportSession(sessionId, 'json', 'user');
+    const assistantArtifact = store.exportAllSessions('markdown', 'assistant');
+
+    expect(JSON.parse(userArtifact.content).messages).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: 'Keep my research prompt',
+      }),
+    ]);
+    expect(userArtifact.content).not.toContain('Long assistant answer');
+    expect(assistantArtifact.content).toContain('Long assistant answer');
+    expect(assistantArtifact.content).not.toContain('Keep my research prompt');
+  });
+
   test('migrates legacy capture tables into the new read model', () => {
     const db = new DatabaseSync(dbPath);
     db.exec(`

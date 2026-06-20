@@ -17,6 +17,7 @@ export type InterfaceLanguage = 'system' | 'zh-CN' | 'en';
 export type CaptureSource = 'cdp-network' | 'preload-dom';
 export type SessionTitleSource = 'provider' | 'fallback';
 export type CaptureExportFormat = 'json' | 'markdown';
+export type CaptureExportMessageScope = 'complete' | 'user' | 'assistant';
 
 export interface NormalizedMessage {
   role: 'user' | 'assistant';
@@ -257,8 +258,9 @@ export interface ProviderPageEvalResult {
 }
 
 export interface CaptureExportArtifact {
-  scope: 'session' | 'provider';
+  scope: 'session' | 'provider' | 'all';
   format: CaptureExportFormat;
+  messageScope: CaptureExportMessageScope;
   fileName: string;
   mimeType: string;
   content: string;

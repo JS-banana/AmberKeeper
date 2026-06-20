@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   CaptureExportFormat,
+  CaptureExportMessageScope,
   CaptureMessageRecord,
   CaptureSessionRecord,
   CreateCustomServiceInput,
@@ -25,10 +26,12 @@ contextBridge.exposeInMainWorld('captureApi', {
     ipcRenderer.invoke('capture:openSession', sessionId) as Promise<{ message: string; detail: string }>,
   deleteSession: (sessionId: string) =>
     ipcRenderer.invoke('capture:deleteSession', sessionId) as Promise<{ message: string; detail: string }>,
-  exportSession: (sessionId: string, format: CaptureExportFormat) =>
-    ipcRenderer.invoke('capture:exportSession', sessionId, format) as Promise<{ message: string; detail: string }>,
-  exportProviderSessions: (providerId: ProviderId, format: CaptureExportFormat) =>
-    ipcRenderer.invoke('capture:exportProviderSessions', providerId, format) as Promise<{ message: string; detail: string }>,
+  exportSession: (sessionId: string, format: CaptureExportFormat, messageScope: CaptureExportMessageScope = 'complete') =>
+    ipcRenderer.invoke('capture:exportSession', sessionId, format, messageScope) as Promise<{ message: string; detail: string }>,
+  exportProviderSessions: (providerId: ProviderId, format: CaptureExportFormat, messageScope: CaptureExportMessageScope = 'complete') =>
+    ipcRenderer.invoke('capture:exportProviderSessions', providerId, format, messageScope) as Promise<{ message: string; detail: string }>,
+  exportAllSessions: (format: CaptureExportFormat, messageScope: CaptureExportMessageScope = 'complete') =>
+    ipcRenderer.invoke('capture:exportAllSessions', format, messageScope) as Promise<{ message: string; detail: string }>,
   listServices: () => ipcRenderer.invoke('services:list') as Promise<ServiceRecord[]>,
   getActiveService: () => ipcRenderer.invoke('services:getActive') as Promise<ServiceRecord | null>,
   setActiveService: (serviceId: string) =>

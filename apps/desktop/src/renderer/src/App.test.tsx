@@ -1,16 +1,23 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type {
   CaptureExportFormat,
+  CaptureExportMessageScope,
   CaptureMessageRecord,
+  CaptureSaveScope,
   CaptureSessionRecord,
+  InterfaceLanguage,
   ProviderRecord,
   RuntimeStatus,
   ServiceRecord,
 } from '@amberkeeper/shared-types';
 import { App } from './App';
+
+beforeEach(() => {
+  window.HTMLElement.prototype.scrollIntoView = vi.fn();
+});
 
 afterEach(() => {
   cleanup();
@@ -248,7 +255,7 @@ test('shows recent update status and latest session metadata in the all-provider
   fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
   expect(await screen.findByText('最近更新')).toBeInTheDocument();
-  expect(screen.getByText(/已启用 3 个服务，其中 3 个开启本地缓存/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '导出' })).toBeInTheDocument();
   expect(screen.getByText(/项目方案讨论/)).toBeInTheDocument();
 });
 
@@ -399,16 +406,22 @@ test('supports provider export and session delete actions from the data workspac
   fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
   fireEvent.click(screen.getByRole('button', { name: '数据' }));
 
-  // Radix Select: click trigger to open, then click option
-  fireEvent.click(screen.getByRole('combobox', { name: '选择要导出的服务' }));
-  fireEvent.click(screen.getByRole('option', { name: 'ChatGPT' }));
-  fireEvent.click(screen.getByRole('combobox', { name: '选择导出格式' }));
+  fireEvent.click(screen.getByRole('button', { name: '导出' }));
+  let exportDialog = screen.getByRole('dialog', { name: '导出记录' });
+  fireEvent.click(within(exportDialog).getByRole('combobox', { name: '选择导出对象' }));
+  fireEvent.click(screen.getByRole('option', { name: '当前服务' }));
+  exportDialog = screen.getByRole('dialog', { name: '导出记录' });
+  fireEvent.click(within(exportDialog).getByRole('combobox', { name: '选择导出范围' }));
+  fireEvent.click(screen.getByRole('option', { name: '仅助手回复' }));
+  exportDialog = screen.getByRole('dialog', { name: '导出记录' });
+  fireEvent.click(within(exportDialog).getByRole('combobox', { name: '选择导出格式' }));
   fireEvent.click(screen.getByRole('option', { name: 'Markdown 格式' }));
-  fireEvent.click(screen.getByRole('button', { name: '导出 ChatGPT 记录' }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: '导出记录' })).getByRole('button', { name: '导出' }));
 
   await waitFor(() => {
-    expect(api.exportProviderSessions).toHaveBeenCalledWith('chatgpt', 'markdown');
+    expect(api.exportProviderSessions).toHaveBeenCalledWith('chatgpt', 'markdown', 'assistant');
   });
+  fireEvent.click(within(screen.getByRole('dialog', { name: '导出记录' })).getByRole('button', { name: '关闭导出面板' }));
 
   const chatgptHistoryButton = screen.getByRole('button', { name: '查看 ChatGPT 记录' });
   await waitFor(() => {
@@ -417,14 +430,16 @@ test('supports provider export and session delete actions from the data workspac
   fireEvent.click(chatgptHistoryButton);
   await screen.findByRole('list', { name: '历史记录列表' });
 
-  fireEvent.change(await screen.findByRole('combobox', { name: '选择会话导出格式' }), {
-    target: { value: 'markdown' satisfies CaptureExportFormat },
-  });
   fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
+  exportDialog = await screen.findByRole('dialog', { name: '导出记录' });
+  fireEvent.click(within(exportDialog).getByRole('combobox', { name: '选择导出范围' }));
+  fireEvent.click(screen.getByRole('option', { name: '仅我的消息' }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: '导出记录' })).getByRole('button', { name: '导出' }));
 
   await waitFor(() => {
-    expect(api.exportSession).toHaveBeenCalledWith('chatgpt-recent-session', 'markdown');
+    expect(api.exportSession).toHaveBeenCalledWith('chatgpt-recent-session', 'markdown', 'user');
   });
+  fireEvent.click(within(screen.getByRole('dialog', { name: '导出记录' })).getByRole('button', { name: '关闭导出面板' }));
 
   fireEvent.click(screen.getByRole('button', { name: '删除当前记录' }));
 
@@ -814,16 +829,23 @@ function installCaptureApiMock(
   });
 
   const exportSession = vi.fn(
-    async (_sessionId: string, format: CaptureExportFormat) => ({
+    async (_sessionId: string, format: CaptureExportFormat, messageScope?: CaptureExportMessageScope) => ({
       message: 'exported',
-      detail: `session:${format}`,
+      detail: `session:${format}:${messageScope ?? 'complete'}`,
     })
   );
 
   const exportProviderSessions = vi.fn(
-    async (_providerId: string, format: CaptureExportFormat) => ({
+    async (_providerId: string, format: CaptureExportFormat, messageScope?: CaptureExportMessageScope) => ({
       message: 'exported',
-      detail: `provider:${format}`,
+      detail: `provider:${format}:${messageScope ?? 'complete'}`,
+    })
+  );
+
+  const exportAllSessions = vi.fn(
+    async (format: CaptureExportFormat, messageScope?: CaptureExportMessageScope) => ({
+      message: 'exported',
+      detail: `all:${format}:${messageScope ?? 'complete'}`,
     })
   );
 
@@ -841,6 +863,7 @@ function installCaptureApiMock(
     deleteSession,
     exportSession,
     exportProviderSessions,
+    exportAllSessions,
     listServices: async () => state.services,
     getActiveService: async () => state.services.find((service) => service.active) ?? null,
     setActiveService,
@@ -907,6 +930,7 @@ function installCaptureApiMock(
     deleteSession,
     exportSession,
     exportProviderSessions,
+    exportAllSessions,
     setNativeStageVisible,
     emitRuntimeStatus: (overrides?: Partial<RuntimeStatus>) => {
       runtimeStatusOverrides = { ...runtimeStatusOverrides, ...overrides };

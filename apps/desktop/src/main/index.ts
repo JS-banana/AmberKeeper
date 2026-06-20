@@ -9,6 +9,8 @@ import type {
   CaptureEnvelope,
   CaptureExportArtifact,
   CaptureExportFormat,
+  CaptureExportMessageScope,
+  CaptureSaveScope,
   CaptureSessionRecord,
   InterfaceLanguage,
   ProviderId,
@@ -1125,11 +1127,25 @@ registerAppLifecycle({
       listMessages: (sessionId) => captureStore?.listMessages(sessionId) ?? [],
       openSession,
       deleteSession: (sessionId) => captureSessionService?.deleteSession(sessionId) ?? Promise.reject(new Error('Capture session service is not ready yet.')),
-      exportSession: (sessionId, format) =>
-        captureSessionService?.exportSession(sessionId, format as CaptureExportFormat) ??
+      exportSession: (sessionId, format, messageScope) =>
+        captureSessionService?.exportSession(
+          sessionId,
+          format as CaptureExportFormat,
+          (messageScope ?? 'complete') as CaptureExportMessageScope
+        ) ??
         Promise.reject(new Error('Capture session service is not ready yet.')),
-      exportProviderSessions: (providerId, format) =>
-        captureSessionService?.exportProviderSessions(providerId as ProviderId, format as CaptureExportFormat) ??
+      exportProviderSessions: (providerId, format, messageScope) =>
+        captureSessionService?.exportProviderSessions(
+          providerId as ProviderId,
+          format as CaptureExportFormat,
+          (messageScope ?? 'complete') as CaptureExportMessageScope
+        ) ??
+        Promise.reject(new Error('Capture session service is not ready yet.')),
+      exportAllSessions: (format, messageScope) =>
+        captureSessionService?.exportAllSessions(
+          format as CaptureExportFormat,
+          (messageScope ?? 'complete') as CaptureExportMessageScope
+        ) ??
         Promise.reject(new Error('Capture session service is not ready yet.')),
       listServices: () => captureStore?.listServices() ?? [],
       getActiveService: () => captureStore?.getActiveService() ?? null,

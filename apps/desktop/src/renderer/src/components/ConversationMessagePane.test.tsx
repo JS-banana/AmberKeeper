@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import type {
-  CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
 } from '@amberkeeper/shared-types';
@@ -15,12 +14,7 @@ afterEach(() => {
 });
 
 test('renders record detail actions with chinese export labels and forwards export/delete intents', async () => {
-  const onExportSession = vi.fn(
-    async (_sessionId: string, format: CaptureExportFormat) => ({
-      message: 'exported',
-      detail: `session:${format}`,
-    })
-  );
+  const onExportSession = vi.fn();
   const onDeleteSession = vi.fn(async (_sessionId: string) => ({
     message: 'deleted',
     detail: 'deleted',
@@ -41,17 +35,9 @@ test('renders record detail actions with chinese export labels and forwards expo
   expect(screen.getByText('Amber 项目回顾')).toBeInTheDocument();
   expect(screen.getByText('ChatGPT')).toBeInTheDocument();
   expect(screen.getByText('conv-1')).toBeInTheDocument();
-  expect(screen.getByRole('option', { name: 'JSON 格式' })).toBeInTheDocument();
-  expect(screen.getByRole('option', { name: 'Markdown 格式' })).toBeInTheDocument();
-
-  fireEvent.change(screen.getByRole('combobox', { name: /会话导出格式|记录导出格式|导出格式/ }), {
-    target: { value: 'markdown' satisfies CaptureExportFormat },
-  });
   fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
 
-  await waitFor(() => {
-    expect(onExportSession).toHaveBeenCalledWith('session-1', 'markdown');
-  });
+  expect(onExportSession).toHaveBeenCalledWith('session-1');
   await waitFor(() => {
     expect(screen.getByRole('button', { name: '删除当前记录' })).toBeEnabled();
   });
@@ -64,11 +50,8 @@ test('renders record detail actions with chinese export labels and forwards expo
   expect(await screen.findByText('deleted')).toBeInTheDocument();
 });
 
-test('does not keep cancelled export feedback visible in the record detail pane', async () => {
-  const onExportSession = vi.fn(async () => ({
-    message: 'cancelled',
-    detail: '导出已取消',
-  }));
+test('does not render export feedback in the record detail pane', async () => {
+  const onExportSession = vi.fn();
 
   render(
     <ConversationMessagePane
@@ -85,12 +68,8 @@ test('does not keep cancelled export feedback visible in the record detail pane'
 
   fireEvent.click(screen.getByRole('button', { name: '导出当前记录' }));
 
-  await waitFor(() => {
-    expect(onExportSession).toHaveBeenCalledWith('session-1', 'json');
-  });
-  await waitFor(() => {
-    expect(screen.queryByText('导出已取消')).not.toBeInTheDocument();
-  });
+  expect(onExportSession).toHaveBeenCalledWith('session-1');
+  expect(screen.queryByText('导出已取消')).not.toBeInTheDocument();
 });
 
 function buildSession(): CaptureSessionRecord {

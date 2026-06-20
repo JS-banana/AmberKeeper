@@ -174,6 +174,7 @@ function renderUtilitySurface(input: {
           onDeleteSession={input.actions.deleteSession}
           onExportSession={input.actions.exportSession}
           onExportProviderSessions={input.actions.exportProviderSessions}
+          onExportAllSessions={input.actions.exportAllSessions}
         />
       );
     case 'services':

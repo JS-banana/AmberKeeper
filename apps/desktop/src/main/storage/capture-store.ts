@@ -12,6 +12,8 @@ import type {
   CaptureEnvelope,
   CaptureExportArtifact,
   CaptureExportFormat,
+  CaptureExportMessageScope,
+  CaptureSaveScope,
   CaptureMessageRecord,
   CaptureSessionRecord,
   CreateCustomServiceInput,
@@ -276,21 +278,26 @@ export class CaptureStore {
     }
   }
 
-  exportSession(sessionId: string, format: CaptureExportFormat): CaptureExportArtifact {
+  exportSession(
+    sessionId: string,
+    format: CaptureExportFormat,
+    messageScope: CaptureExportMessageScope = 'complete'
+  ): CaptureExportArtifact {
     const session = this.getSessionById(sessionId);
 
     if (!session) {
       throw new Error(`Unknown session: ${sessionId}.`);
     }
 
-    const messages = this.listMessages(sessionId);
+    const messages = filterMessagesByExportScope(this.listMessages(sessionId), messageScope);
 
-    return buildSessionExportArtifact(session, messages, format);
+    return buildSessionExportArtifact(session, messages, format, messageScope);
   }
 
   exportProviderSessions(
     providerId: ProviderId,
-    format: CaptureExportFormat
+    format: CaptureExportFormat,
+    messageScope: CaptureExportMessageScope = 'complete'
   ): CaptureExportArtifact {
     const provider = this.listProviders().find((entry) => entry.id === providerId) ?? null;
 
@@ -305,9 +312,28 @@ export class CaptureStore {
       provider.name,
       sessions.map((session) => ({
         session,
-        messages: this.listMessages(session.id),
+        messages: filterMessagesByExportScope(this.listMessages(session.id), messageScope),
       })),
-      format
+      format,
+      messageScope
+    );
+  }
+
+  exportAllSessions(
+    format: CaptureExportFormat,
+    messageScope: CaptureExportMessageScope = 'complete'
+  ): CaptureExportArtifact {
+    const providerNames = new Map(this.listProviders().map((provider) => [provider.id, provider.name]));
+    const sessions = this.listSessions();
+
+    return buildAllSessionsExportArtifact(
+      sessions.map((session) => ({
+        session,
+        providerName: providerNames.get(session.provider) ?? session.provider,
+        messages: filterMessagesByExportScope(this.listMessages(session.id), messageScope),
+      })),
+      format,
+      messageScope
     );
   }
 
@@ -645,7 +671,8 @@ export class CaptureStore {
 function buildSessionExportArtifact(
   session: CaptureSessionRecord,
   messages: CaptureMessageRecord[],
-  format: CaptureExportFormat
+  format: CaptureExportFormat,
+  messageScope: CaptureExportMessageScope
 ): CaptureExportArtifact {
   const title = resolveSessionTitle(session);
   const extension = format === 'json' ? 'json' : 'md';
@@ -653,6 +680,7 @@ function buildSessionExportArtifact(
   return {
     scope: 'session',
     format,
+    messageScope,
     sessionId: session.id,
     providerId: session.provider,
     fileName: `amberkeeper-${session.provider}-${toFileSegment(title)}.${extension}`,
@@ -662,6 +690,7 @@ function buildSessionExportArtifact(
         ? JSON.stringify(
             {
               exportedAt: new Date().toISOString(),
+              messageScope,
               session,
               messages,
             },
@@ -676,13 +705,15 @@ function buildProviderExportArtifact(
   providerId: ProviderId,
   providerName: string,
   entries: Array<{ session: CaptureSessionRecord; messages: CaptureMessageRecord[] }>,
-  format: CaptureExportFormat
+  format: CaptureExportFormat,
+  messageScope: CaptureExportMessageScope
 ): CaptureExportArtifact {
   const extension = format === 'json' ? 'json' : 'md';
 
   return {
     scope: 'provider',
     format,
+    messageScope,
     providerId,
     fileName: `amberkeeper-${providerId}-knowledge-base-export.${extension}`,
     mimeType: format === 'json' ? 'application/json' : 'text/markdown',
@@ -691,6 +722,7 @@ function buildProviderExportArtifact(
         ? JSON.stringify(
             {
               exportedAt: new Date().toISOString(),
+              messageScope,
               provider: {
                 id: providerId,
                 name: providerName,
@@ -708,6 +740,39 @@ function buildProviderExportArtifact(
   };
 }
 
+function buildAllSessionsExportArtifact(
+  entries: Array<{ session: CaptureSessionRecord; providerName: string; messages: CaptureMessageRecord[] }>,
+  format: CaptureExportFormat,
+  messageScope: CaptureExportMessageScope
+): CaptureExportArtifact {
+  const extension = format === 'json' ? 'json' : 'md';
+
+  return {
+    scope: 'all',
+    format,
+    messageScope,
+    fileName: `amberkeeper-all-records-export.${extension}`,
+    mimeType: format === 'json' ? 'application/json' : 'text/markdown',
+    content:
+      format === 'json'
+        ? JSON.stringify(
+            {
+              exportedAt: new Date().toISOString(),
+              messageScope,
+              sessionCount: entries.length,
+              sessions: entries.map((entry) => ({
+                providerName: entry.providerName,
+                session: entry.session,
+                messages: entry.messages,
+              })),
+            },
+            null,
+            2
+          )
+        : renderAllSessionsMarkdown(entries),
+  };
+}
+
 function renderProviderMarkdown(
   providerName: string,
   entries: Array<{ session: CaptureSessionRecord; messages: CaptureMessageRecord[] }>
@@ -715,6 +780,20 @@ function renderProviderMarkdown(
   const sections = entries.map((entry) => renderSessionMarkdown(entry.session, entry.messages));
 
   return [`# ${providerName} 知识库导出`, '', `- 导出时间：${new Date().toISOString()}`, `- 会话数量：${entries.length}`, '', ...sections]
+    .join('\n')
+    .trim();
+}
+
+function renderAllSessionsMarkdown(
+  entries: Array<{ session: CaptureSessionRecord; providerName: string; messages: CaptureMessageRecord[] }>
+): string {
+  const sections = entries.map((entry) => [
+    `# ${entry.providerName}`,
+    '',
+    renderSessionMarkdown(entry.session, entry.messages),
+  ].join('\n'));
+
+  return [`# AmberKeeper 全部记录导出`, '', `- 导出时间：${new Date().toISOString()}`, `- 会话数量：${entries.length}`, '', ...sections]
     .join('\n')
     .trim();
 }
@@ -758,6 +837,39 @@ function toFileSegment(input: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64) || 'session';
+}
+
+function filterMessagesByExportScope(
+  messages: CaptureMessageRecord[],
+  messageScope: CaptureExportMessageScope
+): CaptureMessageRecord[] {
+  if (messageScope === 'complete') {
+    return messages;
+  }
+
+  return messages.filter((message) => message.role === messageScope);
+}
+
+function applySaveScope(envelope: CaptureEnvelope, saveScope: CaptureSaveScope): CaptureEnvelope {
+  if (saveScope === 'complete') {
+    return envelope;
+  }
+
+  return {
+    ...envelope,
+    messages: envelope.messages.filter((message) => message.role === 'user'),
+  };
+}
+
+function applyTurnSaveScope(turn: CompletedTurn, saveScope: CaptureSaveScope): CompletedTurn {
+  if (saveScope === 'complete') {
+    return turn;
+  }
+
+  return {
+    ...turn,
+    messages: turn.messages.filter((message) => message.role === 'user'),
+  };
 }
 
 function runInTransaction<T>(db: DatabaseSync, work: () => T): T {
