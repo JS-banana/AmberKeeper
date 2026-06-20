@@ -1,7 +1,7 @@
 {
   "name": "amberkeeper-desktop",
   "private": true,
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Electron desktop app for capturing and managing conversations across mainstream AI providers.",
   "author": "JS-banana <oooooohoney@163.com>",
   "license": "MIT",
