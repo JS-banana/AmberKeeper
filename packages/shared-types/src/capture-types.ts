@@ -16,6 +16,7 @@ export type InterfaceLanguage = 'system' | 'zh-CN' | 'en';
 
 export type CaptureSource = 'cdp-network' | 'preload-dom';
 export type SessionTitleSource = 'provider' | 'fallback';
+export type CaptureSaveScope = 'complete' | 'user';
 export type CaptureExportFormat = 'json' | 'markdown';
 export type CaptureExportMessageScope = 'complete' | 'user' | 'assistant';
 
@@ -115,6 +116,7 @@ export interface ShellInfo {
   isPackaged: boolean;
   appVersion: string;
   interfaceLanguage: InterfaceLanguage;
+  captureSaveScope: CaptureSaveScope;
 }
 
 export interface CaptureAttemptLogRecord {

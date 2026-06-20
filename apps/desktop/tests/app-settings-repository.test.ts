@@ -35,4 +35,17 @@ describe('app-settings-repository', () => {
     expect(repository.setInterfaceLanguage('zh-CN')).toBe('zh-CN');
     expect(repository.getActiveServiceId()).toBe('custom-service-1');
   });
+
+  test('defaults capture save scope to complete and persists user-only choice', () => {
+    const db = new DatabaseSync(':memory:');
+    ensureCaptureStoreSchema(db);
+
+    const firstRepository = createAppSettingsRepository(db);
+
+    expect(firstRepository.getCaptureSaveScope()).toBe('complete');
+    expect(firstRepository.setCaptureSaveScope('user')).toBe('user');
+
+    const secondRepository = createAppSettingsRepository(db);
+    expect(secondRepository.getCaptureSaveScope()).toBe('user');
+  });
 });

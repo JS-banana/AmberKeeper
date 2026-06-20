@@ -266,6 +266,20 @@ export function useWorkspaceActions(options: {
     }
   });
 
+  const setCaptureSaveScope = useEffectEvent(async (saveScope: CaptureSaveScope) => {
+    try {
+      await window.captureApi.setCaptureSaveScope(saveScope);
+      await options.refreshShellState();
+    } catch (error) {
+      startTransition(() => {
+        options.setState((current) => ({
+          ...current,
+          error: formatError(error),
+        }));
+      });
+    }
+  });
+
   const exportProviderSessions = useEffectEvent(
     async (
       providerId: ProviderId,
@@ -320,6 +334,7 @@ export function useWorkspaceActions(options: {
     exportSession,
     setProviderCacheEnabled,
     setInterfaceLanguage,
+    setCaptureSaveScope,
     exportProviderSessions,
     exportAllSessions,
   };

@@ -2,6 +2,7 @@ import type {
   CaptureExportFormat,
   CaptureExportMessageScope,
   CaptureMessageRecord,
+  CaptureSaveScope,
   CaptureSessionRecord,
   CreateCustomServiceInput,
   InterfaceLanguage,
@@ -54,6 +55,7 @@ declare global {
       moveProvider: (providerId: ProviderId, direction: ProviderMoveDirection) => Promise<ProviderRecord[]>;
       getShellInfo: () => Promise<ShellInfo>;
       setInterfaceLanguage: (language: InterfaceLanguage) => Promise<InterfaceLanguage>;
+      setCaptureSaveScope: (saveScope: CaptureSaveScope) => Promise<CaptureSaveScope>;
       setNativeStageVisible: (visible: boolean) => Promise<void>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;

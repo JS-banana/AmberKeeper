@@ -358,6 +358,50 @@ describe('capture-store', () => {
     db.close();
   });
 
+  test('keeps assistant text out of durable records when save scope is user only', () => {
+    const store = new CaptureStore(dbPath);
+
+    store.setCaptureSaveScope('user');
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        messages: [
+          {
+            role: 'user',
+            content: 'User-only prompt',
+            createdAt: '2026-03-19T10:00:00.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'Assistant text must stay transient',
+            createdAt: '2026-03-19T10:00:02.000Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listMessages(sessionId)).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: 'User-only prompt',
+      }),
+    ]);
+
+    const payloads = store
+      .getDb()
+      .prepare(
+        `
+          SELECT payload_json AS payloadJson
+          FROM capture_events
+          ORDER BY created_at ASC
+        `
+      )
+      .all() as Array<{ payloadJson: string }>;
+
+    expect(payloads.map((row) => row.payloadJson).join('\n')).not.toContain(
+      'Assistant text must stay transient'
+    );
+  });
+
   test('rolls back persistEnvelope when capture-event persistence fails late', () => {
     const store = new CaptureStore(dbPath);
     store.getDb().exec(`
@@ -481,6 +525,148 @@ describe('capture-store', () => {
     expect(countRows(db, 'messages')).toBe(0);
     expect(countRows(db, 'capture_events')).toBe(0);
     db.close();
+  });
+
+  test('keeps assistant text out of completed-turn persistence when save scope is user only', () => {
+    const store = new CaptureStore(dbPath);
+
+    store.setCaptureSaveScope('user');
+    const sessionId = store.persistTurn({
+      provider: 'chatgpt',
+      source: 'cdp-network',
+      sourceSessionKey: 'chatgpt-primary-view',
+      pageUrl: 'https://chatgpt.com/c/conv-user-turn',
+      capturedAt: '2026-03-19T10:00:02.000Z',
+      conversationId: 'conv-user-turn',
+      messages: [
+        {
+          role: 'user',
+          content: 'Turn prompt',
+          createdAt: '2026-03-19T10:00:00.000Z',
+        },
+        {
+          role: 'assistant',
+          content: 'Turn answer must stay transient',
+          createdAt: '2026-03-19T10:00:01.000Z',
+        },
+      ],
+    });
+
+    expect(store.listMessages(sessionId)).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: 'Turn prompt',
+      }),
+    ]);
+
+    const payloads = store
+      .getDb()
+      .prepare(
+        `
+          SELECT payload_json AS payloadJson
+          FROM capture_events
+          ORDER BY created_at ASC
+        `
+      )
+      .all() as Array<{ payloadJson: string }>;
+
+    expect(payloads.map((row) => row.payloadJson).join('\n')).not.toContain(
+      'Turn answer must stay transient'
+    );
+  });
+
+  test('does not retain new assistant text or remove old assistant records when replacing under user-only save scope', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        remoteConversationId: 'conv-replace-user-only',
+        messages: [
+          {
+            role: 'user',
+            content: 'Original prompt',
+            createdAt: '2026-03-19T10:00:00.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'Original answer kept from complete scope',
+            createdAt: '2026-03-19T10:00:01.000Z',
+          },
+        ],
+      })
+    );
+
+    store.setCaptureSaveScope('user');
+    store.replaceSessionEnvelope(
+      sessionId,
+      buildEnvelope({
+        remoteConversationId: 'conv-replace-user-only',
+        capturedAt: '2026-03-19T10:05:00.000Z',
+        messages: [
+          {
+            role: 'user',
+            content: 'Hydrated prompt',
+            createdAt: '2026-03-19T10:04:59.000Z',
+          },
+          {
+            role: 'assistant',
+            content: 'Hydrated answer must stay transient',
+            createdAt: '2026-03-19T10:05:00.000Z',
+          },
+        ],
+      })
+    );
+
+    const contents = store.listMessages(sessionId).map((message) => message.content);
+
+    expect(contents).toContain('Original answer kept from complete scope');
+    expect(contents).toContain('Hydrated prompt');
+    expect(contents).not.toContain('Hydrated answer must stay transient');
+    expect(contents).not.toContain('Original prompt');
+
+    const payloads = store
+      .getDb()
+      .prepare(
+        `
+          SELECT payload_json AS payloadJson
+          FROM capture_events
+          ORDER BY created_at ASC
+        `
+      )
+      .all() as Array<{ payloadJson: string }>;
+
+    expect(payloads.map((row) => row.payloadJson).join('\n')).not.toContain(
+      'Hydrated answer must stay transient'
+    );
+  });
+
+  test('keeps user-only assistant-only captures visible and exportable without assistant content', () => {
+    const store = new CaptureStore(dbPath);
+
+    store.setCaptureSaveScope('user');
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        remoteConversationId: 'conv-assistant-only',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'Assistant-only context must stay transient',
+            createdAt: '2026-03-19T10:00:01.000Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listSessions()).toEqual([
+      expect.objectContaining({
+        id: sessionId,
+        remoteConversationId: 'conv-assistant-only',
+        messageCount: 0,
+      }),
+    ]);
+    expect(store.listMessages(sessionId)).toEqual([]);
+    expect(store.exportSession(sessionId, 'markdown').content).not.toContain(
+      'Assistant-only context must stay transient'
+    );
   });
 
   test('reconciles a fallback session into the final remote conversation', () => {

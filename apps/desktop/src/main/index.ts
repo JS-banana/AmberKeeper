@@ -798,11 +798,16 @@ function getShellInfo(): ShellInfo {
     isPackaged: app.isPackaged,
     appVersion: app.getVersion(),
     interfaceLanguage: getConfiguredInterfaceLanguage(),
+    captureSaveScope: getConfiguredCaptureSaveScope(),
   };
 }
 
 function getConfiguredInterfaceLanguage(): InterfaceLanguage {
   return appSettingsRepo?.getInterfaceLanguage() ?? 'system';
+}
+
+function getConfiguredCaptureSaveScope(): CaptureSaveScope {
+  return appSettingsRepo?.getCaptureSaveScope() ?? 'complete';
 }
 
 function getConfiguredSystemLocale(): string {
@@ -1174,6 +1179,8 @@ registerAppLifecycle({
         shellSettingsService?.setInterfaceLanguage(
           language as import('@amberkeeper/shared-types').InterfaceLanguage
         ) ?? 'system',
+      setCaptureSaveScope: (saveScope) =>
+        shellSettingsService?.setCaptureSaveScope(saveScope as CaptureSaveScope) ?? 'complete',
       getInterfaceLocaleConfig,
       setNativeStageVisible,
       getRuntimeStatus: () => diagnosticsService?.getRuntimeStatus() ?? {

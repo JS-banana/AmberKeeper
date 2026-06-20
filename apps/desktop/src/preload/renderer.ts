@@ -3,6 +3,7 @@ import type {
   CaptureExportFormat,
   CaptureExportMessageScope,
   CaptureMessageRecord,
+  CaptureSaveScope,
   CaptureSessionRecord,
   CreateCustomServiceInput,
   InterfaceLanguage,
@@ -61,6 +62,8 @@ contextBridge.exposeInMainWorld('captureApi', {
   getShellInfo: () => ipcRenderer.invoke('shell:getInfo') as Promise<ShellInfo>,
   setInterfaceLanguage: (language: InterfaceLanguage) =>
     ipcRenderer.invoke('settings:setInterfaceLanguage', language) as Promise<InterfaceLanguage>,
+  setCaptureSaveScope: (saveScope: CaptureSaveScope) =>
+    ipcRenderer.invoke('settings:setCaptureSaveScope', saveScope) as Promise<CaptureSaveScope>,
   setNativeStageVisible: (visible: boolean) =>
     ipcRenderer.invoke('shell:setNativeStageVisible', visible) as Promise<void>,
   getRuntimeStatus: () => ipcRenderer.invoke('capture:getRuntimeStatus') as Promise<RuntimeStatus>,

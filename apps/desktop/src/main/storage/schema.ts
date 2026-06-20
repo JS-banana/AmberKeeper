@@ -40,6 +40,7 @@ const APP_SETTINGS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS app_settings (
   id INTEGER PRIMARY KEY,
   interface_language TEXT NOT NULL DEFAULT 'system',
+  capture_save_scope TEXT NOT NULL DEFAULT 'complete',
   active_service_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -74,6 +75,7 @@ export function ensureCaptureStoreSchema(db: DatabaseSync): void {
   db.exec(CAPTURE_ATTEMPT_LOGS_SCHEMA);
   db.exec(APP_SETTINGS_SCHEMA);
   ensureAppSettingsActiveServiceIdColumn(db);
+  ensureAppSettingsCaptureSaveScopeColumn(db);
   db.exec(CUSTOM_SERVICES_SCHEMA);
 }
 
@@ -137,4 +139,20 @@ function ensureAppSettingsActiveServiceIdColumn(db: DatabaseSync): void {
   }
 
   db.exec('ALTER TABLE app_settings ADD COLUMN active_service_id TEXT;');
+}
+
+function ensureAppSettingsCaptureSaveScopeColumn(db: DatabaseSync): void {
+  const columns = db
+    .prepare(
+      `
+        PRAGMA table_info(app_settings)
+      `
+    )
+    .all() as Array<{ name?: string }>;
+
+  if (columns.some((column) => column.name === 'capture_save_scope')) {
+    return;
+  }
+
+  db.exec("ALTER TABLE app_settings ADD COLUMN capture_save_scope TEXT NOT NULL DEFAULT 'complete';");
 }

@@ -1,4 +1,5 @@
 import type {
+  CaptureSaveScope,
   CreateCustomServiceInput,
   InterfaceLanguage,
   ProviderId,
@@ -11,6 +12,7 @@ import type { CaptureStore } from './capture-store';
 
 type AppSettingsRepositoryLike = {
   setInterfaceLanguage(language: InterfaceLanguage): InterfaceLanguage;
+  setCaptureSaveScope(saveScope: CaptureSaveScope): CaptureSaveScope;
 };
 
 export function createShellSettingsService(options: {
@@ -122,6 +124,9 @@ export function createShellSettingsService(options: {
 
       options.afterInterfaceLanguageMutation?.(nextLanguage);
       return nextLanguage;
+    },
+    setCaptureSaveScope(saveScope: CaptureSaveScope): CaptureSaveScope {
+      return options.getAppSettingsRepository()?.setCaptureSaveScope(saveScope) ?? 'complete';
     },
   };
 }

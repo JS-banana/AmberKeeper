@@ -196,6 +196,7 @@ function renderUtilitySurface(input: {
         <SettingsPage
           shellInfo={input.state.shellInfo}
           onSetInterfaceLanguage={input.actions.setInterfaceLanguage}
+          onSetCaptureSaveScope={input.actions.setCaptureSaveScope}
         />
       );
     case 'about':

@@ -30,6 +30,7 @@ export function registerCaptureIpc(options: {
   moveProvider: (providerId: string, direction: 'up' | 'down') => unknown;
   getShellInfo: () => unknown;
   setInterfaceLanguage: (language: string) => unknown;
+  setCaptureSaveScope: (saveScope: CaptureSaveScope) => unknown;
   getInterfaceLocaleConfig: () => { locale: string; languages: string[] };
   setNativeStageVisible: (visible: boolean) => void;
   getRuntimeStatus: () => unknown;
@@ -86,6 +87,9 @@ export function registerCaptureIpc(options: {
   ipcMain.handle('shell:getInfo', () => options.getShellInfo());
   ipcMain.handle('settings:setInterfaceLanguage', (_event, language: string) =>
     options.setInterfaceLanguage(language)
+  );
+  ipcMain.handle('settings:setCaptureSaveScope', (_event, saveScope: CaptureSaveScope) =>
+    options.setCaptureSaveScope(saveScope)
   );
   ipcMain.on('settings:getInterfaceLocaleConfig', (event) => {
     event.returnValue = options.getInterfaceLocaleConfig();

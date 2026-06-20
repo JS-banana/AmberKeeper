@@ -164,6 +164,24 @@ test('renders a product-style about page inside the workbench', async () => {
   expect(screen.getByText('0.2.0')).toBeInTheDocument();
 });
 
+test('updates the global save scope from settings', async () => {
+  const state = createWorkspaceFixture();
+  const api = installCaptureApiMock(state, {
+    shellInfo: { diagnosticsEnabled: false, isPackaged: true },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: '打开工作台' }));
+  fireEvent.click(screen.getByRole('button', { name: '设置' }));
+  fireEvent.click(await screen.findByLabelText('保存范围'));
+  fireEvent.click(await screen.findByRole('option', { name: '仅我的消息' }));
+
+  await waitFor(() => {
+    expect(api.setCaptureSaveScope).toHaveBeenCalledWith('user');
+  });
+});
+
 test('shows the data workspace as an all-provider overview instead of scoping to the active provider', async () => {
   const state = createWorkspaceFixture();
   const api = installCaptureApiMock(state, {
@@ -647,13 +665,21 @@ function installCaptureApiMock(
       diagnosticsEnabled: boolean;
       isPackaged: boolean;
       appVersion?: string;
-      interfaceLanguage?: 'system' | 'zh-CN' | 'en';
+      interfaceLanguage?: InterfaceLanguage;
+      captureSaveScope?: CaptureSaveScope;
     };
     runtimeStatus?: Partial<RuntimeStatus>;
   }
 ) {
   let runtimeStatusListener: ((status: RuntimeStatus) => void) | null = null;
   let runtimeStatusOverrides = input?.runtimeStatus ?? {};
+  let shellInfo = {
+    diagnosticsEnabled: input?.shellInfo?.diagnosticsEnabled ?? false,
+    isPackaged: input?.shellInfo?.isPackaged ?? true,
+    appVersion: input?.shellInfo?.appVersion ?? '0.0.1',
+    interfaceLanguage: input?.shellInfo?.interfaceLanguage ?? 'system',
+    captureSaveScope: input?.shellInfo?.captureSaveScope ?? 'complete',
+  };
   const syncBuiltInServices = () => {
     state.services = buildServicesFromProviders(state.providers);
   };
@@ -855,6 +881,14 @@ function installCaptureApiMock(
   const getRuntimeStatus = vi.fn(
     async () => ({ ...buildRuntimeStatus(state.providers), ...runtimeStatusOverrides })
   );
+  const setInterfaceLanguage = vi.fn(async (language: InterfaceLanguage) => {
+    shellInfo = { ...shellInfo, interfaceLanguage: language };
+    return language;
+  });
+  const setCaptureSaveScope = vi.fn(async (saveScope: CaptureSaveScope) => {
+    shellInfo = { ...shellInfo, captureSaveScope: saveScope };
+    return saveScope;
+  });
 
   window.captureApi = {
     listSessions,
@@ -879,16 +913,8 @@ function installCaptureApiMock(
     setProviderEnabled,
     setProviderCacheEnabled,
     moveProvider,
-    setInterfaceLanguage: async (language: 'system' | 'zh-CN' | 'en') => ({
-      ...(input?.shellInfo ?? {
-        diagnosticsEnabled: false,
-        isPackaged: true,
-        appVersion: '0.0.1',
-        interfaceLanguage: 'system',
-      }),
-      appVersion: input?.shellInfo?.appVersion ?? '0.0.1',
-      interfaceLanguage: language,
-    }),
+    setInterfaceLanguage,
+    setCaptureSaveScope,
     getRuntimeStatus,
     openExternal: async () => undefined,
     triggerDomSnapshot: async () => ({
@@ -900,13 +926,7 @@ function installCaptureApiMock(
       summary: 'none',
       entries: [],
     }),
-    getShellInfo: async () =>
-      input?.shellInfo ?? {
-        diagnosticsEnabled: false,
-        isPackaged: true,
-        appVersion: '0.0.1',
-        interfaceLanguage: 'system',
-      },
+    getShellInfo: async () => shellInfo,
     setNativeStageVisible,
     onRuntimeStatus: (callback: (status: RuntimeStatus) => void) => {
       runtimeStatusListener = callback;
@@ -932,6 +952,7 @@ function installCaptureApiMock(
     exportProviderSessions,
     exportAllSessions,
     setNativeStageVisible,
+    setCaptureSaveScope,
     emitRuntimeStatus: (overrides?: Partial<RuntimeStatus>) => {
       runtimeStatusOverrides = { ...runtimeStatusOverrides, ...overrides };
       runtimeStatusListener?.({

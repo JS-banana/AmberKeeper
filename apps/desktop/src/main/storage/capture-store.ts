@@ -71,33 +71,35 @@ export class CaptureStore {
   }
 
   persistEnvelope(envelope: CaptureEnvelope): string {
+    const durableEnvelope = applySaveScope(envelope, this.getCaptureSaveScope());
+
     return runInTransaction(this.database, () => {
       const conversationId = this.conversationRepository.resolve({
-        provider: envelope.provider,
-        remoteConversationId: envelope.remoteConversationId,
-        sourceSessionKey: envelope.sourceSessionKey,
-        pageUrl: envelope.pageUrl,
-        title: envelope.title,
-        titleSource: envelope.titleSource,
-        createdAt: envelope.messages[0]?.createdAt ?? envelope.capturedAt,
-        updatedAt: envelope.capturedAt,
+        provider: durableEnvelope.provider,
+        remoteConversationId: durableEnvelope.remoteConversationId,
+        sourceSessionKey: durableEnvelope.sourceSessionKey,
+        pageUrl: durableEnvelope.pageUrl,
+        title: durableEnvelope.title,
+        titleSource: durableEnvelope.titleSource,
+        createdAt: durableEnvelope.messages[0]?.createdAt ?? durableEnvelope.capturedAt,
+        updatedAt: durableEnvelope.capturedAt,
       });
       const insertedMessages = this.messageRepository.insertMany({
         conversationId,
-        provider: envelope.provider,
-        remoteConversationId: envelope.remoteConversationId,
-        source: envelope.source,
-        capturedAt: envelope.capturedAt,
-        messages: envelope.messages,
+        provider: durableEnvelope.provider,
+        remoteConversationId: durableEnvelope.remoteConversationId,
+        source: durableEnvelope.source,
+        capturedAt: durableEnvelope.capturedAt,
+        messages: durableEnvelope.messages,
       });
       const messageCount = this.messageRepository.countByConversation(conversationId);
 
       this.conversationRepository.updateMessageCount(
         conversationId,
         messageCount,
-        envelope.capturedAt
+        durableEnvelope.capturedAt
       );
-      this.recordCaptureEvents(envelope, {
+      this.recordCaptureEvents(durableEnvelope, {
         insertedMessages,
         messageCount,
       });
@@ -107,6 +109,9 @@ export class CaptureStore {
   }
 
   replaceSessionEnvelope(sessionId: string, envelope: CaptureEnvelope): string {
+    const saveScope = this.getCaptureSaveScope();
+    const durableEnvelope = applySaveScope(envelope, saveScope);
+
     return runInTransaction(this.database, () => {
       const existingSession = this.getSessionById(sessionId);
 
@@ -162,24 +167,28 @@ export class CaptureStore {
           sessionId
         );
 
-      this.messageRepository.deleteByConversation(sessionId);
+      if (saveScope === 'user') {
+        this.database.prepare(`DELETE FROM messages WHERE conversation_id = ? AND role = 'user'`).run(sessionId);
+      } else {
+        this.messageRepository.deleteByConversation(sessionId);
+      }
 
       const insertedMessages = this.messageRepository.insertMany({
         conversationId: sessionId,
-        provider: envelope.provider,
+        provider: durableEnvelope.provider,
         remoteConversationId,
-        source: envelope.source,
-        capturedAt: envelope.capturedAt,
-        messages: envelope.messages,
+        source: durableEnvelope.source,
+        capturedAt: durableEnvelope.capturedAt,
+        messages: durableEnvelope.messages,
       });
       const messageCount = this.messageRepository.countByConversation(sessionId);
 
       this.conversationRepository.updateMessageCount(
         sessionId,
         messageCount,
-        envelope.capturedAt
+        durableEnvelope.capturedAt
       );
-      this.recordCaptureEvents(envelope, {
+      this.recordCaptureEvents(durableEnvelope, {
         insertedMessages,
         messageCount,
       });
@@ -189,7 +198,15 @@ export class CaptureStore {
   }
 
   persistTurn(turn: CompletedTurn): string {
-    return persistCompletedTurn(this.database, turn);
+    return persistCompletedTurn(this.database, applyTurnSaveScope(turn, this.getCaptureSaveScope()));
+  }
+
+  getCaptureSaveScope(): CaptureSaveScope {
+    return this.appSettingsRepository.getCaptureSaveScope();
+  }
+
+  setCaptureSaveScope(saveScope: CaptureSaveScope): CaptureSaveScope {
+    return this.appSettingsRepository.setCaptureSaveScope(saveScope);
   }
 
   listSessions(): CaptureSessionRecord[] {
