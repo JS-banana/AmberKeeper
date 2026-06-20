@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   CaptureExportFormat,
+  CaptureExportMessageScope,
   CaptureMessageRecord,
+  CaptureSaveScope,
   CaptureSessionRecord,
   CreateCustomServiceInput,
   InterfaceLanguage,
@@ -25,10 +27,12 @@ contextBridge.exposeInMainWorld('captureApi', {
     ipcRenderer.invoke('capture:openSession', sessionId) as Promise<{ message: string; detail: string }>,
   deleteSession: (sessionId: string) =>
     ipcRenderer.invoke('capture:deleteSession', sessionId) as Promise<{ message: string; detail: string }>,
-  exportSession: (sessionId: string, format: CaptureExportFormat) =>
-    ipcRenderer.invoke('capture:exportSession', sessionId, format) as Promise<{ message: string; detail: string }>,
-  exportProviderSessions: (providerId: ProviderId, format: CaptureExportFormat) =>
-    ipcRenderer.invoke('capture:exportProviderSessions', providerId, format) as Promise<{ message: string; detail: string }>,
+  exportSession: (sessionId: string, format: CaptureExportFormat, messageScope: CaptureExportMessageScope = 'complete') =>
+    ipcRenderer.invoke('capture:exportSession', sessionId, format, messageScope) as Promise<{ message: string; detail: string }>,
+  exportProviderSessions: (providerId: ProviderId, format: CaptureExportFormat, messageScope: CaptureExportMessageScope = 'complete') =>
+    ipcRenderer.invoke('capture:exportProviderSessions', providerId, format, messageScope) as Promise<{ message: string; detail: string }>,
+  exportAllSessions: (format: CaptureExportFormat, messageScope: CaptureExportMessageScope = 'complete') =>
+    ipcRenderer.invoke('capture:exportAllSessions', format, messageScope) as Promise<{ message: string; detail: string }>,
   listServices: () => ipcRenderer.invoke('services:list') as Promise<ServiceRecord[]>,
   getActiveService: () => ipcRenderer.invoke('services:getActive') as Promise<ServiceRecord | null>,
   setActiveService: (serviceId: string) =>
@@ -58,6 +62,8 @@ contextBridge.exposeInMainWorld('captureApi', {
   getShellInfo: () => ipcRenderer.invoke('shell:getInfo') as Promise<ShellInfo>,
   setInterfaceLanguage: (language: InterfaceLanguage) =>
     ipcRenderer.invoke('settings:setInterfaceLanguage', language) as Promise<InterfaceLanguage>,
+  setCaptureSaveScope: (saveScope: CaptureSaveScope) =>
+    ipcRenderer.invoke('settings:setCaptureSaveScope', saveScope) as Promise<CaptureSaveScope>,
   setNativeStageVisible: (visible: boolean) =>
     ipcRenderer.invoke('shell:setNativeStageVisible', visible) as Promise<void>,
   getRuntimeStatus: () => ipcRenderer.invoke('capture:getRuntimeStatus') as Promise<RuntimeStatus>,

@@ -1,6 +1,8 @@
 import type {
   CaptureExportFormat,
+  CaptureExportMessageScope,
   CaptureMessageRecord,
+  CaptureSaveScope,
   CaptureSessionRecord,
   CreateCustomServiceInput,
   InterfaceLanguage,
@@ -24,11 +26,17 @@ declare global {
       deleteSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
       exportSession: (
         sessionId: string,
-        format: CaptureExportFormat
+        format: CaptureExportFormat,
+        messageScope?: CaptureExportMessageScope
       ) => Promise<{ message: string; detail: string }>;
       exportProviderSessions: (
         providerId: ProviderId,
-        format: CaptureExportFormat
+        format: CaptureExportFormat,
+        messageScope?: CaptureExportMessageScope
+      ) => Promise<{ message: string; detail: string }>;
+      exportAllSessions: (
+        format: CaptureExportFormat,
+        messageScope?: CaptureExportMessageScope
       ) => Promise<{ message: string; detail: string }>;
       listServices: () => Promise<ServiceRecord[]>;
       getActiveService: () => Promise<ServiceRecord | null>;
@@ -47,6 +55,7 @@ declare global {
       moveProvider: (providerId: ProviderId, direction: ProviderMoveDirection) => Promise<ProviderRecord[]>;
       getShellInfo: () => Promise<ShellInfo>;
       setInterfaceLanguage: (language: InterfaceLanguage) => Promise<InterfaceLanguage>;
+      setCaptureSaveScope: (saveScope: CaptureSaveScope) => Promise<CaptureSaveScope>;
       setNativeStageVisible: (visible: boolean) => Promise<void>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;

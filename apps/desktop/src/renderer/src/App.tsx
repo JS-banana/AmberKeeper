@@ -174,6 +174,7 @@ function renderUtilitySurface(input: {
           onDeleteSession={input.actions.deleteSession}
           onExportSession={input.actions.exportSession}
           onExportProviderSessions={input.actions.exportProviderSessions}
+          onExportAllSessions={input.actions.exportAllSessions}
         />
       );
     case 'services':
@@ -195,6 +196,7 @@ function renderUtilitySurface(input: {
         <SettingsPage
           shellInfo={input.state.shellInfo}
           onSetInterfaceLanguage={input.actions.setInterfaceLanguage}
+          onSetCaptureSaveScope={input.actions.setCaptureSaveScope}
         />
       );
     case 'about':

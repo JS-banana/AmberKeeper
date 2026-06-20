@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Download, Trash2 } from 'lucide-react';
 import type {
-  CaptureExportFormat,
   CaptureMessageRecord,
   CaptureSessionRecord,
 } from '@amberkeeper/shared-types';
@@ -23,32 +22,10 @@ export function ConversationMessagePane(props: {
   messages: CaptureMessageRecord[];
   loading: boolean;
   onDeleteSession: (sessionId: string) => Promise<CaptureActionResult>;
-  onExportSession: (
-    sessionId: string,
-    format: CaptureExportFormat
-  ) => Promise<CaptureActionResult>;
+  onExportSession: (sessionId: string) => void;
 }) {
-  const [exportFormat, setExportFormat] = useState<CaptureExportFormat>('json');
-  const [busyAction, setBusyAction] = useState<'export' | 'delete' | null>(null);
+  const [busyAction, setBusyAction] = useState<'delete' | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-
-  async function handleExport() {
-    if (!props.session) return;
-    setBusyAction('export');
-    try {
-      const result = await props.onExportSession(props.session.id, exportFormat);
-      const nextFeedback = result.detail || result.message;
-      if (nextFeedback.includes('导出已取消') || result.message === 'cancelled') {
-        setFeedback(null);
-      } else {
-        setFeedback(nextFeedback);
-      }
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
 
   async function handleDelete() {
     if (!props.session) return;
@@ -109,18 +86,6 @@ export function ConversationMessagePane(props: {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  aria-label="选择会话导出格式"
-                  className="h-8 px-2 pr-6 rounded-lg border border-[rgba(84,99,124,0.12)] bg-white/80 text-xs appearance-none cursor-pointer disabled:opacity-50"
-                  value={exportFormat}
-                  disabled={busyAction !== null}
-                  onChange={(event) => {
-                    setExportFormat(event.currentTarget.value as CaptureExportFormat);
-                  }}
-                >
-                  <option value="json">JSON 格式</option>
-                  <option value="markdown">Markdown 格式</option>
-                </select>
                 <button
                   type="button"
                   aria-label="导出当前记录"
@@ -131,7 +96,7 @@ export function ConversationMessagePane(props: {
                     'disabled:opacity-40 disabled:cursor-not-allowed',
                   )}
                   disabled={busyAction !== null}
-                  onClick={() => void handleExport()}
+                  onClick={() => props.session && props.onExportSession(props.session.id)}
                 >
                   <Download className="w-3.5 h-3.5" />
                 </button>

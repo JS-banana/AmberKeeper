@@ -1,13 +1,18 @@
 import { ipcMain, shell } from 'electron';
-import type { CreateCustomServiceInput } from '@amberkeeper/shared-types';
+import type {
+  CaptureExportMessageScope,
+  CaptureSaveScope,
+  CreateCustomServiceInput,
+} from '@amberkeeper/shared-types';
 
 export function registerCaptureIpc(options: {
   listSessions: () => unknown[];
   listMessages: (sessionId: string) => unknown[];
   openSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
   deleteSession: (sessionId: string) => Promise<{ message: string; detail: string }>;
-  exportSession: (sessionId: string, format: 'json' | 'markdown') => Promise<{ message: string; detail: string }>;
-  exportProviderSessions: (providerId: string, format: 'json' | 'markdown') => Promise<{ message: string; detail: string }>;
+  exportSession: (sessionId: string, format: 'json' | 'markdown', messageScope?: CaptureExportMessageScope) => Promise<{ message: string; detail: string }>;
+  exportProviderSessions: (providerId: string, format: 'json' | 'markdown', messageScope?: CaptureExportMessageScope) => Promise<{ message: string; detail: string }>;
+  exportAllSessions: (format: 'json' | 'markdown', messageScope?: CaptureExportMessageScope) => Promise<{ message: string; detail: string }>;
   listServices: () => unknown[];
   getActiveService: () => unknown;
   setActiveService: (serviceId: string) => unknown;
@@ -25,6 +30,7 @@ export function registerCaptureIpc(options: {
   moveProvider: (providerId: string, direction: 'up' | 'down') => unknown;
   getShellInfo: () => unknown;
   setInterfaceLanguage: (language: string) => unknown;
+  setCaptureSaveScope: (saveScope: CaptureSaveScope) => unknown;
   getInterfaceLocaleConfig: () => { locale: string; languages: string[] };
   setNativeStageVisible: (visible: boolean) => void;
   getRuntimeStatus: () => unknown;
@@ -36,13 +42,16 @@ export function registerCaptureIpc(options: {
   ipcMain.handle('capture:listMessages', (_event, sessionId: string) => options.listMessages(sessionId));
   ipcMain.handle('capture:openSession', (_event, sessionId: string) => options.openSession(sessionId));
   ipcMain.handle('capture:deleteSession', (_event, sessionId: string) => options.deleteSession(sessionId));
-  ipcMain.handle('capture:exportSession', (_event, sessionId: string, format: 'json' | 'markdown') =>
-    options.exportSession(sessionId, format)
+  ipcMain.handle('capture:exportSession', (_event, sessionId: string, format: 'json' | 'markdown', messageScope?: CaptureExportMessageScope) =>
+    options.exportSession(sessionId, format, messageScope)
   );
   ipcMain.handle(
     'capture:exportProviderSessions',
-    (_event, providerId: string, format: 'json' | 'markdown') =>
-      options.exportProviderSessions(providerId, format)
+    (_event, providerId: string, format: 'json' | 'markdown', messageScope?: CaptureExportMessageScope) =>
+      options.exportProviderSessions(providerId, format, messageScope)
+  );
+  ipcMain.handle('capture:exportAllSessions', (_event, format: 'json' | 'markdown', messageScope?: CaptureExportMessageScope) =>
+    options.exportAllSessions(format, messageScope)
   );
   ipcMain.handle('services:list', () => options.listServices());
   ipcMain.handle('services:getActive', () => options.getActiveService());
@@ -78,6 +87,9 @@ export function registerCaptureIpc(options: {
   ipcMain.handle('shell:getInfo', () => options.getShellInfo());
   ipcMain.handle('settings:setInterfaceLanguage', (_event, language: string) =>
     options.setInterfaceLanguage(language)
+  );
+  ipcMain.handle('settings:setCaptureSaveScope', (_event, saveScope: CaptureSaveScope) =>
+    options.setCaptureSaveScope(saveScope)
   );
   ipcMain.on('settings:getInterfaceLocaleConfig', (event) => {
     event.returnValue = options.getInterfaceLocaleConfig();

@@ -57,7 +57,7 @@ function countSessionsByLocalDay(sessions: CaptureSessionRecord[]): Map<string, 
   const countMap = new Map<string, number>();
 
   for (const session of sessions) {
-    const date = new Date(session.createdAt);
+    const date = new Date(session.updatedAt);
     if (Number.isNaN(date.getTime())) {
       continue;
     }

@@ -85,7 +85,7 @@ describe('chat preload provider routing', () => {
     },
     {
       name: 'kimi',
-      url: 'https://www.kimi.com/chat/conv-1',
+      url: 'https://kimi.com/chat/conv-1',
       title: 'Kimi',
       sourceSessionKey: 'kimi-primary-view',
       html: `

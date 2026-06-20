@@ -20,6 +20,7 @@ export function createConversationRepository(db: DatabaseSync) {
       const remoteConversationId = input.remoteConversationId ?? null;
       const incomingTitle = normalizeTitle(input.title);
       const incomingTitleSource = incomingTitle ? (input.titleSource ?? 'provider') : 'fallback';
+      const createdAt = normalizeTimestamp(input.createdAt, input.updatedAt);
 
       if (remoteConversationId) {
         const existingResolved = db
@@ -53,7 +54,7 @@ export function createConversationRepository(db: DatabaseSync) {
             input.pageUrl,
             nextTitle.title,
             nextTitle.titleSource,
-            chooseConversationCreatedAt(existingResolved.createdAt, input.createdAt),
+            chooseConversationCreatedAt(existingResolved.createdAt, createdAt),
             input.updatedAt,
             existingResolved.id
           );
@@ -92,7 +93,7 @@ export function createConversationRepository(db: DatabaseSync) {
             input.pageUrl,
             nextTitle.title,
             nextTitle.titleSource,
-            chooseConversationCreatedAt(fallback.createdAt, input.createdAt),
+            chooseConversationCreatedAt(fallback.createdAt, createdAt),
             input.updatedAt,
             fallback.id
           );
@@ -139,7 +140,7 @@ export function createConversationRepository(db: DatabaseSync) {
           input.pageUrl,
           nextTitle.title,
           nextTitle.titleSource,
-          chooseConversationCreatedAt(fallback.createdAt, input.createdAt),
+          chooseConversationCreatedAt(fallback.createdAt, createdAt),
           input.updatedAt,
           fallback.id
         );
@@ -170,7 +171,7 @@ export function createConversationRepository(db: DatabaseSync) {
         input.pageUrl,
         incomingTitle,
         incomingTitleSource,
-        input.createdAt,
+        createdAt,
         input.updatedAt
       );
 
@@ -238,9 +239,20 @@ function chooseConversationCreatedAt(existingCreatedAt: string | undefined, next
     return nextCreatedAt;
   }
 
-  return existingCreatedAt;
+  return new Date(nextCreatedAt).getTime() < new Date(existingCreatedAt).getTime()
+    ? nextCreatedAt
+    : existingCreatedAt;
 }
 
 function isPlaceholderTimestamp(input: string): boolean {
   return input === new Date(0).toISOString();
+}
+
+function normalizeTimestamp(input: string, fallback: string): string {
+  const date = new Date(input);
+  if (!input || Number.isNaN(date.getTime()) || isPlaceholderTimestamp(input)) {
+    return fallback;
+  }
+
+  return input;
 }

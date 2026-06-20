@@ -1,6 +1,8 @@
 import { startTransition, useEffectEvent } from 'react';
 import type {
   CaptureExportFormat,
+  CaptureExportMessageScope,
+  CaptureSaveScope,
   CreateCustomServiceInput,
   InterfaceLanguage,
   ProviderId,
@@ -217,9 +219,13 @@ export function useWorkspaceActions(options: {
   });
 
   const exportSession = useEffectEvent(
-    async (sessionId: string, format: CaptureExportFormat): Promise<CaptureActionResult> => {
+    async (
+      sessionId: string,
+      format: CaptureExportFormat,
+      messageScope: CaptureExportMessageScope = 'complete'
+    ): Promise<CaptureActionResult> => {
       try {
-        return await window.captureApi.exportSession(sessionId, format);
+        return await window.captureApi.exportSession(sessionId, format, messageScope);
       } catch (error) {
         startTransition(() => {
           options.setState((current) => ({
@@ -260,10 +266,47 @@ export function useWorkspaceActions(options: {
     }
   });
 
+  const setCaptureSaveScope = useEffectEvent(async (saveScope: CaptureSaveScope) => {
+    try {
+      await window.captureApi.setCaptureSaveScope(saveScope);
+      await options.refreshShellState();
+    } catch (error) {
+      startTransition(() => {
+        options.setState((current) => ({
+          ...current,
+          error: formatError(error),
+        }));
+      });
+    }
+  });
+
   const exportProviderSessions = useEffectEvent(
-    async (providerId: ProviderId, format: CaptureExportFormat): Promise<CaptureActionResult> => {
+    async (
+      providerId: ProviderId,
+      format: CaptureExportFormat,
+      messageScope: CaptureExportMessageScope = 'complete'
+    ): Promise<CaptureActionResult> => {
       try {
-        return await window.captureApi.exportProviderSessions(providerId, format);
+        return await window.captureApi.exportProviderSessions(providerId, format, messageScope);
+      } catch (error) {
+        startTransition(() => {
+          options.setState((current) => ({
+            ...current,
+            error: formatError(error),
+          }));
+        });
+        throw error;
+      }
+    }
+  );
+
+  const exportAllSessions = useEffectEvent(
+    async (
+      format: CaptureExportFormat,
+      messageScope: CaptureExportMessageScope = 'complete'
+    ): Promise<CaptureActionResult> => {
+      try {
+        return await window.captureApi.exportAllSessions(format, messageScope);
       } catch (error) {
         startTransition(() => {
           options.setState((current) => ({
@@ -291,6 +334,8 @@ export function useWorkspaceActions(options: {
     exportSession,
     setProviderCacheEnabled,
     setInterfaceLanguage,
+    setCaptureSaveScope,
     exportProviderSessions,
+    exportAllSessions,
   };
 }

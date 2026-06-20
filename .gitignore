@@ -13,7 +13,9 @@ dist-ssr
 out
 .sisyphus
 .vscode
-docs/
+docs/*
+!docs/adr/
+!docs/adr/*.md
 *.local
 .worktrees
 
@@ -34,3 +36,4 @@ archive/tauri-mainline/src-tauri/target
 .omx
 .omx/
 skills-lock.json
+CONTEXT.md

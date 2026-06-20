@@ -1,5 +1,6 @@
 import type {
   CaptureExportFormat,
+  CaptureExportMessageScope,
   ProviderId,
 } from '@amberkeeper/shared-types';
 import type { CaptureStore } from '../storage/capture-store';
@@ -27,14 +28,15 @@ export function createCaptureSessionService(options: {
 
     async exportSession(
       sessionId: string,
-      format: CaptureExportFormat
+      format: CaptureExportFormat,
+      messageScope: CaptureExportMessageScope = 'complete'
     ): Promise<{ message: string; detail: string }> {
       const captureStore = options.getCaptureStore();
       if (!captureStore) {
         throw new Error('Capture store is not ready yet.');
       }
 
-      const artifact = captureStore.exportSession(sessionId, format);
+      const artifact = captureStore.exportSession(sessionId, format, messageScope);
       const savedPath = await options.saveExportArtifact(artifact);
       return {
         message: '已导出当前会话。',
@@ -44,17 +46,34 @@ export function createCaptureSessionService(options: {
 
     async exportProviderSessions(
       providerId: ProviderId,
-      format: CaptureExportFormat
+      format: CaptureExportFormat,
+      messageScope: CaptureExportMessageScope = 'complete'
     ): Promise<{ message: string; detail: string }> {
       const captureStore = options.getCaptureStore();
       if (!captureStore) {
         throw new Error('Capture store is not ready yet.');
       }
 
-      const artifact = captureStore.exportProviderSessions(providerId, format);
+      const artifact = captureStore.exportProviderSessions(providerId, format, messageScope);
       const savedPath = await options.saveExportArtifact(artifact);
       return {
         message: '已导出当前 provider 的会话档案。',
+        detail: savedPath,
+      };
+    },
+    async exportAllSessions(
+      format: CaptureExportFormat,
+      messageScope: CaptureExportMessageScope = 'complete'
+    ): Promise<{ message: string; detail: string }> {
+      const captureStore = options.getCaptureStore();
+      if (!captureStore) {
+        throw new Error('Capture store is not ready yet.');
+      }
+
+      const artifact = captureStore.exportAllSessions(format, messageScope);
+      const savedPath = await options.saveExportArtifact(artifact);
+      return {
+        message: '已导出全部会话档案。',
         detail: savedPath,
       };
     },
