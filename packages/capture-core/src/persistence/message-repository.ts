@@ -23,6 +23,7 @@ export function createMessageRepository(db: DatabaseSync) {
         const remoteConversationId =
           input.remoteConversationId ?? message.remoteConversationId ?? null;
         const remoteMessageId = message.remoteMessageId ?? null;
+        const createdAt = normalizeTimestamp(message.createdAt, input.capturedAt);
 
         const existing =
           findExistingMessage({
@@ -31,7 +32,7 @@ export function createMessageRepository(db: DatabaseSync) {
             provider: input.provider,
             remoteConversationId,
             role: message.role,
-            createdAt: message.createdAt,
+            createdAt,
             remoteMessageId,
             contentHash,
           }) as
@@ -55,7 +56,7 @@ export function createMessageRepository(db: DatabaseSync) {
               WHERE id = ?
             `
           ).run(
-            chooseMessageCreatedAt(existing.createdAt, message.createdAt),
+            chooseMessageCreatedAt(existing.createdAt, createdAt),
             existing.remoteMessageId ?? message.remoteMessageId ?? null,
             existing.model ?? message.model ?? null,
             existingId
@@ -91,7 +92,7 @@ export function createMessageRepository(db: DatabaseSync) {
           remoteMessageId,
           message.model ?? null,
           input.source,
-          message.createdAt,
+          createdAt,
           input.capturedAt
         );
 
@@ -133,11 +134,22 @@ function chooseMessageCreatedAt(existingCreatedAt: string | undefined, nextCreat
     return nextCreatedAt;
   }
 
-  return existingCreatedAt;
+  return new Date(nextCreatedAt).getTime() < new Date(existingCreatedAt).getTime()
+    ? nextCreatedAt
+    : existingCreatedAt;
 }
 
 function isPlaceholderTimestamp(input: string): boolean {
   return input === new Date(0).toISOString();
+}
+
+function normalizeTimestamp(input: string, fallback: string): string {
+  const date = new Date(input);
+  if (!input || Number.isNaN(date.getTime()) || isPlaceholderTimestamp(input)) {
+    return fallback;
+  }
+
+  return input;
 }
 
 function findExistingMessage(input: {

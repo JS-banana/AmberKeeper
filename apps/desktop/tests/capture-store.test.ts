@@ -129,6 +129,45 @@ describe('capture-store', () => {
     ]);
   });
 
+  test('falls back to capturedAt when provider message timestamps are missing or placeholders', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        capturedAt: '2026-06-19T15:53:54.437Z',
+        messages: [
+          {
+            role: 'user',
+            content: 'Timestamp was missing',
+            createdAt: '',
+          },
+          {
+            role: 'assistant',
+            content: 'Timestamp was a placeholder',
+            createdAt: '1970-01-01T00:00:00.000Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listSessions()).toEqual([
+      expect.objectContaining({
+        id: sessionId,
+        createdAt: '2026-06-19T15:53:54.437Z',
+        updatedAt: '2026-06-19T15:53:54.437Z',
+      }),
+    ]);
+    expect(store.listMessages(sessionId)).toEqual([
+      expect.objectContaining({
+        content: 'Timestamp was missing',
+        createdAt: '2026-06-19T15:53:54.437Z',
+      }),
+      expect.objectContaining({
+        content: 'Timestamp was a placeholder',
+        createdAt: '2026-06-19T15:53:54.437Z',
+      }),
+    ]);
+  });
+
   test('replaces existing session messages when hydrating selected session history', () => {
     const store = new CaptureStore(dbPath);
     const sessionId = store.persistEnvelope(

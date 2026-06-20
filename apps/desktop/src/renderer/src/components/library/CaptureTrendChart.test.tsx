@@ -44,7 +44,7 @@ test('defaults the trend chart to current month and exposes range choices', () =
     />
   );
 
-  expect(screen.getByRole('heading', { name: '会话趋势' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: '会话活跃趋势' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: '7 日' })).toHaveAttribute('aria-pressed', 'false');
   expect(screen.getByRole('button', { name: '30 日' })).toHaveAttribute('aria-pressed', 'false');
   expect(screen.getByRole('button', { name: '本月' })).toHaveAttribute('aria-pressed', 'true');

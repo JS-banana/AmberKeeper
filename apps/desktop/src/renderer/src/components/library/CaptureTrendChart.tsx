@@ -21,8 +21,8 @@ export function CaptureTrendChart(props: { sessions: CaptureSessionRecord[] }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2 space-y-0">
-        <CardTitle className="text-base">会话趋势</CardTitle>
-        <div className="inline-flex rounded-md bg-muted p-0.5" aria-label="选择会话趋势范围">
+        <CardTitle className="text-base">会话活跃趋势</CardTitle>
+        <div className="inline-flex rounded-md bg-muted p-0.5" aria-label="选择会话活跃趋势范围">
           {CAPTURE_TREND_RANGES.map((option) => {
             const active = option.id === range;
 

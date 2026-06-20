@@ -27,6 +27,20 @@ describe('buildCaptureTrendData', () => {
     expect(data.at(-1)).toMatchObject({ key: '2026-05-31', label: '05-31', count: null });
   });
 
+  test('counts sessions by latest activity rather than first creation', () => {
+    const data = buildCaptureTrendData({
+      sessions: [
+        buildSession('old-active-today', '2026-04-01T08:00:00+08:00', {
+          updatedAt: '2026-05-14T10:00:00+08:00',
+        }),
+      ],
+      range: 'month',
+      now,
+    });
+
+    expect(data[13]).toMatchObject({ key: '2026-05-14', label: '05-14', count: 1 });
+  });
+
   test('keeps 30 day range as a trailing local-day window', () => {
     const data = buildCaptureTrendData({
       sessions: [
@@ -103,7 +117,11 @@ test('exposes the expected range labels in display order', () => {
   ]);
 });
 
-function buildSession(id: string, createdAt: string): CaptureSessionRecord {
+function buildSession(
+  id: string,
+  createdAt: string,
+  overrides: Partial<CaptureSessionRecord> = {}
+): CaptureSessionRecord {
   return {
     id,
     provider: 'chatgpt',
@@ -115,6 +133,7 @@ function buildSession(id: string, createdAt: string): CaptureSessionRecord {
     messageCount: 1,
     createdAt,
     updatedAt: createdAt,
+    ...overrides,
   };
 }
 
