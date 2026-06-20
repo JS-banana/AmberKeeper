@@ -1,27 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
-
-type RuntimeArtifactMatch = {
-  ruleId: string;
-  value: string;
-};
-
-type ConfigMatch = {
-  ruleId: string;
-  lineNumber: number;
-  line: string;
-};
-
-type ReleaseHygieneAuditModule = {
-  findForbiddenConfigMatches: (configText: string) => ConfigMatch[];
-  findForbiddenRuntimeArtifactMatches: (candidates: string[]) => RuntimeArtifactMatch[];
-};
-
-const {
+import {
   findForbiddenConfigMatches,
   findForbiddenRuntimeArtifactMatches,
-} = (await import('../scripts/release-hygiene-audit.mjs')) as ReleaseHygieneAuditModule;
+} from '../scripts/release-hygiene-audit.mjs';
 
 describe('findForbiddenRuntimeArtifactMatches', () => {
   test('ignores normal source and build paths', () => {
