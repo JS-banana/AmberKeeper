@@ -373,7 +373,7 @@ const PROVIDER_DOM_CAPTURE_DRIVERS: ProviderDomCaptureDriver[] = [
   createProviderDomCaptureDriver({
     id: 'kimi',
     sourceSessionKey: 'kimi-primary-view',
-    matches: (url) => matchesHost(url, 'www.kimi.com') || matchesHost(url, 'kimi.moonshot.cn'),
+    matches: (url) => matchesHost(url, 'kimi.com') || matchesHost(url, 'kimi.moonshot.cn'),
     collectMessages: collectKimiStructuredMessages,
     buildSnapshot: buildKimiDomSnapshot,
     buildSignal: buildKimiDomSignal,

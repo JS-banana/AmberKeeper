@@ -116,7 +116,7 @@ function applyPageLocaleOverride(): void {
         };
       };
 
-      document.documentElement.setAttribute('lang', locale);
+      document.documentElement?.setAttribute('lang', locale);
     },
     args: [config.locale, config.languages],
   });
