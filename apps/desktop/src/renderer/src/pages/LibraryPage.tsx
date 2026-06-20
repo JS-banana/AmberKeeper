@@ -257,7 +257,7 @@ export function LibraryPage(props: {
       : 'grid grid-rows-[auto_minmax(0,1fr)] gap-5 h-full overflow-hidden'
     }>
       <h1 className="sr-only">数据</h1>
-      <div className="sticky top-0 z-[3] flex items-center justify-between gap-3 px-3 pt-2 pb-3 bg-white/85 backdrop-blur-[18px] border-b border-[rgba(153,127,76,0.08)] -mx-4 -mt-6 mb-3">
+      <div className="sticky top-6 z-[3] flex items-center justify-between gap-3 px-3 pt-2 pb-3 bg-white/85 backdrop-blur-[18px] border-b border-[rgba(153,127,76,0.08)] -mx-4 mb-3">
         <div className="flex min-w-0 items-center gap-1 overflow-x-auto pb-1"
             aria-label="按服务筛选数据"
           >
