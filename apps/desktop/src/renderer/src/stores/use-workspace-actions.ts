@@ -280,6 +280,34 @@ export function useWorkspaceActions(options: {
     }
   });
 
+  const chooseChatDataLocation = useEffectEvent(async () => {
+    try {
+      await window.captureApi.chooseChatDataLocation();
+      await options.refreshShellState();
+    } catch (error) {
+      startTransition(() => {
+        options.setState((current) => ({
+          ...current,
+          error: formatError(error),
+        }));
+      });
+    }
+  });
+
+  const restoreDefaultChatDataLocation = useEffectEvent(async () => {
+    try {
+      await window.captureApi.restoreDefaultChatDataLocation();
+      await options.refreshShellState();
+    } catch (error) {
+      startTransition(() => {
+        options.setState((current) => ({
+          ...current,
+          error: formatError(error),
+        }));
+      });
+    }
+  });
+
   const exportProviderSessions = useEffectEvent(
     async (
       providerId: ProviderId,
@@ -335,6 +363,8 @@ export function useWorkspaceActions(options: {
     setProviderCacheEnabled,
     setInterfaceLanguage,
     setCaptureSaveScope,
+    chooseChatDataLocation,
+    restoreDefaultChatDataLocation,
     exportProviderSessions,
     exportAllSessions,
   };

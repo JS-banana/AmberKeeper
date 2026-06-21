@@ -1,4 +1,6 @@
 import type {
+  ChatDataLocationActionResult,
+  ChatDataLocationState,
   CaptureExportFormat,
   CaptureExportMessageScope,
   CaptureMessageRecord,
@@ -56,6 +58,9 @@ declare global {
       getShellInfo: () => Promise<ShellInfo>;
       setInterfaceLanguage: (language: InterfaceLanguage) => Promise<InterfaceLanguage>;
       setCaptureSaveScope: (saveScope: CaptureSaveScope) => Promise<CaptureSaveScope>;
+      getChatDataLocation: () => Promise<ChatDataLocationState>;
+      chooseChatDataLocation: () => Promise<ChatDataLocationActionResult>;
+      restoreDefaultChatDataLocation: () => Promise<ChatDataLocationActionResult>;
       setNativeStageVisible: (visible: boolean) => Promise<void>;
       getRuntimeStatus: () => Promise<RuntimeStatus>;
       triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
