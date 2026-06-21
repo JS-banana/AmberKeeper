@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type {
+  ChatDataLocationState,
   CaptureExportFormat,
   CaptureExportMessageScope,
   CaptureMessageRecord,
@@ -12,6 +13,7 @@ import type {
   ProviderRecord,
   RuntimeStatus,
   ServiceRecord,
+  ShellInfo,
 } from '@amberkeeper/shared-types';
 import { App } from './App';
 
@@ -164,7 +166,7 @@ test('renders a product-style about page inside the workbench', async () => {
   expect(screen.getByText('0.2.0')).toBeInTheDocument();
 });
 
-test('updates the global save scope from settings', async () => {
+test('updates the global save scope and chat data location from settings', async () => {
   const state = createWorkspaceFixture();
   const api = installCaptureApiMock(state, {
     shellInfo: { diagnosticsEnabled: false, isPackaged: true },
@@ -180,6 +182,23 @@ test('updates the global save scope from settings', async () => {
   await waitFor(() => {
     expect(api.setCaptureSaveScope).toHaveBeenCalledWith('user');
   });
+
+  fireEvent.click(screen.getByRole('button', { name: '选择文件夹' }));
+  await waitFor(() => {
+    expect(api.chooseChatDataLocation).toHaveBeenCalledTimes(1);
+  });
+  expect(await screen.findByText('待迁移位置')).toBeInTheDocument();
+  expect(screen.getByText('/tmp/amberkeeper-chat-data-next')).toBeInTheDocument();
+  expect(screen.getByText('重启后生效')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: '恢复默认位置' }));
+  await waitFor(() => {
+    expect(api.restoreDefaultChatDataLocation).toHaveBeenCalledTimes(1);
+  });
+  await waitFor(() => {
+    expect(screen.queryByText('/tmp/amberkeeper-chat-data-next')).not.toBeInTheDocument();
+  });
+  expect(screen.queryByText('当前使用中')).not.toBeInTheDocument();
 });
 
 test('shows the data workspace as an all-provider overview instead of scoping to the active provider', async () => {
@@ -667,18 +686,26 @@ function installCaptureApiMock(
       appVersion?: string;
       interfaceLanguage?: InterfaceLanguage;
       captureSaveScope?: CaptureSaveScope;
+      chatDataLocation?: ChatDataLocationState;
     };
     runtimeStatus?: Partial<RuntimeStatus>;
   }
 ) {
   let runtimeStatusListener: ((status: RuntimeStatus) => void) | null = null;
   let runtimeStatusOverrides = input?.runtimeStatus ?? {};
-  let shellInfo = {
+  let shellInfo: ShellInfo = {
     diagnosticsEnabled: input?.shellInfo?.diagnosticsEnabled ?? false,
     isPackaged: input?.shellInfo?.isPackaged ?? true,
     appVersion: input?.shellInfo?.appVersion ?? '0.0.1',
     interfaceLanguage: input?.shellInfo?.interfaceLanguage ?? 'system',
     captureSaveScope: input?.shellInfo?.captureSaveScope ?? 'complete',
+    chatDataLocation: input?.shellInfo?.chatDataLocation ?? {
+      currentDirectory: '/tmp/appData/electron-chatgpt-capture',
+      defaultDirectory: '/tmp/appData/electron-chatgpt-capture',
+      pendingDirectory: null,
+      status: 'current',
+      error: null,
+    },
   };
   const syncBuiltInServices = () => {
     state.services = buildServicesFromProviders(state.providers);
@@ -889,6 +916,43 @@ function installCaptureApiMock(
     shellInfo = { ...shellInfo, captureSaveScope: saveScope };
     return saveScope;
   });
+  const getChatDataLocation = vi.fn(async () => shellInfo.chatDataLocation);
+  const chooseChatDataLocation = vi.fn(async () => {
+    shellInfo = {
+      ...shellInfo,
+      chatDataLocation: {
+        ...shellInfo.chatDataLocation,
+        pendingDirectory: '/tmp/amberkeeper-chat-data-next',
+        status: 'pending-restart',
+        error: null,
+      },
+    };
+
+    return {
+      state: shellInfo.chatDataLocation,
+      requiresRestart: true,
+      message: 'chat data location selected',
+    };
+  });
+  const restoreDefaultChatDataLocation = vi.fn(async () => {
+    shellInfo = {
+      ...shellInfo,
+      chatDataLocation: {
+        ...shellInfo.chatDataLocation,
+        currentDirectory: shellInfo.chatDataLocation.defaultDirectory,
+        pendingDirectory: null,
+        status: 'current',
+        error: null,
+      },
+    };
+
+    return {
+      state: shellInfo.chatDataLocation,
+      requiresRestart: false,
+      message: 'default chat data location restored',
+    };
+  });
+  const getShellInfo = vi.fn(async () => shellInfo);
 
   window.captureApi = {
     listSessions,
@@ -915,6 +979,9 @@ function installCaptureApiMock(
     moveProvider,
     setInterfaceLanguage,
     setCaptureSaveScope,
+    getChatDataLocation,
+    chooseChatDataLocation,
+    restoreDefaultChatDataLocation,
     getRuntimeStatus,
     openExternal: async () => undefined,
     triggerDomSnapshot: async () => ({
@@ -926,7 +993,7 @@ function installCaptureApiMock(
       summary: 'none',
       entries: [],
     }),
-    getShellInfo: async () => shellInfo,
+    getShellInfo,
     setNativeStageVisible,
     onRuntimeStatus: (callback: (status: RuntimeStatus) => void) => {
       runtimeStatusListener = callback;
@@ -953,6 +1020,10 @@ function installCaptureApiMock(
     exportAllSessions,
     setNativeStageVisible,
     setCaptureSaveScope,
+    getChatDataLocation,
+    chooseChatDataLocation,
+    restoreDefaultChatDataLocation,
+    getShellInfo,
     emitRuntimeStatus: (overrides?: Partial<RuntimeStatus>) => {
       runtimeStatusOverrides = { ...runtimeStatusOverrides, ...overrides };
       runtimeStatusListener?.({

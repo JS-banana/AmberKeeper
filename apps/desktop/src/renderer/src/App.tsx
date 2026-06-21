@@ -195,8 +195,9 @@ function renderUtilitySurface(input: {
       return (
         <SettingsPage
           shellInfo={input.state.shellInfo}
-          onSetInterfaceLanguage={input.actions.setInterfaceLanguage}
           onSetCaptureSaveScope={input.actions.setCaptureSaveScope}
+          onChooseChatDataLocation={input.actions.chooseChatDataLocation}
+          onRestoreDefaultChatDataLocation={input.actions.restoreDefaultChatDataLocation}
         />
       );
     case 'about':

@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
+  ChatDataLocationActionResult,
+  ChatDataLocationState,
   CaptureExportFormat,
   CaptureExportMessageScope,
   CaptureMessageRecord,
@@ -64,6 +66,12 @@ contextBridge.exposeInMainWorld('captureApi', {
     ipcRenderer.invoke('settings:setInterfaceLanguage', language) as Promise<InterfaceLanguage>,
   setCaptureSaveScope: (saveScope: CaptureSaveScope) =>
     ipcRenderer.invoke('settings:setCaptureSaveScope', saveScope) as Promise<CaptureSaveScope>,
+  getChatDataLocation: () =>
+    ipcRenderer.invoke('settings:getChatDataLocation') as Promise<ChatDataLocationState>,
+  chooseChatDataLocation: () =>
+    ipcRenderer.invoke('settings:chooseChatDataLocation') as Promise<ChatDataLocationActionResult>,
+  restoreDefaultChatDataLocation: () =>
+    ipcRenderer.invoke('settings:restoreDefaultChatDataLocation') as Promise<ChatDataLocationActionResult>,
   setNativeStageVisible: (visible: boolean) =>
     ipcRenderer.invoke('shell:setNativeStageVisible', visible) as Promise<void>,
   getRuntimeStatus: () => ipcRenderer.invoke('capture:getRuntimeStatus') as Promise<RuntimeStatus>,

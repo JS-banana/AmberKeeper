@@ -1,5 +1,7 @@
 import { ipcMain, shell } from 'electron';
 import type {
+  ChatDataLocationActionResult,
+  ChatDataLocationState,
   CaptureExportMessageScope,
   CaptureSaveScope,
   CreateCustomServiceInput,
@@ -31,6 +33,9 @@ export function registerCaptureIpc(options: {
   getShellInfo: () => unknown;
   setInterfaceLanguage: (language: string) => unknown;
   setCaptureSaveScope: (saveScope: CaptureSaveScope) => unknown;
+  getChatDataLocation: () => ChatDataLocationState;
+  chooseChatDataLocation: () => Promise<ChatDataLocationActionResult>;
+  restoreDefaultChatDataLocation: () => Promise<ChatDataLocationActionResult>;
   getInterfaceLocaleConfig: () => { locale: string; languages: string[] };
   setNativeStageVisible: (visible: boolean) => void;
   getRuntimeStatus: () => unknown;
@@ -90,6 +95,11 @@ export function registerCaptureIpc(options: {
   );
   ipcMain.handle('settings:setCaptureSaveScope', (_event, saveScope: CaptureSaveScope) =>
     options.setCaptureSaveScope(saveScope)
+  );
+  ipcMain.handle('settings:getChatDataLocation', () => options.getChatDataLocation());
+  ipcMain.handle('settings:chooseChatDataLocation', () => options.chooseChatDataLocation());
+  ipcMain.handle('settings:restoreDefaultChatDataLocation', () =>
+    options.restoreDefaultChatDataLocation()
   );
   ipcMain.on('settings:getInterfaceLocaleConfig', (event) => {
     event.returnValue = options.getInterfaceLocaleConfig();

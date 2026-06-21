@@ -6,11 +6,13 @@ import {
   type RuntimeSignal,
 } from '@amberkeeper/capture-core';
 import type {
+  ChatDataLocationActionResult,
   CaptureEnvelope,
   CaptureExportArtifact,
   CaptureExportFormat,
   CaptureExportMessageScope,
   CaptureSaveScope,
+  ChatDataLocationState,
   CaptureSessionRecord,
   InterfaceLanguage,
   ProviderId,
@@ -69,6 +71,11 @@ import {
   syncShellStageController,
 } from './runtime/shell-runtime-coordination';
 import { CaptureStore } from './storage/capture-store';
+import {
+  requestChatDataLocationChange,
+  requestDefaultChatDataLocation,
+  runStartupChatDataMigration,
+} from './storage/chat-data-location';
 import { createAppSettingsRepository } from './storage/app-settings-repository';
 import { createShellSettingsService } from './storage/shell-settings-service';
 import { createAppTray, resolveTrayIconPath } from './tray/app-tray';
@@ -128,6 +135,7 @@ let runtimeRegistry: ReturnType<typeof createProviderRuntimeRegistry<ProviderRun
 let customRuntimeRegistry: ReturnType<typeof createServiceRuntimeRegistry<CustomServiceRuntimeContext>> | null =
   null;
 let captureStore: CaptureStore | null = null;
+let chatDataLocationState: ChatDataLocationState | null = null;
 let appSettingsRepo: ReturnType<typeof createAppSettingsRepository> | null = null;
 let shellSettingsService: ReturnType<typeof createShellSettingsService> | null = null;
 let captureSessionService: ReturnType<typeof createCaptureSessionService> | null = null;
@@ -799,6 +807,50 @@ function getShellInfo(): ShellInfo {
     appVersion: app.getVersion(),
     interfaceLanguage: getConfiguredInterfaceLanguage(),
     captureSaveScope: getConfiguredCaptureSaveScope(),
+    chatDataLocation: getChatDataLocationState(),
+  };
+}
+
+function getChatDataLocationState(): ChatDataLocationState {
+  return (
+    chatDataLocationState ?? {
+      currentDirectory: app.getPath('userData'),
+      defaultDirectory: app.getPath('userData'),
+      pendingDirectory: null,
+      status: 'current',
+      error: null,
+    }
+  );
+}
+
+async function chooseChatDataLocation(): Promise<ChatDataLocationActionResult> {
+  const result = await dialog.showOpenDialog({
+    title: '选择聊天数据位置',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  const selectedDirectory = result.filePaths[0];
+  if (result.canceled || !selectedDirectory) {
+    return {
+      state: getChatDataLocationState(),
+      requiresRestart: false,
+      message: '未更改聊天数据位置',
+    };
+  }
+
+  chatDataLocationState = requestChatDataLocationChange(app.getPath('userData'), selectedDirectory);
+  return {
+    state: chatDataLocationState,
+    requiresRestart: chatDataLocationState.status === 'pending-restart',
+    message: '聊天数据位置将在重启后迁移',
+  };
+}
+
+async function restoreDefaultChatDataLocation(): Promise<ChatDataLocationActionResult> {
+  chatDataLocationState = requestDefaultChatDataLocation(app.getPath('userData'));
+  return {
+    state: chatDataLocationState,
+    requiresRestart: chatDataLocationState.status === 'pending-restart',
+    message: '聊天数据位置将在重启后恢复默认',
   };
 }
 
@@ -997,19 +1049,37 @@ function wait(milliseconds: number): Promise<void> {
 
 registerAppLifecycle({
   onReady: () => {
-    captureStore = new CaptureStore(path.join(app.getPath('userData'), 'capture-lab.db'));
-    appSettingsRepo = createAppSettingsRepository(captureStore.getDb());
-    shellSettingsService = createShellSettingsService({
-      getCaptureStore: () => captureStore,
-      getAppSettingsRepository: () => appSettingsRepo,
-      afterStoreMutation: () => syncRuntimeRegistryFromStore(),
-      afterInterfaceLanguageMutation: () => {
-        applyConfiguredInterfaceLanguageToResolvedRuntimes();
-        void reloadActiveRuntimeAfterLanguageChange().catch((error) => {
-          console.error('[settings] failed to reload active runtime after language change:', error);
-        });
-      },
-    });
+    const userDataPath = app.getPath('userData');
+    try {
+      const chatDataMigration = runStartupChatDataMigration(userDataPath);
+      chatDataLocationState = chatDataMigration.state;
+      if (chatDataMigration.storePath) {
+        captureStore = new CaptureStore(chatDataMigration.storePath);
+      }
+    } catch (error) {
+      captureStore = null;
+      chatDataLocationState = {
+        currentDirectory: userDataPath,
+        defaultDirectory: userDataPath,
+        pendingDirectory: null,
+        status: 'unavailable',
+        error: formatError(error),
+      };
+    }
+    if (captureStore) {
+      appSettingsRepo = createAppSettingsRepository(captureStore.getDb());
+      shellSettingsService = createShellSettingsService({
+        getCaptureStore: () => captureStore,
+        getAppSettingsRepository: () => appSettingsRepo,
+        afterStoreMutation: () => syncRuntimeRegistryFromStore(),
+        afterInterfaceLanguageMutation: () => {
+          applyConfiguredInterfaceLanguageToResolvedRuntimes();
+          void reloadActiveRuntimeAfterLanguageChange().catch((error) => {
+            console.error('[settings] failed to reload active runtime after language change:', error);
+          });
+        },
+      });
+    }
     captureSessionService = createCaptureSessionService({
       getCaptureStore: () => captureStore,
       publishRuntimeStatus,
@@ -1181,6 +1251,9 @@ registerAppLifecycle({
         ) ?? 'system',
       setCaptureSaveScope: (saveScope) =>
         shellSettingsService?.setCaptureSaveScope(saveScope as CaptureSaveScope) ?? 'complete',
+      getChatDataLocation: getChatDataLocationState,
+      chooseChatDataLocation,
+      restoreDefaultChatDataLocation,
       getInterfaceLocaleConfig,
       setNativeStageVisible,
       getRuntimeStatus: () => diagnosticsService?.getRuntimeStatus() ?? {
