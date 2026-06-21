@@ -111,12 +111,29 @@ export interface CreateCustomServiceInput {
   iconUrl?: string | null;
 }
 
+export type ChatDataLocationStatus = 'current' | 'pending-restart' | 'unavailable';
+
+export interface ChatDataLocationState {
+  currentDirectory: string;
+  defaultDirectory: string;
+  pendingDirectory: string | null;
+  status: ChatDataLocationStatus;
+  error: string | null;
+}
+
+export interface ChatDataLocationActionResult {
+  state: ChatDataLocationState;
+  requiresRestart: boolean;
+  message: string;
+}
+
 export interface ShellInfo {
   diagnosticsEnabled: boolean;
   isPackaged: boolean;
   appVersion: string;
   interfaceLanguage: InterfaceLanguage;
   captureSaveScope: CaptureSaveScope;
+  chatDataLocation: ChatDataLocationState;
 }
 
 export interface CaptureAttemptLogRecord {
