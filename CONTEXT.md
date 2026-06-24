@@ -51,3 +51,11 @@ _Avoid_: 用户消息摘要标题, 自动摘要标题
 **聊天数据清理**:
 A low-frequency destructive action that removes retained local conversation content traces from AmberKeeper for all providers or a selected provider while preserving app configuration, save policy, services, provider login state, and provider-owned remote history. It also removes related diagnostic content traces and requires deliberate confirmation because retained conversations are a core AmberKeeper asset.
 _Avoid_: 清理数据, 清缓存, 清空列表
+
+**外部链接**:
+A URL opened from provider or custom-service web content that should leave AmberKeeper and use the system browser when it behaves like a tab-style content link. Provider login or OAuth popups are not external links for this purpose.
+_Avoid_: 应用内参考链接, Auth 弹窗链接
+
+**最小化到托盘**:
+A close-window choice that hides the main window while keeping AmberKeeper running and recoverable from the system tray. It is distinct from quitting, which ends active runtimes.
+_Avoid_: 关闭应用, 退出到后台

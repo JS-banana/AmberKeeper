@@ -1,5 +1,6 @@
 {
   "name": "amberkeeper-desktop",
+  "productName": "AmberKeeper",
   "private": true,
   "version": "0.1.15",
   "description": "Electron desktop app for capturing and managing conversations across mainstream AI providers.",
@@ -17,7 +18,7 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "node --import ./scripts/polyfill-stdout.mjs ./node_modules/electron-vite/bin/electron-vite.js dev",
+    "dev": "node --import ./scripts/polyfill-stdout.mjs ./scripts/dev.mjs",
     "build": "node --import ./scripts/polyfill-stdout.mjs ./node_modules/electron-vite/bin/electron-vite.js build",
     "preview": "electron-vite preview",
     "test": "NODE_OPTIONS=--no-warnings=ExperimentalWarning vitest run",

@@ -39,6 +39,7 @@ import { createRequestIngestionService } from './capture/request-ingestion-servi
 import { createDiagnosticsService } from './diagnostics/diagnostics-service';
 import { createLiveProbeService } from './diagnostics/live-probe-service';
 import { registerCaptureIpc } from './ipc/capture-ipc';
+import { installApplicationMenu } from './menu/app-menu';
 import {
   applyInterfaceLanguageToWebContents,
   buildCustomBrowserSessionConfig,
@@ -79,7 +80,12 @@ import {
 import { createAppSettingsRepository } from './storage/app-settings-repository';
 import { createShellSettingsService } from './storage/shell-settings-service';
 import { createAppTray, resolveTrayIconPath } from './tray/app-tray';
-import { createMainWindow, createProviderStageController } from './windows/main-window';
+import {
+  createMainWindow,
+  createProviderStageController,
+  resolveClosePromptAction,
+  resolveMainWindowCloseBehavior,
+} from './windows/main-window';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRODUCT_NAME = 'AmberKeeper';
@@ -157,6 +163,7 @@ let lastCaptureAt: string | null = null;
 let domCaptureInFlight = false;
 let nativeStageVisible = true;
 let isAppQuitting = false;
+let closePromptInFlight = false;
 const providerPageTitles = new Map<ProviderId, string>();
 
 const trackedRequests = new Map<string, TrackedRequest>();
@@ -177,12 +184,22 @@ function createDesktopWindow(): void {
   stageController = createProviderStageController(mainWindow, PANEL_WIDTH);
 
   mainWindow.on('close', (event) => {
-    if (process.platform !== 'darwin' || isAppQuitting) {
+    const closeBehavior = resolveMainWindowCloseBehavior({
+      platform: process.platform,
+      isAppQuitting,
+    });
+
+    if (closeBehavior === 'close') {
       return;
     }
 
     event.preventDefault();
-    mainWindow?.hide();
+    if (closeBehavior === 'hide') {
+      mainWindow?.hide();
+      return;
+    }
+
+    void promptBeforeClosingMainWindow();
   });
 
   mainWindow.on('closed', () => {
@@ -199,6 +216,7 @@ function createDesktopWindow(): void {
     currentUrl = getPersistedActiveServiceLaunchUrl();
     domCaptureInFlight = false;
     nativeStageVisible = true;
+    closePromptInFlight = false;
     trackedRequests.clear();
     oldSessionAutoCacheInFlight.clear();
   });
@@ -242,8 +260,8 @@ function createDesktopWindow(): void {
   syncRuntimeRegistryFromStore();
 }
 
-function ensureAppTray(): void {
-  if (process.platform !== 'darwin' || appTray) {
+function ensureAppTray(options: { force?: boolean } = {}): void {
+  if (appTray || (process.platform !== 'darwin' && !options.force)) {
     return;
   }
 
@@ -289,6 +307,43 @@ function hideMainWindow(): void {
   }
 
   mainWindow.hide();
+}
+
+async function promptBeforeClosingMainWindow(): Promise<void> {
+  if (closePromptInFlight || !mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  closePromptInFlight = true;
+  const promptWindow = mainWindow;
+
+  try {
+    const { response } = await dialog.showMessageBox(promptWindow, {
+      type: 'question',
+      title: '关闭 AmberKeeper',
+      message: '关闭窗口时要最小化到托盘吗？',
+      detail: '最小化后可从托盘菜单恢复窗口；退出会结束当前采集和已打开的 Provider 页面。',
+      buttons: ['最小化到托盘', '退出 AmberKeeper', '取消'],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    });
+
+    const action = resolveClosePromptAction(response);
+
+    if (action === 'hide') {
+      ensureAppTray({ force: true });
+      hideMainWindow();
+      return;
+    }
+
+    if (action === 'quit') {
+      isAppQuitting = true;
+      app.quit();
+    }
+  } finally {
+    closePromptInFlight = false;
+  }
 }
 
 function createProviderRuntime(provider: ProviderRecord): ProviderRuntimeContext {
@@ -1049,6 +1104,8 @@ function wait(milliseconds: number): Promise<void> {
 
 registerAppLifecycle({
   onReady: () => {
+    installApplicationMenu({ productName: PRODUCT_NAME });
+
     const userDataPath = app.getPath('userData');
     try {
       const chatDataMigration = runStartupChatDataMigration(userDataPath);
