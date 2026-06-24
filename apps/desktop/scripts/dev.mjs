@@ -41,7 +41,7 @@ async function ensureNamedElectronApp() {
   const targetDir = path.join(DESKTOP_ROOT, 'node_modules/.cache/amberkeeper-electron');
   const targetApp = path.join(targetDir, `${PRODUCT_NAME}.app`);
   const markerPath = path.join(targetDir, 'source.txt');
-  const marker = `${sourceApp}\n${electronVersion}\n${PRODUCT_NAME}\n`;
+  const marker = `${sourceApp}\n${electronVersion}\n${PRODUCT_NAME}\nverbatim-symlinks\n`;
 
   if ((await readText(markerPath)) === marker) {
     return path.join(targetApp, 'Contents/MacOS/Electron');
@@ -49,7 +49,7 @@ async function ensureNamedElectronApp() {
 
   await rm(targetApp, { recursive: true, force: true });
   await mkdir(targetDir, { recursive: true });
-  await cp(sourceApp, targetApp, { recursive: true });
+  await cp(sourceApp, targetApp, { recursive: true, verbatimSymlinks: true });
 
   const plistPath = path.join(targetApp, 'Contents/Info.plist');
   replacePlistValue(plistPath, 'CFBundleDisplayName', PRODUCT_NAME);
