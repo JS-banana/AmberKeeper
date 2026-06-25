@@ -24,6 +24,8 @@ import {
   buildMainRendererWebPreferences,
   createMainWindow,
   createProviderStageController,
+  resolveClosePromptAction,
+  resolveMainWindowCloseBehavior,
 } from '../src/main/windows/main-window';
 
 beforeEach(() => {
@@ -54,6 +56,27 @@ test('hardens the main renderer with sandboxed isolated preload access', () => {
     webSecurity: true,
     webviewTag: false,
   });
+});
+
+test('resolves close behavior by platform and quit state', () => {
+  expect(resolveMainWindowCloseBehavior({ platform: 'darwin', isAppQuitting: false })).toBe(
+    'hide'
+  );
+  expect(resolveMainWindowCloseBehavior({ platform: 'win32', isAppQuitting: false })).toBe(
+    'prompt'
+  );
+  expect(resolveMainWindowCloseBehavior({ platform: 'linux', isAppQuitting: false })).toBe(
+    'prompt'
+  );
+  expect(resolveMainWindowCloseBehavior({ platform: 'win32', isAppQuitting: true })).toBe(
+    'close'
+  );
+});
+
+test('maps close prompt button responses to window actions', () => {
+  expect(resolveClosePromptAction(0)).toBe('hide');
+  expect(resolveClosePromptAction(1)).toBe('quit');
+  expect(resolveClosePromptAction(2)).toBe('cancel');
 });
 
 test('detaches removed stage views from the content view', () => {

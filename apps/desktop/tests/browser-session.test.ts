@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   applyInterfaceLanguageToWebContents,
+  buildPopupHandler,
   buildRemoteContentWebPreferences,
   buildCustomBrowserSessionConfig,
   executeChatCaptureScript,
@@ -67,6 +68,53 @@ describe('browser-session', () => {
       webSecurity: true,
       webviewTag: false,
     });
+  });
+
+  test('opens foreground-tab popup links in the system browser', async () => {
+    const openedUrls: string[] = [];
+    const result = buildPopupHandler(
+      {
+        url: 'https://example.com/reference',
+        disposition: 'foreground-tab',
+      },
+      {
+        partition: 'persist:anychat-chatgpt',
+        chatPreloadPath: '/tmp/chat.mjs',
+        openExternal: async (url) => {
+          openedUrls.push(url);
+        },
+      }
+    );
+
+    expect(result).toEqual({ action: 'deny' });
+    expect(openedUrls).toEqual(['https://example.com/reference']);
+  });
+
+  test('keeps new-window popups app-owned for provider auth flows', () => {
+    const openedUrls: string[] = [];
+    const result = buildPopupHandler(
+      {
+        url: 'https://accounts.example.com/login',
+        disposition: 'new-window',
+      },
+      {
+        partition: 'persist:anychat-chatgpt',
+        chatPreloadPath: '/tmp/chat.mjs',
+        openExternal: async (url) => {
+          openedUrls.push(url);
+        },
+      }
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: 'allow',
+        overrideBrowserWindowOptions: expect.objectContaining({
+          title: 'AmberKeeper Auth',
+        }),
+      })
+    );
+    expect(openedUrls).toEqual([]);
   });
 
   test('executes chat capture scripts in the dedicated isolated world when available', async () => {

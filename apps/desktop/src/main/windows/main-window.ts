@@ -172,6 +172,32 @@ export function buildMainRendererWebPreferences(preloadPath: string) {
   };
 }
 
+export type MainWindowCloseBehavior = 'close' | 'hide' | 'prompt';
+export type ClosePromptAction = 'hide' | 'quit' | 'cancel';
+
+export function resolveMainWindowCloseBehavior(input: {
+  platform: NodeJS.Platform;
+  isAppQuitting: boolean;
+}): MainWindowCloseBehavior {
+  if (input.isAppQuitting) {
+    return 'close';
+  }
+
+  return input.platform === 'darwin' ? 'hide' : 'prompt';
+}
+
+export function resolveClosePromptAction(response: number): ClosePromptAction {
+  if (response === 0) {
+    return 'hide';
+  }
+
+  if (response === 1) {
+    return 'quit';
+  }
+
+  return 'cancel';
+}
+
 function resolveWindowIconPath(appIconPath: string | undefined): string | undefined {
   if (!appIconPath || !existsSync(appIconPath)) {
     return undefined;

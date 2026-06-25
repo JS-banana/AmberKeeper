@@ -1,7 +1,7 @@
 import type { DomSnapshotSeenSignal } from '@amberkeeper/capture-core';
 import type { InterfaceLanguage, ProviderId } from '@amberkeeper/shared-types';
 import { randomUUID } from 'node:crypto';
-import { ipcMain, WebContentsView } from 'electron';
+import { ipcMain, shell, WebContentsView } from 'electron';
 import type { HandlerDetails } from 'electron/main';
 import {
   AMBERKEEPER_CHAT_CAPTURE_COMMAND_CHANNEL,
@@ -269,6 +269,7 @@ export function createBrowserSessionRuntimeWithConfig(options: {
     buildPopupHandler(details, {
       partition: config.partition,
       chatPreloadPath: options.chatPreloadPath,
+      openExternal: shell.openExternal,
     })
   );
 
@@ -489,10 +490,23 @@ async function requestChatCapturePayload<TResult>(
   });
 }
 
-function buildPopupHandler(
-  _details: HandlerDetails,
-  options: { partition: string; chatPreloadPath: string }
+export function buildPopupHandler(
+  details: Pick<HandlerDetails, 'url' | 'disposition'>,
+  options: {
+    partition: string;
+    chatPreloadPath: string;
+    openExternal?: (url: string) => Promise<void> | void;
+  }
 ) {
+  if (shouldOpenPopupExternally(details)) {
+    void Promise.resolve((options.openExternal ?? shell.openExternal)(details.url)).catch(
+      (error) => {
+        console.error(`[browser-session] failed to open external link: ${details.url}`, error);
+      }
+    );
+    return { action: 'deny' as const };
+  }
+
   return {
     action: 'allow' as const,
     overrideBrowserWindowOptions: {
@@ -507,6 +521,21 @@ function buildPopupHandler(
       },
     },
   };
+}
+
+function shouldOpenPopupExternally(
+  details: Pick<HandlerDetails, 'url' | 'disposition'>
+): boolean {
+  if (details.disposition !== 'foreground-tab' && details.disposition !== 'background-tab') {
+    return false;
+  }
+
+  try {
+    const protocol = new URL(details.url).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 export function buildRemoteContentWebPreferences(options: {
