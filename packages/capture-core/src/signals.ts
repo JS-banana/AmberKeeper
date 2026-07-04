@@ -78,11 +78,13 @@ export interface CandidateUserMessageSignal extends SignalContext {
   createdAt: string;
   remoteMessageId?: string;
   model?: string;
+  conversationAliases?: string[];
 }
 
 export interface ConversationIdResolvedSignal extends SignalContext {
   kind: 'conversationIdResolved';
   conversationId: string;
+  conversationAliases?: string[];
 }
 
 export interface AssistantMayBeReadySignal extends SignalContext {
@@ -93,6 +95,7 @@ export interface AssistantMayBeReadySignal extends SignalContext {
   stable: boolean;
   remoteMessageId?: string;
   model?: string;
+  conversationAliases?: string[];
 }
 
 export type ProviderSignal =
@@ -104,5 +107,6 @@ export interface CompletedTurn extends SignalContext {
   conversationId: string;
   title?: string;
   titleSource?: SessionTitleSource;
+  remoteConversationAliases?: string[];
   messages: NormalizedMessage[];
 }

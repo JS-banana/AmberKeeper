@@ -3,6 +3,28 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { SessionTitleSource } from '@amberkeeper/shared-types';
 import { ensureCaptureCorePersistenceSchema } from './schema';
 
+export type ConversationResolution = {
+  id: string;
+  messageActions: Array<
+    | {
+        kind: 'moveMessagesToConversation';
+        sourceConversationId: string;
+        targetConversationId: string;
+        remoteConversationId: string;
+      }
+    | {
+        kind: 'updateMessageRemoteConversationId';
+        conversationId: string;
+        remoteConversationId: string;
+        onlyMissing: boolean;
+      }
+  >;
+  conversationActions: Array<{
+    kind: 'deleteConversation';
+    conversationId: string;
+  }>;
+};
+
 export function createConversationRepository(db: DatabaseSync) {
   ensureCaptureCorePersistenceSchema(db);
 
@@ -10,32 +32,44 @@ export function createConversationRepository(db: DatabaseSync) {
     resolve(input: {
       provider: string;
       remoteConversationId?: string | null;
+      remoteConversationAliases?: string[];
       sourceSessionKey: string;
       pageUrl: string;
       title?: string | null;
       titleSource?: SessionTitleSource;
       createdAt: string;
       updatedAt: string;
-    }): string {
+    }): ConversationResolution {
       const remoteConversationId = input.remoteConversationId ?? null;
+      const remoteConversationAliases = normalizeAliases(
+        input.remoteConversationAliases,
+        remoteConversationId
+      );
       const incomingTitle = normalizeTitle(input.title);
       const incomingTitleSource = incomingTitle ? (input.titleSource ?? 'provider') : 'fallback';
       const createdAt = normalizeTimestamp(input.createdAt, input.updatedAt);
 
       if (remoteConversationId) {
-        const existingResolved = db
-          .prepare(
-            `
-              SELECT id, created_at AS createdAt, title, title_source AS titleSource
-              FROM conversations
-              WHERE provider = ? AND remote_conversation_id = ?
-            `
-          )
-          .get(input.provider, remoteConversationId) as
-            | { id?: string; createdAt?: string; title?: string | null; titleSource?: SessionTitleSource | null }
-            | undefined;
+        const existingResolved = findConversationByRemoteId(db, input.provider, remoteConversationId);
+        const aliasResolved = findConversationByRemoteAliases(db, input.provider, remoteConversationAliases);
 
         if (existingResolved?.id) {
+          const messageActions: ConversationResolution['messageActions'] = [];
+          const conversationActions: ConversationResolution['conversationActions'] = [];
+
+          if (aliasResolved?.id && aliasResolved.id !== existingResolved.id) {
+            messageActions.push({
+              kind: 'moveMessagesToConversation',
+              sourceConversationId: aliasResolved.id,
+              targetConversationId: existingResolved.id,
+              remoteConversationId,
+            });
+            conversationActions.push({
+              kind: 'deleteConversation',
+              conversationId: aliasResolved.id,
+            });
+          }
+
           const nextTitle = resolveStoredTitle({
             existingTitle: existingResolved.title,
             existingTitleSource: existingResolved.titleSource,
@@ -59,7 +93,55 @@ export function createConversationRepository(db: DatabaseSync) {
             existingResolved.id
           );
 
-          return existingResolved.id;
+          messageActions.push({
+            kind: 'updateMessageRemoteConversationId',
+            conversationId: existingResolved.id,
+            remoteConversationId,
+            onlyMissing: false,
+          });
+          return {
+            id: existingResolved.id,
+            messageActions,
+            conversationActions,
+          };
+        }
+
+        if (aliasResolved?.id) {
+          const nextTitle = resolveStoredTitle({
+            existingTitle: aliasResolved.title,
+            existingTitleSource: aliasResolved.titleSource,
+            incomingTitle,
+            incomingTitleSource,
+          });
+
+          db.prepare(
+            `
+              UPDATE conversations
+              SET remote_conversation_id = ?, page_url = ?, title = ?, title_source = ?, created_at = ?, updated_at = ?
+              WHERE id = ?
+            `
+          ).run(
+            remoteConversationId,
+            input.pageUrl,
+            nextTitle.title,
+            nextTitle.titleSource,
+            chooseConversationCreatedAt(aliasResolved.createdAt, createdAt),
+            input.updatedAt,
+            aliasResolved.id
+          );
+
+          return {
+            id: aliasResolved.id,
+            messageActions: [
+              {
+                kind: 'updateMessageRemoteConversationId',
+                conversationId: aliasResolved.id,
+                remoteConversationId,
+                onlyMissing: false,
+              },
+            ],
+            conversationActions: [],
+          };
         }
 
         const fallback = db
@@ -71,7 +153,7 @@ export function createConversationRepository(db: DatabaseSync) {
             `
           )
           .get(input.provider, input.sourceSessionKey) as
-            | { id?: string; createdAt?: string; title?: string | null; titleSource?: SessionTitleSource | null }
+            | ConversationLookupRow
             | undefined;
 
         if (fallback?.id) {
@@ -98,15 +180,18 @@ export function createConversationRepository(db: DatabaseSync) {
             fallback.id
           );
 
-          db.prepare(
-            `
-              UPDATE messages
-              SET remote_conversation_id = ?
-              WHERE conversation_id = ? AND remote_conversation_id IS NULL
-            `
-          ).run(remoteConversationId, fallback.id);
-
-          return fallback.id;
+          return {
+            id: fallback.id,
+            messageActions: [
+              {
+                kind: 'updateMessageRemoteConversationId',
+                conversationId: fallback.id,
+                remoteConversationId,
+                onlyMissing: true,
+              },
+            ],
+            conversationActions: [],
+          };
         }
       }
 
@@ -119,7 +204,7 @@ export function createConversationRepository(db: DatabaseSync) {
           `
         )
         .get(input.provider, input.sourceSessionKey, remoteConversationId) as
-          | { id?: string; createdAt?: string; title?: string | null; titleSource?: SessionTitleSource | null }
+          | ConversationLookupRow
           | undefined;
 
       if (fallback?.id) {
@@ -145,7 +230,11 @@ export function createConversationRepository(db: DatabaseSync) {
           fallback.id
         );
 
-        return fallback.id;
+        return {
+          id: fallback.id,
+          messageActions: [],
+          conversationActions: [],
+        };
       }
 
       const conversationId = `conversation-${crypto.randomUUID()}`;
@@ -175,7 +264,11 @@ export function createConversationRepository(db: DatabaseSync) {
         input.updatedAt
       );
 
-      return conversationId;
+      return {
+        id: conversationId,
+        messageActions: [],
+        conversationActions: [],
+      };
     },
     updateMessageCount(conversationId: string, messageCount: number, updatedAt: string): void {
       db.prepare(
@@ -186,7 +279,71 @@ export function createConversationRepository(db: DatabaseSync) {
         `
       ).run(messageCount, updatedAt, conversationId);
     },
+    deleteById(conversationId: string): void {
+      db.prepare(
+        `
+          DELETE FROM conversations
+          WHERE id = ?
+        `
+      ).run(conversationId);
+    },
   };
+}
+
+type ConversationLookupRow = {
+  id?: string;
+  createdAt?: string;
+  title?: string | null;
+  titleSource?: SessionTitleSource | null;
+};
+
+function findConversationByRemoteId(
+  db: DatabaseSync,
+  provider: string,
+  remoteConversationId: string
+): ConversationLookupRow | undefined {
+  return db
+    .prepare(
+      `
+        SELECT
+          id,
+          created_at AS createdAt,
+          title,
+          title_source AS titleSource
+        FROM conversations
+        WHERE provider = ? AND remote_conversation_id = ?
+      `
+    )
+    .get(provider, remoteConversationId) as ConversationLookupRow | undefined;
+}
+
+function findConversationByRemoteAliases(
+  db: DatabaseSync,
+  provider: string,
+  aliases: string[]
+): ConversationLookupRow | undefined {
+  for (const alias of aliases) {
+    const row = findConversationByRemoteId(db, provider, alias);
+    if (row?.id) {
+      return row;
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeAliases(
+  aliases: string[] | undefined,
+  remoteConversationId: string | null
+): string[] {
+  const normalized: string[] = [];
+  for (const alias of aliases ?? []) {
+    const value = alias.trim();
+    if (value && value !== remoteConversationId && !normalized.includes(value)) {
+      normalized.push(value);
+    }
+  }
+  return normalized;
 }
 
 function normalizeTitle(input: string | null | undefined): string | null {

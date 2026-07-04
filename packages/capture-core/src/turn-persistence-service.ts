@@ -1,7 +1,10 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { CaptureEnvelope } from '@amberkeeper/shared-types';
 import { createCaptureEventRepository } from './persistence/capture-event-repository';
-import { createConversationRepository } from './persistence/conversation-repository';
+import {
+  createConversationRepository,
+  type ConversationResolution,
+} from './persistence/conversation-repository';
 import { createMessageRepository } from './persistence/message-repository';
 import type { CompletedTurn } from './signals';
 
@@ -32,9 +35,10 @@ export function persistCompletedTurn(db: DatabaseSync, turn: CompletedTurn): str
     const messageRepository = createMessageRepository(db);
     const captureEventRepository = createCaptureEventRepository(db);
 
-    const conversationId = conversationRepository.resolve({
+    const conversationResolution = conversationRepository.resolve({
       provider: turn.provider,
       remoteConversationId: turn.conversationId,
+      remoteConversationAliases: turn.remoteConversationAliases,
       sourceSessionKey: turn.sourceSessionKey,
       pageUrl: turn.pageUrl,
       title: turn.title,
@@ -42,6 +46,11 @@ export function persistCompletedTurn(db: DatabaseSync, turn: CompletedTurn): str
       createdAt: turn.messages[0]?.createdAt ?? turn.capturedAt,
       updatedAt: turn.capturedAt,
     });
+    applyConversationResolution(conversationResolution, {
+      conversationRepository,
+      messageRepository,
+    });
+    const conversationId = conversationResolution.id;
 
     const insertedMessages = messageRepository.insertMany({
       conversationId,
@@ -97,10 +106,36 @@ export function toCaptureEnvelope(turn: CompletedTurn): CaptureEnvelope {
     capturedAt: turn.capturedAt,
     sourceSessionKey: turn.sourceSessionKey,
     remoteConversationId: turn.conversationId,
+    remoteConversationAliases: turn.remoteConversationAliases,
     title: turn.title,
     titleSource: turn.titleSource,
     messages: turn.messages,
   };
+}
+
+function applyConversationResolution(
+  resolution: ConversationResolution,
+  repositories: {
+    conversationRepository: ReturnType<typeof createConversationRepository>;
+    messageRepository: ReturnType<typeof createMessageRepository>;
+  }
+): void {
+  for (const action of resolution.messageActions) {
+    if (action.kind === 'moveMessagesToConversation') {
+      repositories.messageRepository.moveToConversation(action);
+      continue;
+    }
+
+    repositories.messageRepository.updateRemoteConversationId(
+      action.conversationId,
+      action.remoteConversationId,
+      { onlyMissing: action.onlyMissing }
+    );
+  }
+
+  for (const action of resolution.conversationActions) {
+    repositories.conversationRepository.deleteById(action.conversationId);
+  }
 }
 
 function runInTransaction<T>(db: DatabaseSync, work: () => T): T {

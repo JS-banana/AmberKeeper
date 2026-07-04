@@ -18,6 +18,7 @@ export interface TurnState {
   capturedAt: string;
   status: TurnStatus;
   conversationId: string | null;
+  conversationAliases: string[];
   userMessage: NormalizedMessage | null;
   assistantMessage: NormalizedMessage | null;
 }
@@ -28,14 +29,17 @@ export function reduceTurn(previous: TurnState | undefined, signal: ProviderSign
   if (signal.kind === 'candidateUserMessage') {
     state.userMessage = toNormalizedMessage('user', signal);
     state.conversationId = signal.conversationId ?? state.conversationId;
+    state.conversationAliases = mergeAliases(state.conversationAliases, signal.conversationAliases);
   }
 
   if (signal.kind === 'conversationIdResolved') {
     state.conversationId = signal.conversationId;
+    state.conversationAliases = mergeAliases(state.conversationAliases, signal.conversationAliases);
   }
 
   if (signal.kind === 'assistantMayBeReady') {
     state.conversationId = signal.conversationId ?? state.conversationId;
+    state.conversationAliases = mergeAliases(state.conversationAliases, signal.conversationAliases);
     state.assistantMessage = signal.stable ? toNormalizedMessage('assistant', signal) : null;
   }
 
@@ -55,6 +59,7 @@ export function toCompletedTurn(state: TurnState): CompletedTurn | null {
     pageUrl: state.pageUrl,
     capturedAt: state.capturedAt,
     conversationId: state.conversationId,
+    remoteConversationAliases: state.conversationAliases.filter((alias) => alias !== state.conversationId),
     messages: [
       {
         ...state.userMessage,
@@ -92,6 +97,18 @@ export function createCompletedTurnFingerprint(turn: CompletedTurn): string {
   ].join('|');
 }
 
+
+function mergeAliases(existing: string[], incoming: string[] | undefined): string[] {
+  const aliases = [...existing];
+  for (const alias of incoming ?? []) {
+    const normalized = alias.trim();
+    if (normalized && !aliases.includes(normalized)) {
+      aliases.push(normalized);
+    }
+  }
+  return aliases;
+}
+
 function createBaseState(previous: TurnState | undefined, signal: ProviderSignal): TurnState {
   if (!previous || shouldResetTurn(previous, signal)) {
     return {
@@ -103,6 +120,7 @@ function createBaseState(previous: TurnState | undefined, signal: ProviderSignal
       status: 'idle',
       conversationId: null,
       userMessage: null,
+      conversationAliases: [],
       assistantMessage: null,
     };
   }
@@ -147,9 +165,17 @@ function toNormalizedMessage(
   return {
     role,
     content: signal.content,
-    createdAt: signal.createdAt,
+    createdAt: normalizeSignalTimestamp(signal.createdAt, signal.capturedAt),
     remoteConversationId: 'conversationId' in signal ? signal.conversationId ?? undefined : undefined,
     remoteMessageId: signal.remoteMessageId,
     model: signal.model,
   };
+}
+
+function normalizeSignalTimestamp(input: string, fallback: string): string {
+  if (!input || input === new Date(0).toISOString() || Number.isNaN(new Date(input).getTime())) {
+    return fallback;
+  }
+
+  return input;
 }
