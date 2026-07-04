@@ -77,6 +77,54 @@ describe('resolveSessionTitle', () => {
       )
     ).toBe('Rehydrate the Xiaomi workspace history');
   });
+
+  test('strips provider brand chrome from meaningful provider-owned titles', () => {
+    expect(
+      resolveSessionTitle(
+        buildSession({
+          provider: 'deepseek',
+          title: '景德镇最佳旅游季节 - DeepSeek',
+          remoteConversationId: 'deepseek-conv',
+          previewText: '景德镇适合什么季节去玩',
+        })
+      )
+    ).toBe('景德镇最佳旅游季节');
+
+    expect(
+      resolveSessionTitle(
+        buildSession({
+          provider: 'doubao',
+          title: '景德镇旅游季节 - 豆包',
+          remoteConversationId: 'doubao-conv',
+          previewText: '景德镇适合什么季节去玩',
+        })
+      )
+    ).toBe('景德镇旅游季节');
+  });
+
+  test('falls back when stored titles are provider landing page titles', () => {
+    expect(
+      resolveSessionTitle(
+        buildSession({
+          provider: 'chatgpt',
+          title: '千问-阿里 AI 助手',
+          remoteConversationId: 'chatgpt-conv',
+          previewText: '景德镇适合什么季节去玩',
+        })
+      )
+    ).toBe('景德镇适合什么季节去玩');
+
+    expect(
+      resolveSessionTitle(
+        buildSession({
+          provider: 'doubao',
+          title: '豆包 - 字节跳动旗下 AI 智能助手',
+          remoteConversationId: 'doubao-conv',
+          previewText: '今天天气如何',
+        })
+      )
+    ).toBe('今天天气如何');
+  });
 });
 
 function buildSession(

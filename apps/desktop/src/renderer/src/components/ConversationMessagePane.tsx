@@ -5,6 +5,7 @@ import type {
   CaptureSessionRecord,
 } from '@amberkeeper/shared-types';
 import {
+  formatCaptureTimestamp,
   formatSessionUpdatedAt,
   getProviderLabel,
   resolveSessionTitle,
@@ -146,7 +147,7 @@ export function ConversationMessagePane(props: {
                   >
                     <div className="flex items-center justify-between gap-2.5 mb-2.5 text-[11px] uppercase tracking-[0.08em] text-[#738297]">
                       <span>{message.role === 'assistant' ? '助手' : '用户'}</span>
-                      <span>{message.createdAt}</span>
+                      <span>{formatCaptureTimestamp(message.createdAt)}</span>
                     </div>
                     <p className="m-0 leading-relaxed text-[#243346] whitespace-pre-wrap">{message.content}</p>
                   </li>

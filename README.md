@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://www.electronjs.org/">
-    <img src="https://img.shields.io/badge/Electron-41-47848F?logo=electron&logoColor=white" alt="Electron 41">
+    <img src="https://img.shields.io/badge/Electron-42-47848F?logo=electron&logoColor=white" alt="Electron 42">
   </a>
   <a href="https://react.dev/">
     <img src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" alt="React 19">

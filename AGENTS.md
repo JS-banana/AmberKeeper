@@ -13,7 +13,7 @@
 ## Stack
 
 - Node 22、pnpm 10：来自 GitHub Actions 配置。
-- Electron 41、React 19、TypeScript strict、Vitest、electron-vite。
+- Electron 42、React 19、TypeScript strict、Vitest、electron-vite。
 - pnpm workspace 覆盖 `apps/*` 和 `packages/*`。
 
 ## Commands
