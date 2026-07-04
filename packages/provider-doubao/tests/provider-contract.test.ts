@@ -99,6 +99,7 @@ describe('doubao-provider', () => {
           },
         ],
       }),
+      requestBody: JSON.stringify({ conversation_id: 'local_9139387259118100' }),
       pageUrl: 'https://www.doubao.com/chat/doubao-conv-3',
       capturedAt: '2026-03-20T00:00:01.000Z',
       sourceSessionKey: 'doubao-primary-view',
@@ -110,20 +111,50 @@ describe('doubao-provider', () => {
         expect.objectContaining({
           kind: 'candidateUserMessage',
           conversationId: 'doubao-conv-3',
+          conversationAliases: ['local_9139387259118100'],
           content: 'What is the plan?',
         }),
         expect.objectContaining({
           kind: 'assistantMayBeReady',
           conversationId: 'doubao-conv-3',
+          conversationAliases: ['local_9139387259118100'],
           content: 'Use the package-local provider contract.',
           remoteMessageId: 'msg-3',
         }),
       ])
     );
 
+    expect(
+      doubaoAdapter.extractHistoryCapture?.({
+        url: 'https://www.doubao.com/chat/completion',
+        method: 'POST',
+        body: JSON.stringify({
+          id: 'doubao-conv-3',
+          model: 'doubao',
+          messages: [
+            {
+              role: 'user',
+              content: 'What is the plan?',
+              create_time: 1773940584,
+            },
+            {
+              role: 'assistant',
+              content: 'Use the package-local provider contract.',
+              create_time: 1773940585,
+              id: 'msg-3',
+            },
+          ],
+        }),
+        requestBody: JSON.stringify({ conversation_id: 'local_9139387259118100' }),
+        pageUrl: 'https://www.doubao.com/chat/doubao-conv-3',
+        capturedAt: '2026-03-20T00:00:01.000Z',
+        sourceSessionKey: 'doubao-primary-view',
+      })
+    ).toBeNull();
+
     const historyCapture = doubaoAdapter.extractHistoryCapture?.({
       url: 'https://www.doubao.com/chat/completion',
-      method: 'POST',
+      method: 'GET',
       body: JSON.stringify({
         id: 'doubao-conv-3',
         model: 'doubao',
@@ -141,6 +172,7 @@ describe('doubao-provider', () => {
           },
         ],
       }),
+      requestBody: JSON.stringify({ conversation_id: 'local_9139387259118100' }),
       pageUrl: 'https://www.doubao.com/chat/doubao-conv-3',
       capturedAt: '2026-03-20T00:00:01.000Z',
       sourceSessionKey: 'doubao-primary-view',
@@ -148,6 +180,7 @@ describe('doubao-provider', () => {
 
     expect(historyCapture).toEqual({
       conversationId: 'doubao-conv-3',
+      remoteConversationAliases: ['local_9139387259118100'],
       messages: [
         expect.objectContaining({
           role: 'user',
@@ -161,6 +194,139 @@ describe('doubao-provider', () => {
         }),
       ],
     });
+  });
+
+  test('repairs mojibake assistant text from Doubao streaming event_data messages', () => {
+    const messages = parseDoubaoResponseBody(
+      [
+        `data: ${JSON.stringify({
+          event_type: 2001,
+          event_data: JSON.stringify({
+            conversation_id: 'doubao-conv-mojibake',
+            message: {
+              id: 'msg-mojibake',
+              content: {
+                text: 'åœ¨å—ï¼Œæœ‰ä»€ä¹ˆäº‹å¯ä»¥ç›´æŽ¥è¯´ï½ž',
+              },
+            },
+          }),
+          model: 'doubao',
+        })}`,
+        'data: [DONE]',
+      ].join('\n')
+    );
+
+    expect(messages).toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        content: '在吗，有什么事可以直接说～',
+      }),
+    ]);
+  });
+
+  test('repairs mixed Chinese prompt prefix followed by Doubao mojibake Markdown assistant text', () => {
+    const messages = parseDoubaoResponseBody(
+      [
+        `data: ${JSON.stringify({
+          event_type: 2001,
+          event_data: JSON.stringify({
+            conversation_id: 'doubao-conv-mixed-mojibake',
+            message: {
+              id: 'msg-mixed-mojibake',
+              content: {
+                text:
+                  '小磨香油有哪些传统用途？#å°ç£¨é¦™æ²¹ä¼ ç»Ÿç”¨é€”å°ç£¨é¦™æ²¹ä½œä¸ºä¼ ç»Ÿè°ƒå‘³å“ï¼Œåœ¨ä¸­å¼çƒ¹é¥ªä¸­æœ‰å¤šç§ç”¨é€”ã€‚\\n\\n## å¸¸è§ç”¨é€”\\n\\n- å‡‰æ‹Œè”¬èœæ—¶æ·‹å…¥å¢žé¦™\\n- ç…²æ±¤æˆ–çƒ­èœå‡ºé”…å‰ç‚¹å‡ æ»´\\n- è°ƒé¥ºå­ã€é¦„é¥¨é¦…æ—¶æ��é¦™\\n\\nè¿™äº›ç”¨æ³•èƒ½ä¿ç•™é¦™æ²¹çš„é¦™æ°”ã€‚',
+              },
+            },
+          }),
+          model: 'doubao',
+        })}`,
+        'data: [DONE]',
+      ].join('\n')
+    );
+
+    expect(messages).toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        content: expect.stringContaining('#小磨香油传统用途小磨香油'),
+      }),
+    ]);
+    expect(messages[0]?.content).not.toContain('#å°ç£¨é¦™æ²¹');
+  });
+
+  test('strips Doubao prompt and thinking prefix from streamed assistant text', () => {
+    const response = doubaoAdapter.interpretResponseBody({
+      url: 'https://www.doubao.com/chat/completion',
+      method: 'POST',
+      requestBody: JSON.stringify({
+        conversation_id: 'doubao-conv-thinking',
+        prompt: '法国队在世界杯上的夺冠次数',
+      }),
+      pageUrl: 'https://www.doubao.com/chat/doubao-conv-thinking',
+      capturedAt: '2026-07-04T13:43:37.464Z',
+      sourceSessionKey: 'doubao-primary-view',
+      body: [
+        `data: ${JSON.stringify({
+          event_type: 2001,
+          event_data: JSON.stringify({
+            conversation_id: 'doubao-conv-thinking',
+            message: {
+              content: {
+                text:
+                  '法国队在世界杯上的夺冠次数询问法国队世界杯夺冠次数，我需准确作答。，法国国家男子足球队**共2次夺得世界杯冠军**。',
+              },
+            },
+          }),
+        })}`,
+        'data: [DONE]',
+      ].join('\n'),
+    });
+
+    expect(response.signals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'assistantMayBeReady',
+          content: '法国国家男子足球队**共2次夺得世界杯冠军**。',
+        }),
+      ])
+    );
+  });
+
+  test('uses the final Doubao page route and keeps local conversation id as an alias', () => {
+    const response = doubaoAdapter.interpretResponseBody({
+      url: 'https://www.doubao.com/chat/completion',
+      method: 'POST',
+      requestBody: JSON.stringify({ conversation_id: 'local_5338199761265197' }),
+      pageUrl: 'https://www.doubao.com/chat/38433806243934978',
+      capturedAt: '2026-07-03T13:10:12.921Z',
+      sourceSessionKey: 'doubao-primary-view',
+      body: [
+        `data: ${JSON.stringify({
+          event_type: 2001,
+          event_data: JSON.stringify({
+            conversation_id: 'local_5338199761265197',
+            message: {
+              id: 'msg-local-first-answer',
+              content: {
+                text: '南京适合什么季节去玩南京四季游玩推荐',
+              },
+            },
+          }),
+          model: 'doubao',
+        })}`,
+        'data: [DONE]',
+      ].join('\n'),
+    });
+
+    expect(response.signals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'assistantMayBeReady',
+          conversationId: '38433806243934978',
+          conversationAliases: ['local_5338199761265197'],
+        }),
+      ])
+    );
   });
 
   test('collects Doubao DOM message turns and preserves latest assistant stability', () => {
@@ -273,6 +439,30 @@ describe('doubao-provider', () => {
     expect(collectDoubaoStructuredMessages(root)).toEqual([
       { role: 'user', content: '[amberkeeper-live-probe doubao] reply with OK only' },
       { role: 'assistant', content: 'OK' },
+    ]);
+  });
+
+  test('collects Doubao assistant markdown when primary selectors only find the user bubble', () => {
+    const root = createNode({
+      queries: {
+        '.bg-g-send-msg-bubble-bg': [
+          createNode({
+            className: 'bg-g-send-msg-bubble-bg',
+            textContent: '你觉得目前的世界杯哪队赢面大',
+          }),
+        ],
+        '.flow-markdown-body': [
+          createNode({
+            className: 'flow-markdown-body theme-samantha-uDexJL',
+            textContent: '西班牙和法国是目前公认赢面最大的两支球队。',
+          }),
+        ],
+      },
+    }) as unknown as ParentNode;
+
+    expect(collectDoubaoStructuredMessages(root)).toEqual([
+      { role: 'user', content: '你觉得目前的世界杯哪队赢面大' },
+      { role: 'assistant', content: '西班牙和法国是目前公认赢面最大的两支球队。' },
     ]);
   });
 });
