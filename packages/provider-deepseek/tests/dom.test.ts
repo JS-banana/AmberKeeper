@@ -36,7 +36,7 @@ describe('deepseek-dom', () => {
     });
     const root = createNode({
       queries: {
-        '.message-item, .ds-message': [userMessage, assistantMessage],
+        '.message-item, .ds-message, .fbb737a4': [userMessage, assistantMessage],
       },
     }) as unknown as ParentNode;
 
@@ -49,6 +49,106 @@ describe('deepseek-dom', () => {
         role: 'assistant',
         content: 'Received probe: DEEPSEEK-PROBE-20260320-5. All systems operational.',
       },
+    ]);
+  });
+
+  test('collects DeepSeek user bubbles that are exposed as standalone fbb737a4 nodes', () => {
+    const userMessage = createNode({
+      className: 'fbb737a4',
+      textContent: '南京适合什么季节去玩',
+    });
+    const assistantMessage = createNode({
+      className: 'ds-message',
+      textContent: '南京春秋季节最适合旅游。',
+      queries: {
+        '.ds-markdown': [
+          createNode({
+            textContent: '南京春秋季节最适合旅游。',
+          }),
+        ],
+      },
+    });
+    const root = createNode({
+      queries: {
+        '.message-item, .ds-message, .fbb737a4': [userMessage, assistantMessage],
+      },
+    }) as unknown as ParentNode;
+
+    expect(collectDeepSeekStructuredMessages(root)).toEqual([
+      { role: 'user', content: '南京适合什么季节去玩' },
+      { role: 'assistant', content: '南京春秋季节最适合旅游。' },
+    ]);
+  });
+
+  test('preserves repeated DeepSeek user text across separate turns', () => {
+    const firstUser = createNode({
+      className: 'fbb737a4',
+      textContent: '继续',
+    });
+    const firstAssistant = createNode({
+      className: 'ds-message',
+      queries: {
+        '.ds-markdown': [
+          createNode({
+            textContent: '第一段回答',
+          }),
+        ],
+      },
+    });
+    const secondUser = createNode({
+      className: 'fbb737a4',
+      textContent: '继续',
+    });
+    const secondAssistant = createNode({
+      className: 'ds-message',
+      queries: {
+        '.ds-markdown': [
+          createNode({
+            textContent: '第二段回答',
+          }),
+        ],
+      },
+    });
+    const root = createNode({
+      queries: {
+        '.message-item, .ds-message, .fbb737a4': [
+          firstUser,
+          firstAssistant,
+          secondUser,
+          secondAssistant,
+        ],
+      },
+    }) as unknown as ParentNode;
+
+    expect(collectDeepSeekStructuredMessages(root)).toEqual([
+      { role: 'user', content: '继续' },
+      { role: 'assistant', content: '第一段回答' },
+      { role: 'user', content: '继续' },
+      { role: 'assistant', content: '第二段回答' },
+    ]);
+  });
+
+  test('deduplicates DeepSeek user bubbles selected both as parent and child nodes', () => {
+    const userBubble = createNode({
+      className: 'fbb737a4',
+      textContent: '建议去哪玩呢',
+    });
+    const userMessage = createNode({
+      className: 'ds-message',
+      textContent: '建议去哪玩呢',
+      queries: {
+        '.ds-markdown': [],
+        '.fbb737a4': userBubble,
+      },
+    });
+    const root = createNode({
+      queries: {
+        '.message-item, .ds-message, .fbb737a4': [userMessage, userBubble],
+      },
+    }) as unknown as ParentNode;
+
+    expect(collectDeepSeekStructuredMessages(root)).toEqual([
+      { role: 'user', content: '建议去哪玩呢' },
     ]);
   });
 });

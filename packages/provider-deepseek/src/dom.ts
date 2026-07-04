@@ -9,9 +9,11 @@ export interface DeepSeekDomSnapshotMessageInput {
 export function collectDeepSeekStructuredMessages(
   root: ParentNode = document
 ): DeepSeekDomSnapshotMessageInput[] {
-  return Array.from(root.querySelectorAll('.message-item, .ds-message'))
+  return dedupeCollectedMessages(
+    dedupeMessages(Array.from(root.querySelectorAll('.message-item, .ds-message, .fbb737a4')))
     .map((node) => collectDeepSeekMessageFromNode(node as HTMLElement))
-    .filter((message) => Boolean(message.role && message.content));
+      .filter((message) => Boolean(message.role && message.content))
+  );
 }
 
 export function buildDeepSeekDomSnapshot(input: {
@@ -138,6 +140,13 @@ function collectDeepSeekMessageFromNode(element: HTMLElement): DeepSeekDomSnapsh
     };
   }
 
+  if (hasClassName(element, 'fbb737a4')) {
+    return {
+      role: 'user',
+      content: element.textContent?.trim(),
+    };
+  }
+
   if (!hasClassName(element, 'ds-message')) {
     return {};
   }
@@ -152,7 +161,7 @@ function collectDeepSeekMessageFromNode(element: HTMLElement): DeepSeekDomSnapsh
 
   const userContent = (element.querySelector('.fbb737a4') ?? element)?.textContent?.trim();
   return {
-    role: userContent ? 'user' : undefined,
+    role: userContent || hasClassName(element, 'fbb737a4') ? 'user' : undefined,
     content: userContent,
   };
 }
@@ -171,4 +180,23 @@ function extractDeepSeekArchivedAssistantContent(element: HTMLElement): string |
 
 function hasClassName(element: { className?: unknown }, token: string): boolean {
   return typeof element.className === 'string' && element.className.split(/\s+/).includes(token);
+}
+
+function dedupeMessages(nodes: Element[]): Element[] {
+  return Array.from(new Set(nodes));
+}
+
+function dedupeCollectedMessages(messages: DeepSeekDomSnapshotMessageInput[]): DeepSeekDomSnapshotMessageInput[] {
+  const deduped: DeepSeekDomSnapshotMessageInput[] = [];
+
+  for (const message of messages) {
+    const previous = deduped[deduped.length - 1];
+    if (previous?.role === message.role && previous.content === message.content) {
+      continue;
+    }
+
+    deduped.push(message);
+  }
+
+  return deduped;
 }
