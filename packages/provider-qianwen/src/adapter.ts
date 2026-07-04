@@ -194,7 +194,7 @@ function withRequestTimestampFallback(
 }
 
 function isPlaceholderTimestamp(input: string): boolean {
-  return input === new Date(0).toISOString();
+  return !input || input === new Date(0).toISOString();
 }
 
 function messagesToSignals(
