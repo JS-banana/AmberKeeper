@@ -10,6 +10,7 @@ import {
   classifyDoubaoRequest,
   extractDoubaoConversationIdFromBody,
   extractDoubaoConversationIdFromUrl,
+  isDoubaoTemporaryConversationId,
   shouldTriggerDoubaoDomAutoCapture,
 } from './network';
 import {
@@ -23,6 +24,7 @@ export interface DoubaoSignalContext {
   sourceSessionKey: string;
   pageUrl: string;
   capturedAt: string;
+  conversationAliases?: string[];
 }
 
 export interface DoubaoCandidateUserMessageSignal extends DoubaoSignalContext {
@@ -75,6 +77,8 @@ interface InterpretRequestInput {
 
 interface InterpretResponseBodyInput extends InterpretRequestInput {
   body: string;
+  requestBody?: string;
+  requestCapturedAt?: string;
 }
 
 interface InterpretDomSnapshotInput {
@@ -137,18 +141,27 @@ export const doubaoAdapter = {
       };
     }
 
+    const parsedMessages = parseDoubaoResponseBody(input.body);
+    const conversationResolution = resolveConversationIds(input, parsedMessages);
+    const messages = withConversationIdFallback(
+      addRequestUserToCompletionMessages({
+        messages: conversationResolution.messages,
+        requestBody: input.requestBody,
+        requestCapturedAt: input.requestCapturedAt,
+        capturedAt: input.capturedAt,
+        conversationId: conversationResolution.conversationId,
+      }),
+      conversationResolution.conversationId
+    );
     const signals = messagesToSignals(
       {
         source: 'cdp-network',
         sourceSessionKey: input.sourceSessionKey,
         pageUrl: input.pageUrl,
         capturedAt: input.capturedAt,
+        conversationAliases: conversationResolution.aliases,
       },
-      withConversationIdFallback(
-        parseDoubaoResponseBody(input.body),
-        extractDoubaoConversationIdFromUrl(input.pageUrl) ??
-          extractDoubaoConversationIdFromUrl(input.url)
-      ),
+      messages,
       true
     );
 
@@ -158,6 +171,10 @@ export const doubaoAdapter = {
     };
   },
   extractHistoryCapture(input: InterpretResponseBodyInput) {
+    if (classifyDoubaoRequest(input.url, input.method) === 'capture') {
+      return null;
+    }
+
     const messages = withConversationIdFallback(
       parseDoubaoResponseBody(input.body),
       extractDoubaoConversationIdFromUrl(input.pageUrl) ??
@@ -168,13 +185,16 @@ export const doubaoAdapter = {
       return null;
     }
 
+    const conversationId =
+      messages.find((message) => typeof message.remoteConversationId === 'string')
+        ?.remoteConversationId ??
+      extractDoubaoConversationIdFromUrl(input.pageUrl) ??
+      extractDoubaoConversationIdFromUrl(input.url) ??
+      extractDoubaoConversationIdFromBody(input.body);
+
     return {
-      conversationId:
-        messages.find((message) => typeof message.remoteConversationId === 'string')
-          ?.remoteConversationId ??
-        extractDoubaoConversationIdFromUrl(input.pageUrl) ??
-        extractDoubaoConversationIdFromUrl(input.url) ??
-        extractDoubaoConversationIdFromBody(input.body),
+      conversationId,
+      remoteConversationAliases: extractConversationAliases(input, messages),
       messages,
     };
   },
@@ -219,6 +239,149 @@ export const doubaoAdapter = {
   summarizeResponseBody: summarizeDoubaoResponseBody,
 } satisfies DoubaoProviderAdapter<DoubaoSignal, DoubaoDomSnapshotMessageInput>;
 
+
+function extractConversationAliases(
+  input: InterpretResponseBodyInput,
+  messages: NormalizedMessage[]
+): string[] {
+  const requestConversationId = extractDoubaoConversationIdFromBody(input.requestBody);
+  const responseConversationId =
+    messages.find((message) => message.remoteConversationId)?.remoteConversationId ??
+    extractDoubaoConversationIdFromUrl(input.pageUrl) ??
+    extractDoubaoConversationIdFromUrl(input.url);
+
+  if (
+    requestConversationId &&
+    responseConversationId &&
+    requestConversationId !== responseConversationId &&
+    isDoubaoTemporaryConversationId(requestConversationId)
+  ) {
+    return [requestConversationId];
+  }
+
+  return [];
+}
+
+function resolveConversationIds(
+  input: InterpretResponseBodyInput,
+  messages: NormalizedMessage[]
+): { conversationId: string | null; aliases: string[]; messages: NormalizedMessage[] } {
+  const pageConversationId =
+    extractDoubaoConversationIdFromUrl(input.pageUrl) ??
+    extractDoubaoConversationIdFromUrl(input.url);
+  const requestConversationId = extractDoubaoConversationIdFromBody(input.requestBody);
+  const messageConversationId = messages.find((message) => message.remoteConversationId)
+    ?.remoteConversationId;
+  const conversationId =
+    pageConversationId && !isDoubaoTemporaryConversationId(pageConversationId)
+      ? pageConversationId
+      : (messageConversationId ?? pageConversationId ?? null);
+  const aliases = [requestConversationId, messageConversationId].filter(
+    (value): value is string =>
+      typeof value === 'string' &&
+      value !== conversationId &&
+      isDoubaoTemporaryConversationId(value)
+  );
+
+  return {
+    conversationId,
+    aliases: Array.from(new Set(aliases)),
+    messages:
+      conversationId && !isDoubaoTemporaryConversationId(conversationId)
+        ? messages.map((message) => ({
+            ...message,
+            remoteConversationId:
+              message.remoteConversationId &&
+              !isDoubaoTemporaryConversationId(message.remoteConversationId)
+                ? message.remoteConversationId
+                : conversationId,
+          }))
+        : messages,
+  };
+}
+
+function addRequestUserToCompletionMessages(input: {
+  messages: NormalizedMessage[];
+  requestBody?: string;
+  requestCapturedAt?: string;
+  capturedAt: string;
+  conversationId: string | null;
+}): NormalizedMessage[] {
+  const requestUser = parseDoubaoRequestBody(input.requestBody ?? '')[0];
+  const messages = requestUser
+    ? input.messages.map((message) =>
+        message.role === 'assistant'
+          ? {
+              ...message,
+              content: stripDoubaoPromptThinkingPrefix(message.content, requestUser.content),
+            }
+          : message
+      )
+    : input.messages;
+
+  if (messages.some((message) => message.role === 'user')) {
+    return messages;
+  }
+
+  if (!requestUser) {
+    return messages;
+  }
+
+  const userCreatedAt = normalizeCompletionTimestamp(
+    requestUser.createdAt,
+    input.requestCapturedAt ?? input.capturedAt
+  );
+  const baseTime = new Date(userCreatedAt).getTime();
+
+  return [
+    {
+      ...requestUser,
+      createdAt: userCreatedAt,
+      remoteConversationId: input.conversationId ?? requestUser.remoteConversationId,
+    },
+    ...messages.map((message, index) => ({
+      ...message,
+      createdAt:
+        message.createdAt === new Date(0).toISOString()
+          ? new Date(baseTime + index + 1).toISOString()
+          : message.createdAt,
+      remoteConversationId: input.conversationId ?? message.remoteConversationId,
+    })),
+  ];
+}
+
+function stripDoubaoPromptThinkingPrefix(content: string, prompt: string): string {
+  const trimmed = content.trim();
+  const promptText = prompt.trim();
+  if (!promptText || !trimmed.startsWith(promptText)) {
+    return trimmed;
+  }
+
+  const tail = trimmed.slice(promptText.length).trim();
+  if (!tail) {
+    return trimmed;
+  }
+
+  const headingIndex = tail.indexOf('#');
+  if (headingIndex >= 0) {
+    return tail.slice(headingIndex).trim();
+  }
+
+  const boldIndex = tail.indexOf('**');
+  if (boldIndex >= 0) {
+    const prefix = tail.slice(0, boldIndex);
+    const cutIndex = Math.max(
+      prefix.lastIndexOf('。'),
+      prefix.lastIndexOf('，'),
+      prefix.lastIndexOf('\n')
+    );
+    return tail.slice(cutIndex >= 0 ? cutIndex + 1 : boldIndex).trim();
+  }
+
+  const sentenceIndex = tail.search(/[。！？]\s*/);
+  return sentenceIndex >= 0 ? tail.slice(sentenceIndex + 1).trim() || tail : tail;
+}
+
 function withConversationIdFallback<T extends { remoteConversationId?: string | null }>(
   messages: T[],
   conversationId: string | null | undefined
@@ -231,6 +394,15 @@ function withConversationIdFallback<T extends { remoteConversationId?: string | 
     ...message,
     remoteConversationId: message.remoteConversationId ?? conversationId,
   })) as T[];
+}
+
+function normalizeCompletionTimestamp(input: string, fallback: string): string {
+  const date = new Date(input);
+  if (!input || input === new Date(0).toISOString() || Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return input;
 }
 
 function messagesToSignals(
@@ -262,6 +434,7 @@ function messagesToSignals(
       content: latestUser.content,
       remoteMessageId: latestUser.remoteMessageId,
       model: latestUser.model,
+      conversationAliases: context.conversationAliases,
     });
   }
 
@@ -274,6 +447,7 @@ function messagesToSignals(
       pageUrl: context.pageUrl,
       capturedAt: context.capturedAt,
       conversationId,
+      conversationAliases: context.conversationAliases,
     });
   }
 
@@ -291,6 +465,7 @@ function messagesToSignals(
       stable: stableAssistant,
       remoteMessageId: latestAssistant.remoteMessageId,
       model: latestAssistant.model,
+      conversationAliases: context.conversationAliases,
     });
   }
 

@@ -166,13 +166,10 @@ export function parseDoubaoSseResponse(body: string): NormalizedMessage[] {
         nestedMessage ? getString(nestedMessage, 'id') : null,
         nestedMessage ? getString(nestedMessage, 'message_id') : null,
         eventData ? getString(eventData, 'message_id') : null,
-        eventData ? getString(eventData, 'id') : null,
-        getString(parsed, 'request_id'),
-        getString(parsed, 'id'),
       ]) ?? remoteMessageId;
   }
 
-  const normalizedContent = content.trim();
+  const normalizedContent = repairDoubaoMojibakeText(content.trim());
   if (!normalizedContent) {
     return [];
   }
@@ -358,7 +355,7 @@ function extractTextLike(input: unknown, preserveWhitespace = false): string {
       }
     }
 
-    return candidate;
+    return repairDoubaoMojibakeText(candidate);
   }
 
   if (Array.isArray(input)) {
@@ -396,6 +393,246 @@ function extractTextLike(input: unknown, preserveWhitespace = false): string {
 
   return '';
 }
+
+
+function repairDoubaoMojibakeText(input: string): string {
+  if (!looksLikeMojibake(input)) {
+    return input;
+  }
+
+  const bytes = toWindows1252Bytes(input);
+  if (bytes) {
+    const repaired = repairMojibakeSegment(input);
+    if (repaired !== input) {
+      return repaired;
+    }
+  }
+
+  let changed = false;
+  let output = '';
+  let segment = '';
+
+  for (const char of input) {
+    if (isWindows1252Encodable(char)) {
+      segment += char;
+      continue;
+    }
+
+    const repaired = repairMojibakeSegment(segment);
+    changed ||= repaired !== segment;
+    output += repaired;
+    segment = '';
+    output += char;
+  }
+
+  const repairedTail = repairMojibakeSegment(segment);
+  changed ||= repairedTail !== segment;
+  output += repairedTail;
+
+  return changed && mojibakeScore(output) < mojibakeScore(input) ? output : input;
+}
+
+function repairMojibakeSegment(input: string): string {
+  if (!looksLikeMojibake(input)) {
+    return input;
+  }
+
+  const bytes = toWindows1252Bytes(input);
+  if (!bytes) {
+    return input;
+  }
+
+  const repairedBytes = repairKnownMissingMojibakeBytes(bytes);
+  const repaired =
+    decodeUtf8(bytes) ?? decodeUtf8(repairedBytes) ?? decodeUtf8Lossy(repairedBytes);
+  if (!repaired) {
+    return input;
+  }
+
+  return mojibakeScore(repaired) < mojibakeScore(input) ? repaired : input;
+}
+
+function isWindows1252Encodable(input: string): boolean {
+  const codePoint = input.codePointAt(0);
+  return WINDOWS_1252_BYTES.has(input) || (codePoint !== undefined && codePoint <= 0xff);
+}
+
+function decodeUtf8(bytes: Uint8Array): string | null {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function decodeUtf8Lossy(bytes: Uint8Array): string {
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+function repairKnownMissingMojibakeBytes(input: Uint8Array): Uint8Array {
+  const bytes: number[] = [];
+  for (let index = 0; index < input.length; index += 1) {
+    const current = input[index];
+    const next = input[index + 1];
+    const knownMissingMiddle = getKnownMissingUtf8MiddleByte(current, next, input[index + 2]);
+    if (knownMissingMiddle !== null) {
+      bytes.push(current as number, knownMissingMiddle, next as number);
+      index += 1;
+      continue;
+    }
+
+    const knownMissingTrailing = getKnownMissingUtf8TrailingByte(current, next, input[index + 2]);
+    if (knownMissingTrailing !== null) {
+      bytes.push(current as number, next as number, knownMissingTrailing);
+      index += 1;
+      continue;
+    }
+
+    if (
+      isThreeByteUtf8LeadingByte(current) &&
+      isUtf8ContinuationByte(next) &&
+      isUtf8ContinuationByte(input[index + 2]) === false
+    ) {
+      bytes.push(current as number, next as number, 0xa0);
+      index += 1;
+      continue;
+    }
+
+    bytes.push(current as number);
+  }
+
+  return new Uint8Array(bytes);
+}
+
+function getKnownMissingUtf8MiddleByte(
+  leadingByte: number | undefined,
+  trailingByte: number | undefined,
+  nextByte: number | undefined
+): number | null {
+  if (isUtf8ContinuationByte(nextByte)) {
+    return null;
+  }
+
+  if (leadingByte === 0xe5 && trailingByte === 0x97) {
+    return 0x90;
+  }
+
+  if (leadingByte === 0xe5 && trailingByte === 0xaf) {
+    return 0x8f;
+  }
+
+  if (leadingByte === 0xe5 && trailingByte === 0xa4) {
+    return 0x8f;
+  }
+
+  return null;
+}
+
+function getKnownMissingUtf8TrailingByte(
+  leadingByte: number | undefined,
+  secondByte: number | undefined,
+  nextByte: number | undefined
+): number | null {
+  if (isUtf8ContinuationByte(nextByte)) {
+    return null;
+  }
+
+  if (leadingByte === 0xe5 && secondByte === 0xb0) {
+    return 0x8f;
+  }
+
+  return null;
+}
+
+function isThreeByteUtf8LeadingByte(input: number | undefined): boolean {
+  return typeof input === 'number' && input >= 0xe0 && input <= 0xef;
+}
+
+function isUtf8ContinuationByte(input: number | undefined): boolean {
+  return typeof input === 'number' && input >= 0x80 && input <= 0xbf;
+}
+
+function looksLikeMojibake(input: string): boolean {
+  return mojibakeScore(input) > 0;
+}
+
+function mojibakeScore(input: string): number {
+  let score = 0;
+  for (const char of input) {
+    if (MOJIBAKE_MARKERS.has(char)) {
+      score += 1;
+    }
+  }
+  return score;
+}
+
+function toWindows1252Bytes(input: string): Uint8Array | null {
+  const bytes: number[] = [];
+  for (const char of input) {
+    const mapped = WINDOWS_1252_BYTES.get(char);
+    if (mapped !== undefined) {
+      bytes.push(mapped);
+      continue;
+    }
+
+    const codePoint = char.codePointAt(0);
+    if (codePoint === undefined || codePoint > 0xff) {
+      return null;
+    }
+    bytes.push(codePoint);
+  }
+  return new Uint8Array(bytes);
+}
+
+const MOJIBAKE_MARKERS = new Set([
+  'Ã',
+  'Â',
+  'â',
+  'å',
+  'æ',
+  'ç',
+  'è',
+  'é',
+  'ï',
+  'ð',
+  '€',
+  'œ',
+  'Œ',
+  'š',
+  'Š',
+  'Ÿ',
+  '˜',
+]);
+
+const WINDOWS_1252_BYTES = new Map<string, number>([
+  ['€', 0x80],
+  ['‚', 0x82],
+  ['ƒ', 0x83],
+  ['„', 0x84],
+  ['…', 0x85],
+  ['†', 0x86],
+  ['‡', 0x87],
+  ['ˆ', 0x88],
+  ['‰', 0x89],
+  ['Š', 0x8a],
+  ['‹', 0x8b],
+  ['Œ', 0x8c],
+  ['Ž', 0x8e],
+  ['‘', 0x91],
+  ['’', 0x92],
+  ['“', 0x93],
+  ['”', 0x94],
+  ['•', 0x95],
+  ['–', 0x96],
+  ['—', 0x97],
+  ['˜', 0x98],
+  ['™', 0x99],
+  ['š', 0x9a],
+  ['›', 0x9b],
+  ['œ', 0x9c],
+  ['ž', 0x9e],
+  ['Ÿ', 0x9f],
+]);
 
 function getStructuredText(eventData: Record<string, unknown> | null): string {
   if (!eventData) {

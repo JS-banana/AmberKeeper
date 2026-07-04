@@ -32,9 +32,11 @@ export function createMessageRepository(db: DatabaseSync) {
             provider: input.provider,
             remoteConversationId,
             role: message.role,
+            content: message.content,
             createdAt,
             remoteMessageId,
             contentHash,
+            source: input.source,
           }) as
             | {
                 id?: string;
@@ -122,6 +124,33 @@ export function createMessageRepository(db: DatabaseSync) {
         `
       ).run(conversationId);
     },
+    updateRemoteConversationId(
+      conversationId: string,
+      remoteConversationId: string,
+      options: { onlyMissing?: boolean } = {}
+    ): void {
+      db.prepare(
+        `
+          UPDATE messages
+          SET remote_conversation_id = ?
+          WHERE conversation_id = ?
+          ${options.onlyMissing ? 'AND remote_conversation_id IS NULL' : ''}
+        `
+      ).run(remoteConversationId, conversationId);
+    },
+    moveToConversation(input: {
+      sourceConversationId: string;
+      targetConversationId: string;
+      remoteConversationId: string;
+    }): void {
+      db.prepare(
+        `
+          UPDATE messages
+          SET conversation_id = ?, remote_conversation_id = ?
+          WHERE conversation_id = ?
+        `
+      ).run(input.targetConversationId, input.remoteConversationId, input.sourceConversationId);
+    },
   };
 }
 
@@ -158,9 +187,11 @@ function findExistingMessage(input: {
   provider: string;
   remoteConversationId: string | null;
   role: NormalizedMessage['role'];
+  content: string;
   createdAt: string;
   remoteMessageId: string | null;
   contentHash: string;
+  source: CaptureEnvelope['source'];
 }) {
   if (input.remoteMessageId) {
     const exactMatch = input.db
@@ -215,7 +246,7 @@ function findExistingMessage(input: {
       );
   }
 
-  return input.db
+  const exactMatch = input.db
     .prepare(
       `
         SELECT
@@ -231,4 +262,127 @@ function findExistingMessage(input: {
       `
     )
     .get(input.conversationId, input.role, input.createdAt, input.contentHash);
+
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const crossSourceMatch = findUniqueCrossSourceContentMatch({
+    ...input,
+    maxCreatedAtDistanceMs: 60_000,
+  });
+
+  if (crossSourceMatch) {
+    return crossSourceMatch;
+  }
+
+  const normalizedCrossSourceMatch = findUniqueCrossSourceNormalizedContentMatch({
+    ...input,
+    maxCreatedAtDistanceMs: 60_000,
+  });
+  if (normalizedCrossSourceMatch) {
+    return normalizedCrossSourceMatch;
+  }
+
+  return undefined;
+}
+
+type MessageLookupRow = {
+  id?: string;
+  createdAt?: string;
+  remoteMessageId?: string | null;
+  model?: string | null;
+};
+
+function findUniqueCrossSourceContentMatch(input: {
+  db: DatabaseSync;
+  conversationId: string;
+  role: NormalizedMessage['role'];
+  createdAt: string;
+  contentHash: string;
+  source: CaptureEnvelope['source'];
+  maxCreatedAtDistanceMs: number;
+}): MessageLookupRow | undefined {
+  const rows = input.db
+    .prepare(
+      `
+        SELECT
+          id,
+          created_at AS createdAt,
+          remote_message_id AS remoteMessageId,
+          model
+        FROM messages
+        WHERE conversation_id = ?
+          AND role = ?
+          AND content_hash = ?
+          AND source != ?
+        ORDER BY captured_at DESC
+        LIMIT 2
+      `
+    )
+    .all(input.conversationId, input.role, input.contentHash, input.source) as MessageLookupRow[];
+
+  if (
+    rows.length !== 1 ||
+    !isNearTimestamp(rows[0]?.createdAt, input.createdAt, input.maxCreatedAtDistanceMs)
+  ) {
+    return undefined;
+  }
+
+  return rows[0];
+}
+
+function findUniqueCrossSourceNormalizedContentMatch(input: {
+  db: DatabaseSync;
+  conversationId: string;
+  role: NormalizedMessage['role'];
+  content: string;
+  createdAt: string;
+  source: CaptureEnvelope['source'];
+  maxCreatedAtDistanceMs: number;
+}): MessageLookupRow | undefined {
+  const targetContent = normalizeComparableContent(input.content);
+  if (!targetContent) {
+    return undefined;
+  }
+
+  const rows = input.db
+    .prepare(
+      `
+        SELECT
+          id,
+          created_at AS createdAt,
+          remote_message_id AS remoteMessageId,
+          model,
+          content
+        FROM messages
+        WHERE conversation_id = ?
+          AND role = ?
+          AND source != ?
+        ORDER BY captured_at DESC
+        LIMIT 20
+      `
+    )
+    .all(input.conversationId, input.role, input.source) as Array<MessageLookupRow & { content?: string }>;
+  const matches = rows.filter(
+    (row) =>
+      normalizeComparableContent(row.content) === targetContent &&
+      isNearTimestamp(row.createdAt, input.createdAt, input.maxCreatedAtDistanceMs)
+  );
+
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function isNearTimestamp(first: string | undefined, second: string, maxDistanceMs: number): boolean {
+  const firstTime = first ? new Date(first).getTime() : Number.NaN;
+  const secondTime = new Date(second).getTime();
+  return (
+    !Number.isNaN(firstTime) &&
+    !Number.isNaN(secondTime) &&
+    Math.abs(firstTime - secondTime) <= maxDistanceMs
+  );
+}
+
+function normalizeComparableContent(input: string | undefined): string {
+  return (input ?? '').replace(/\u00A0/g, ' ').replace(/\u200B/g, '').replace(/\s+/g, ' ').trim();
 }

@@ -5,6 +5,7 @@ import {
   createConversationRepository,
   createMessageRepository,
   persistCompletedTurn,
+  type ConversationResolution,
   type CompletedTurn,
 } from '@amberkeeper/capture-core';
 import type {
@@ -74,9 +75,10 @@ export class CaptureStore {
     const durableEnvelope = applySaveScope(envelope, this.getCaptureSaveScope());
 
     return runInTransaction(this.database, () => {
-      const conversationId = this.conversationRepository.resolve({
+      const conversationResolution = this.conversationRepository.resolve({
         provider: durableEnvelope.provider,
         remoteConversationId: durableEnvelope.remoteConversationId,
+        remoteConversationAliases: durableEnvelope.remoteConversationAliases,
         sourceSessionKey: durableEnvelope.sourceSessionKey,
         pageUrl: durableEnvelope.pageUrl,
         title: durableEnvelope.title,
@@ -84,6 +86,8 @@ export class CaptureStore {
         createdAt: durableEnvelope.messages[0]?.createdAt ?? durableEnvelope.capturedAt,
         updatedAt: durableEnvelope.capturedAt,
       });
+      this.applyConversationResolution(conversationResolution);
+      const conversationId = conversationResolution.id;
       const insertedMessages = this.messageRepository.insertMany({
         conversationId,
         provider: durableEnvelope.provider,
@@ -569,6 +573,27 @@ export class CaptureStore {
       .get(provider, remoteConversationId) as { id?: string } | undefined;
 
     return row?.id ?? null;
+  }
+
+  private applyConversationResolution(resolution: ConversationResolution): void {
+    for (const action of resolution.messageActions) {
+      if (action.kind === 'moveMessagesToConversation') {
+        this.messageRepository.moveToConversation(action);
+        continue;
+      }
+
+      this.messageRepository.updateRemoteConversationId(
+        action.conversationId,
+        action.remoteConversationId,
+        { onlyMissing: action.onlyMissing }
+      );
+    }
+
+    for (const action of resolution.conversationActions) {
+      if (action.kind === 'deleteConversation') {
+        this.conversationRepository.deleteById(action.conversationId);
+      }
+    }
   }
 
   private migrateLegacyData(): void {

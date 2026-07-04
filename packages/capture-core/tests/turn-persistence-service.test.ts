@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
-import { ensureCaptureCorePersistenceSchema, persistCompletedTurn } from '../src';
+import { ensureCaptureCorePersistenceSchema, persistCompletedTurn, toCaptureEnvelope } from '../src';
 
 describe('turn-persistence-service', () => {
   test('writes a conversation, two messages, and capture events for one completed turn', () => {
@@ -124,6 +124,88 @@ describe('turn-persistence-service', () => {
         model: null,
       },
     ]);
+  });
+
+  test('merges a completed turn from a temporary alias into the final conversation', () => {
+    const db = new DatabaseSync(':memory:');
+
+    persistCompletedTurn(db, {
+      provider: 'doubao',
+      source: 'cdp-network',
+      sourceSessionKey: 'doubao-primary-view',
+      pageUrl: 'https://www.doubao.com/chat/local_9139387259118100',
+      capturedAt: '2026-03-19T10:00:01.000Z',
+      conversationId: 'local_9139387259118100',
+      messages: [
+        {
+          role: 'user',
+          content: '在吗',
+          createdAt: '2026-03-19T10:00:00.000Z',
+        },
+        {
+          role: 'assistant',
+          content: '我在',
+          createdAt: '2026-03-19T10:00:01.000Z',
+        },
+      ],
+    });
+
+    const conversationId = persistCompletedTurn(db, {
+      provider: 'doubao',
+      source: 'cdp-network',
+      sourceSessionKey: 'doubao-primary-view',
+      pageUrl: 'https://www.doubao.com/chat/38433782403373826',
+      capturedAt: '2026-03-19T10:00:02.000Z',
+      conversationId: '38433782403373826',
+      remoteConversationAliases: ['local_9139387259118100'],
+      messages: [
+        {
+          role: 'user',
+          content: '在吗',
+          createdAt: '2026-03-19T10:00:00.000Z',
+        },
+        {
+          role: 'assistant',
+          content: '我在',
+          createdAt: '2026-03-19T10:00:01.000Z',
+        },
+      ],
+    });
+
+    expect(countRows(db, 'conversations')).toBe(1);
+    expect(countRows(db, 'messages')).toBe(2);
+    expect(
+      db
+        .prepare(
+          `
+            SELECT DISTINCT remote_conversation_id AS remoteConversationId
+            FROM messages
+            WHERE conversation_id = ?
+          `
+        )
+        .all(conversationId)
+    ).toEqual([{ remoteConversationId: '38433782403373826' }]);
+  });
+
+  test('preserves remote conversation aliases when converting a turn to an envelope', () => {
+    expect(
+      toCaptureEnvelope({
+        provider: 'doubao',
+        source: 'cdp-network',
+        sourceSessionKey: 'doubao-primary-view',
+        pageUrl: 'https://www.doubao.com/chat/38433782403373826',
+        capturedAt: '2026-03-19T10:00:02.000Z',
+        conversationId: '38433782403373826',
+        remoteConversationAliases: ['local_9139387259118100'],
+        messages: [
+          {
+            role: 'user',
+            content: '在吗',
+            createdAt: '2026-03-19T10:00:00.000Z',
+          },
+        ],
+      }).remoteConversationAliases
+    ).toEqual(['local_9139387259118100']);
   });
 
   test('rolls back the completed turn when capture-event writes fail late', () => {

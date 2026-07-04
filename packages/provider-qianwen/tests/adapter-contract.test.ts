@@ -107,6 +107,27 @@ describe('qianwen-adapter', () => {
     );
   });
 
+  test('emits assistant signals from assistant-only qianwen DOM snapshots', () => {
+    const domResult = qianwenAdapter.interpretDomSnapshot({
+      pageUrl: 'https://www.qianwen.com/chat/qw-conv-dom-only',
+      capturedAt: '2026-07-03T13:11:48.000Z',
+      sourceSessionKey: 'qianwen-primary-view',
+      conversationId: 'qw-conv-dom-only',
+      messages: [{ role: 'assistant', content: '南京春秋季节最适合旅游。' }],
+      previousAssistantContent: '南京春秋季节最适合旅游。',
+    });
+
+    expect(domResult.signals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'assistantMayBeReady',
+          conversationId: 'qw-conv-dom-only',
+          content: '南京春秋季节最适合旅游。',
+        }),
+      ])
+    );
+  });
+
   test('extracts history payloads from qianwen session message list responses', () => {
     const historyCapture = qianwenAdapter.extractHistoryCapture?.({
       url: 'https://chat2-api.qianwen.com/api/v1/session/msg/list?session_id=qw-history-2',

@@ -1,4 +1,5 @@
 import { ipcMain, shell } from 'electron';
+import type { WebContents } from 'electron';
 import type {
   ChatDataLocationActionResult,
   ChatDataLocationState,
@@ -41,7 +42,7 @@ export function registerCaptureIpc(options: {
   getRuntimeStatus: () => unknown;
   triggerDomSnapshot: () => Promise<{ message: string; detail: string }>;
   runGeminiThemeDiagnostic: () => Promise<unknown>;
-  onPageContext: (payload: { url?: string; title?: string }) => void;
+  onPageContext: (sender: WebContents, payload: { url?: string; title?: string }) => void;
 }): void {
   ipcMain.handle('capture:listSessions', () => options.listSessions());
   ipcMain.handle('capture:listMessages', (_event, sessionId: string) => options.listMessages(sessionId));
@@ -110,8 +111,8 @@ export function registerCaptureIpc(options: {
   ipcMain.handle('capture:getRuntimeStatus', () => options.getRuntimeStatus());
   ipcMain.handle('capture:triggerDomSnapshot', () => options.triggerDomSnapshot());
   ipcMain.handle('capture:runGeminiThemeDiagnostic', () => options.runGeminiThemeDiagnostic());
-  ipcMain.on('chat:page-context', (_event, payload: { url?: string; title?: string }) => {
-    options.onPageContext(payload);
+  ipcMain.on('chat:page-context', (event, payload: { url?: string; title?: string }) => {
+    options.onPageContext(event.sender, payload);
   });
   ipcMain.handle('shell:openExternal', (_event, url: string) => shell.openExternal(url));
 }

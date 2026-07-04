@@ -10,6 +10,7 @@ type TrackedRequestLike = {
   sourceSessionKey: string;
   url: string;
   method: string;
+  postData?: string;
   pageUrl: string;
   capturedAt: string;
   classification: 'capture' | 'discover';
@@ -59,23 +60,29 @@ export function createNetworkResponseIngestionService(options: {
       signal: ResponseBodySeenSignal;
       adapter: ProviderAdapter<ProviderSignal>;
     }): Promise<void> {
+      const responseTracked = {
+        ...input.tracked,
+        pageUrl: input.signal.pageUrl || input.tracked.pageUrl,
+      };
       const text = input.signal.base64Encoded
         ? Buffer.from(input.signal.body, 'base64').toString('utf8')
         : input.signal.body;
       const response = input.adapter.interpretResponseBody({
-        url: input.tracked.url,
-        method: input.tracked.method,
+        url: responseTracked.url,
+        method: responseTracked.method,
         body: text,
-        pageUrl: input.tracked.pageUrl,
+        requestBody: responseTracked.postData,
+        requestCapturedAt: responseTracked.capturedAt,
+        pageUrl: responseTracked.pageUrl,
         capturedAt: input.signal.capturedAt,
-        sourceSessionKey: input.tracked.sourceSessionKey,
+        sourceSessionKey: responseTracked.sourceSessionKey,
       });
-      const historyEnvelope = options.buildHistoryEnvelopeFromTrackedResponse(input.tracked, text);
+      const historyEnvelope = options.buildHistoryEnvelopeFromTrackedResponse(responseTracked, text);
 
       if (historyEnvelope) {
         options.persistAutoCachedEnvelope(historyEnvelope, {
           trigger: 'network-history-response',
-          triggerUrl: input.tracked.url,
+          triggerUrl: responseTracked.url,
         });
       }
 
@@ -115,7 +122,7 @@ export function createNetworkResponseIngestionService(options: {
       }
 
       if (response.streamStatus === 'COMPLETE') {
-        await options.captureConversationFromDom(input.tracked.pageUrl);
+        await options.captureConversationFromDom(responseTracked.pageUrl);
       }
     },
   };

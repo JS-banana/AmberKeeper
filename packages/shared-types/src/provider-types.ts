@@ -16,6 +16,8 @@ export interface ProviderInterpretRequestInput extends ProviderRequestContextInp
 
 export interface ProviderInterpretResponseBodyInput extends ProviderInterpretRequestInput {
   body: string;
+  requestBody?: string;
+  requestCapturedAt?: string;
 }
 
 export interface ProviderInterpretDomSnapshotInput<TMessage = { role?: string; content?: string }> {
@@ -34,6 +36,7 @@ export interface ProviderInterpretResponseResult<TSignal = unknown> {
 
 export interface ProviderHistoryCaptureResult {
   conversationId?: string | null;
+  remoteConversationAliases?: string[];
   messages: NormalizedMessage[];
 }
 

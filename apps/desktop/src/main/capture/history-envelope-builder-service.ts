@@ -9,6 +9,7 @@ type TrackedRequestLike = {
   sourceSessionKey: string;
   url: string;
   method: string;
+  postData?: string;
   pageUrl: string;
   capturedAt: string;
 };
@@ -27,6 +28,8 @@ export function createHistoryEnvelopeBuilderService(options: {
         url: tracked.url,
         method: tracked.method,
         body,
+        requestBody: tracked.postData,
+        requestCapturedAt: tracked.capturedAt,
         pageUrl: tracked.pageUrl,
         capturedAt: tracked.capturedAt,
         sourceSessionKey: tracked.sourceSessionKey,
@@ -40,6 +43,7 @@ export function createHistoryEnvelopeBuilderService(options: {
         tracked,
         messages: historyCapture.messages,
         conversationId: historyCapture.conversationId ?? null,
+        remoteConversationAliases: historyCapture.remoteConversationAliases ?? [],
       });
     },
 
@@ -47,6 +51,7 @@ export function createHistoryEnvelopeBuilderService(options: {
       tracked: TrackedRequestLike;
       messages: NormalizedMessage[];
       conversationId: string | null;
+      remoteConversationAliases?: string[];
     }): CaptureEnvelope | null {
       if (input.messages.length === 0) {
         return null;
@@ -72,6 +77,7 @@ export function createHistoryEnvelopeBuilderService(options: {
         capturedAt: input.tracked.capturedAt,
         sourceSessionKey: input.tracked.sourceSessionKey,
         remoteConversationId,
+        remoteConversationAliases: input.remoteConversationAliases,
         title: activeTitle,
         titleSource: activeTitle ? 'provider' : 'fallback',
         messages: input.messages.map((message, index) => ({

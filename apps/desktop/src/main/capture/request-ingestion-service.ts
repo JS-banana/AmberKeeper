@@ -217,6 +217,7 @@ export function createRequestIngestionService(options: {
         signals.find((signal) => signal.kind === 'conversationIdResolved')?.conversationId ??
         signals.find((signal) => signal.kind === 'candidateUserMessage')?.conversationId ??
         null;
+      const conversationAliases = signals.flatMap((signal) => signal.conversationAliases ?? []);
       const userSignals = signals.filter(
         (signal): signal is Extract<ProviderSignal, { kind: 'candidateUserMessage' }> =>
           signal.kind === 'candidateUserMessage' && Boolean(signal.content.trim())
@@ -235,6 +236,7 @@ export function createRequestIngestionService(options: {
         capturedAt: tracked.capturedAt,
         sourceSessionKey: tracked.sourceSessionKey,
         remoteConversationId: conversationId ?? undefined,
+        remoteConversationAliases: conversationAliases,
         title: resolvedTitle,
         titleSource: resolvedTitle ? 'provider' : 'fallback',
         messages: [

@@ -78,6 +78,10 @@ export function extractDoubaoConversationIdFromBody(body?: string): string | nul
   ]);
 }
 
+export function isDoubaoTemporaryConversationId(input: string): boolean {
+  return input.trim().startsWith('local_');
+}
+
 export function shouldTriggerDoubaoDomAutoCapture(input: {
   url: string;
   method: string;

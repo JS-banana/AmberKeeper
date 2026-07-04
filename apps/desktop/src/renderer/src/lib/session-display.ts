@@ -1,6 +1,10 @@
 export { getProviderLabel, resolveSessionTitle } from '../../../shared/session-title';
 
 export function formatSessionUpdatedAt(value: string): string {
+  return formatCaptureTimestamp(value);
+}
+
+export function formatCaptureTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -9,6 +13,5 @@ export function formatSessionUpdatedAt(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', {
     dateStyle: 'medium',
     timeStyle: 'short',
-    timeZone: 'UTC',
   }).format(date);
 }

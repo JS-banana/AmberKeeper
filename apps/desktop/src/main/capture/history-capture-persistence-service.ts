@@ -5,7 +5,15 @@ import type {
 } from '@amberkeeper/shared-types';
 import type { CaptureStore } from '../storage/capture-store';
 import { normalizeHydratedDomMessages } from '../runtime/history-hydration';
-import { resolveAutoCachedTitle, shouldPersistAutoCachedMessages } from '../runtime/old-session-auto-cache';
+import {
+  alignDomSnapshotToLatestExistingUser,
+  hasSameRoleContent,
+  isAssistantOnlyDomSnapshotAfterCompletedTurn,
+  isUserOnlyDomSnapshotDowngrade,
+  resolveAutoCachedTitle,
+  shouldMergeIncompleteDomSnapshot,
+  shouldPersistAutoCachedMessages,
+} from '../runtime/old-session-auto-cache';
 
 type RuntimeLike = {
   browserSession: {
@@ -120,20 +128,112 @@ export function createHistoryCapturePersistenceService(options: {
         envelope,
         input.existingSessionId ?? null
       );
+      const existingMessages = existingSession ? captureStore.listMessages(existingSession.id) : [];
+      const envelopeToEvaluate =
+        existingSession && input.trigger === 'history-auto-cache'
+          ? {
+              ...envelope,
+              messages: alignDomSnapshotToLatestExistingUser({
+                source: envelope.source,
+                existingMessages,
+                nextMessages: envelope.messages,
+              }),
+            }
+          : envelope;
+
+      if (existingSession && envelopeToEvaluate.messages.length === 0) {
+        return null;
+      }
+
       if (
         existingSession &&
-        existingSession.pageUrl === envelope.pageUrl &&
-        (existingSession.title ?? null) === (envelope.title ?? null) &&
-        !shouldPersistAutoCachedMessages(
-          captureStore.listMessages(existingSession.id),
-          envelope.messages
-        )
+        isUserOnlyDomSnapshotDowngrade({
+          trigger: input.trigger,
+          source: envelopeToEvaluate.source,
+          existingMessages,
+          nextMessages: envelopeToEvaluate.messages,
+        })
+      ) {
+        options.recordAttempt({
+          source: envelopeToEvaluate.source,
+          stage: input.trigger === 'history-hydration' ? 'history-hydration' : 'history-auto-cache',
+          status: 'info',
+          message:
+            'Skipped user-only DOM snapshot because the cached session already has messages.',
+          detail: [
+            input.triggerUrl,
+            `session=${existingSession.id}`,
+            envelope.remoteConversationId ? `remoteConversationId=${envelope.remoteConversationId}` : '',
+            `trigger=${input.trigger}`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          createdAt: envelope.capturedAt,
+        });
+        return null;
+      }
+      if (
+        existingSession &&
+        isAssistantOnlyDomSnapshotAfterCompletedTurn({
+          source: envelopeToEvaluate.source,
+          existingMessages,
+          nextMessages: envelopeToEvaluate.messages,
+        })
+      ) {
+        options.recordAttempt({
+          source: envelopeToEvaluate.source,
+          stage: input.trigger === 'history-hydration' ? 'history-hydration' : 'history-auto-cache',
+          status: 'info',
+          message:
+            'Skipped assistant-only DOM snapshot because the cached latest turn already has an assistant.',
+          detail: [
+            input.triggerUrl,
+            `session=${existingSession.id}`,
+            envelope.remoteConversationId ? `remoteConversationId=${envelope.remoteConversationId}` : '',
+            `trigger=${input.trigger}`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          createdAt: envelope.capturedAt,
+        });
+        return null;
+      }
+
+      if (
+        existingSession &&
+        existingSession.pageUrl === envelopeToEvaluate.pageUrl &&
+        (existingSession.title ?? null) === (envelopeToEvaluate.title ?? null) &&
+        !shouldPersistAutoCachedMessages(existingMessages, envelopeToEvaluate.messages)
       ) {
         return null;
       }
 
+      const shouldMerge =
+        existingSession &&
+        envelopeToEvaluate.remoteConversationId &&
+        shouldMergeIncompleteDomSnapshot({
+          source: envelopeToEvaluate.source,
+          existingMessages,
+          nextMessages: envelopeToEvaluate.messages,
+        });
+      const envelopeToPersist = shouldMerge
+        ? {
+            ...envelopeToEvaluate,
+            messages: envelopeToEvaluate.messages.filter(
+              (message) =>
+                !existingMessages.some((existing) => hasSameRoleContent(existing, message))
+            ),
+          }
+        : envelopeToEvaluate;
+
+      if (shouldMerge && envelopeToPersist.messages.length === 0) {
+        return null;
+      }
+
       const sessionId = existingSession
-        ? captureStore.replaceSessionEnvelope(existingSession.id, envelope)
+        ? shouldMerge
+          ? captureStore.persistEnvelope(envelopeToPersist)
+          : captureStore.replaceSessionEnvelope(existingSession.id, envelope)
         : captureStore.persistEnvelope(envelope);
 
       options.setLastCaptureAt(envelope.capturedAt);
@@ -141,7 +241,7 @@ export function createHistoryCapturePersistenceService(options: {
         source: envelope.source,
         stage: input.trigger === 'history-hydration' ? 'history-hydration' : 'history-auto-cache',
         status: 'captured',
-        message: `${existingSession ? 'Updated' : 'Cached'} ${envelope.messages.length} message(s) from the remote session.`,
+        message: `${existingSession ? 'Updated' : 'Cached'} ${envelopeToPersist.messages.length} message(s) from the remote session.`,
         detail: [
           input.triggerUrl,
           `session=${sessionId}`,

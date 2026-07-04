@@ -27,11 +27,5 @@
     "desktop:release:hygiene": "pnpm --dir apps/desktop run release:hygiene",
     "desktop:gemini:dry-run": "pnpm --dir apps/desktop gemini:dirty-data:dry-run",
     "desktop:gemini:cleanup": "pnpm --dir apps/desktop gemini:dirty-data:cleanup"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "esbuild"
-    ]
   }
 }

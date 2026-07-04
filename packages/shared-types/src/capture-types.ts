@@ -36,6 +36,7 @@ export interface CaptureEnvelope {
   capturedAt: string;
   sourceSessionKey: string;
   remoteConversationId?: string;
+  remoteConversationAliases?: string[];
   title?: string | null;
   titleSource?: SessionTitleSource;
   messages: NormalizedMessage[];

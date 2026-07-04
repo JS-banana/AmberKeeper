@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { createCaptureOrchestrator } from '@amberkeeper/capture-core';
+import { doubaoAdapter } from '@amberkeeper/provider-doubao';
 import type { CaptureEnvelope } from '@amberkeeper/shared-types';
 import { CaptureStore } from '../src/main/storage/capture-store';
 
@@ -42,6 +44,208 @@ describe('capture-store', () => {
         remoteConversationId: 'conv-123',
         messageCount: 2,
       }),
+    ]);
+  });
+  test('merges a Doubao temporary local conversation into the final remote conversation', () => {
+    const store = new CaptureStore(dbPath);
+    const messages = [
+      {
+        role: 'user' as const,
+        content: '在吗',
+        createdAt: '2026-03-19T10:00:00.000Z',
+      },
+      {
+        role: 'assistant' as const,
+        content: '我在我在',
+        createdAt: '2026-03-19T10:00:01.000Z',
+      },
+    ];
+
+    store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        sourceSessionKey: 'doubao-primary-view',
+        pageUrl: 'https://www.doubao.com/chat/local_9139387259118100',
+        remoteConversationId: 'local_9139387259118100',
+        messages,
+      })
+    );
+    store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        sourceSessionKey: 'doubao-primary-view',
+        pageUrl: 'https://www.doubao.com/chat/38433782403373826',
+        remoteConversationId: '38433782403373826',
+        remoteConversationAliases: ['local_9139387259118100'],
+        capturedAt: '2026-03-19T10:00:02.000Z',
+        messages,
+      })
+    );
+
+    const sessions = store.listSessions();
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toEqual(
+      expect.objectContaining({
+        remoteConversationId: '38433782403373826',
+      })
+    );
+    expect(store.listMessages(sessions[0].id).map((message) => message.role)).toEqual([
+      'user',
+      'assistant',
+    ]);
+  });
+
+  test('keeps Doubao turns interleaved when a later request is seen before an earlier response body', () => {
+    const store = new CaptureStore(dbPath);
+    const orchestrator = createCaptureOrchestrator({
+      persist: (turn) => store.persistTurn(turn),
+    });
+    const remoteConversationId = '38433792484788226';
+    const requestOneAt = '2026-07-04T02:05:04.502Z';
+    const requestTwoAt = '2026-07-04T02:05:07.432Z';
+
+    store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        sourceSessionKey: 'doubao-primary-view',
+        pageUrl: `https://www.doubao.com/chat/${remoteConversationId}`,
+        remoteConversationId,
+        capturedAt: requestOneAt,
+        messages: [
+          {
+            role: 'user',
+            content: '合肥最佳旅游季节',
+            createdAt: requestOneAt,
+          },
+        ],
+      })
+    );
+
+    const requestTwoSignals = doubaoAdapter.interpretRequest({
+      url: 'https://www.doubao.com/chat/completion',
+      method: 'POST',
+      body: JSON.stringify({
+        conversation_id: remoteConversationId,
+        prompt: '有啥玩的呢',
+      }),
+      pageUrl: `https://www.doubao.com/chat/${remoteConversationId}`,
+      capturedAt: requestTwoAt,
+      sourceSessionKey: 'doubao-primary-view',
+    });
+    store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        sourceSessionKey: 'doubao-primary-view',
+        pageUrl: `https://www.doubao.com/chat/${remoteConversationId}`,
+        remoteConversationId,
+        capturedAt: requestTwoAt,
+        messages: [
+          {
+            role: 'user',
+            content: '有啥玩的呢',
+            createdAt: requestTwoAt,
+          },
+        ],
+      })
+    );
+    requestTwoSignals.forEach((signal) => orchestrator.consume(signal));
+
+    [
+      {
+        requestCapturedAt: requestOneAt,
+        capturedAt: '2026-07-04T02:05:08.200Z',
+        prompt: '合肥最佳旅游季节',
+        answer: '合肥最佳旅游季节推荐春秋季。',
+      },
+      {
+        requestCapturedAt: requestTwoAt,
+        capturedAt: '2026-07-04T02:05:36.439Z',
+        prompt: '有啥玩的呢',
+        answer: '合肥可以去包公园和淮河路。',
+      },
+    ].forEach((turn) => {
+      const response = doubaoAdapter.interpretResponseBody({
+        url: 'https://www.doubao.com/chat/completion',
+        method: 'POST',
+        body: buildDoubaoSseBody({
+          conversationId: remoteConversationId,
+          content: turn.answer,
+        }),
+        requestBody: JSON.stringify({
+          conversation_id: remoteConversationId,
+          prompt: turn.prompt,
+        }),
+        requestCapturedAt: turn.requestCapturedAt,
+        pageUrl: `https://www.doubao.com/chat/${remoteConversationId}`,
+        capturedAt: turn.capturedAt,
+        sourceSessionKey: 'doubao-primary-view',
+      });
+      response.signals.forEach((signal) => orchestrator.consume(signal));
+    });
+
+    const [session] = store.listSessions();
+    expect(store.listMessages(session.id).map((message) => message.role)).toEqual([
+      'user',
+      'assistant',
+      'user',
+      'assistant',
+    ]);
+    expect(store.listMessages(session.id).map((message) => message.content)).toEqual([
+      '合肥最佳旅游季节',
+      '推荐春秋季。',
+      '有啥玩的呢',
+      '合肥可以去包公园和淮河路。',
+    ]);
+  });
+
+  test('keeps later Doubao assistant replies when stream event ids repeat the conversation id', () => {
+    const store = new CaptureStore(dbPath);
+    const orchestrator = createCaptureOrchestrator({
+      persist: (turn) => store.persistTurn(turn),
+    });
+    const remoteConversationId = '38433792484788226';
+
+    [
+      {
+        requestCapturedAt: '2026-07-04T02:05:04.502Z',
+        capturedAt: '2026-07-04T02:05:08.200Z',
+        prompt: '第一问',
+        answer: '第一答',
+      },
+      {
+        requestCapturedAt: '2026-07-04T02:05:07.432Z',
+        capturedAt: '2026-07-04T02:05:36.439Z',
+        prompt: '第二问',
+        answer: '第二答',
+      },
+    ].forEach((turn) => {
+      const response = doubaoAdapter.interpretResponseBody({
+        url: 'https://www.doubao.com/chat/completion',
+        method: 'POST',
+        body: buildDoubaoSseBody({
+          conversationId: remoteConversationId,
+          eventId: remoteConversationId,
+          content: turn.answer,
+        }),
+        requestBody: JSON.stringify({
+          conversation_id: remoteConversationId,
+          prompt: turn.prompt,
+        }),
+        requestCapturedAt: turn.requestCapturedAt,
+        pageUrl: `https://www.doubao.com/chat/${remoteConversationId}`,
+        capturedAt: turn.capturedAt,
+        sourceSessionKey: 'doubao-primary-view',
+      });
+      response.signals.forEach((signal) => orchestrator.consume(signal));
+    });
+
+    const [session] = store.listSessions();
+    expect(store.listMessages(session.id).map((message) => message.content)).toEqual([
+      '第一问',
+      '第一答',
+      '第二问',
+      '第二答',
     ]);
   });
 
@@ -127,6 +331,150 @@ describe('capture-store', () => {
         createdAt: '2026-03-19T10:00:05.000Z',
       }),
     ]);
+  });
+
+  test('deduplicates the same message when DOM and network capture both see it', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        source: 'preload-dom',
+        remoteConversationId: 'doubao-conv-1',
+        messages: [
+          {
+            role: 'user',
+            content: '南昌适合什么季节去玩',
+            createdAt: '2026-07-03T13:33:18.889Z',
+          },
+        ],
+      })
+    );
+
+    store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        source: 'cdp-network',
+        remoteConversationId: 'doubao-conv-1',
+        capturedAt: '2026-07-03T13:33:29.024Z',
+        messages: [
+          {
+            role: 'user',
+            content: '南昌适合什么季节去玩',
+            createdAt: '2026-07-03T13:33:09.557Z',
+          },
+          {
+            role: 'assistant',
+            content: '南昌春秋两季最适合旅游。',
+            createdAt: '2026-07-03T13:33:29.024Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listMessages(sessionId).map((message) => message.content)).toEqual([
+      '南昌适合什么季节去玩',
+      '南昌春秋两季最适合旅游。',
+    ]);
+  });
+
+  test('deduplicates cross-source user messages with equivalent whitespace', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        source: 'preload-dom',
+        remoteConversationId: 'doubao-conv-whitespace',
+        capturedAt: '2026-07-04T14:02:10.048Z',
+        messages: [
+          {
+            role: 'user',
+            content: '现在开发一个网站，如果后端也考虑\u00A0nodejs\n的话',
+            createdAt: '2026-07-04T14:02:10.048Z',
+          },
+        ],
+      })
+    );
+
+    store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        source: 'cdp-network',
+        remoteConversationId: 'doubao-conv-whitespace',
+        capturedAt: '2026-07-04T14:03:54.532Z',
+        messages: [
+          {
+            role: 'user',
+            content: '现在开发一个网站，如果后端也考虑 nodejs\n 的话',
+            createdAt: '2026-07-04T14:02:09.262Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listMessages(sessionId).map((message) => message.content)).toEqual([
+      '现在开发一个网站，如果后端也考虑\u00A0nodejs\n的话',
+    ]);
+  });
+
+  test('keeps repeated same-content messages across capture sources when they are distinct turns', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        source: 'cdp-network',
+        remoteConversationId: 'doubao-conv-repeat',
+        capturedAt: '2026-07-03T13:00:00.000Z',
+        messages: [
+          {
+            role: 'user',
+            content: '继续',
+            createdAt: '2026-07-03T13:00:00.000Z',
+          },
+        ],
+      })
+    );
+
+    store.persistEnvelope(
+      buildEnvelope({
+        provider: 'doubao',
+        source: 'preload-dom',
+        remoteConversationId: 'doubao-conv-repeat',
+        capturedAt: '2026-07-03T13:05:00.000Z',
+        messages: [
+          {
+            role: 'user',
+            content: '继续',
+            createdAt: '2026-07-03T13:05:00.000Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listMessages(sessionId).map((message) => message.content)).toEqual(['继续', '继续']);
+  });
+
+  test('keeps repeated same-content messages in one DOM snapshot', () => {
+    const store = new CaptureStore(dbPath);
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        source: 'preload-dom',
+        remoteConversationId: 'conv-dom-repeat',
+        messages: [
+          {
+            role: 'user',
+            content: '继续',
+            createdAt: '2026-07-03T13:00:00.000Z',
+          },
+          {
+            role: 'user',
+            content: '继续',
+            createdAt: '2026-07-03T13:00:02.000Z',
+          },
+        ],
+      })
+    );
+
+    expect(store.listMessages(sessionId).map((message) => message.content)).toEqual(['继续', '继续']);
   });
 
   test('falls back to capturedAt when provider message timestamps are missing or placeholders', () => {
@@ -903,4 +1251,22 @@ function countRows(db: DatabaseSync, tableName: string): number {
     .get() as { count: number };
 
   return row.count;
+}
+
+function buildDoubaoSseBody(input: { conversationId: string; content: string; eventId?: string }): string {
+  return [
+    `data: ${JSON.stringify({
+      event_type: 2001,
+      event_data: JSON.stringify({
+        id: input.eventId,
+        conversation_id: input.conversationId,
+        message: {
+          content: {
+            text: input.content,
+          },
+        },
+      }),
+    })}`,
+    'data: [DONE]',
+  ].join('\n');
 }

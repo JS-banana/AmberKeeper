@@ -20,11 +20,12 @@ export function collectDoubaoStructuredMessages(
     '[data-testid="message_text_content"]',
     '.bg-g-send-msg-bubble-bg',
     '.container-P2rR72',
+    '.flow-markdown-body',
     '.paragraph-pP9ZLC',
   ];
 
   const messages = collectFromSelectors(root, primarySelectors);
-  if (messages.length > 0) {
+  if (messages.some((message) => message.role === 'assistant')) {
     return dedupeMessages(messages);
   }
 
@@ -45,8 +46,9 @@ export function collectDoubaoStructuredMessages(
     root,
     fallbackSelectors
   );
-  if (fallbackMessages.length > 0) {
-    return dedupeMessages(fallbackMessages);
+  const combinedMessages = dedupeMessages([...messages, ...fallbackMessages]);
+  if (combinedMessages.length > 0) {
+    return combinedMessages;
   }
 
   return dedupeMessages(
@@ -211,7 +213,11 @@ function inferRoleFromElement(element: NodeLike): DoubaoDomSnapshotMessageInput[
     return 'assistant';
   }
 
-  if (hasClassToken(element, 'container-P2rR72') || hasClassToken(element, 'paragraph-pP9ZLC')) {
+  if (
+    hasClassToken(element, 'container-P2rR72') ||
+    hasClassToken(element, 'flow-markdown-body') ||
+    hasClassToken(element, 'paragraph-pP9ZLC')
+  ) {
     return 'assistant';
   }
 

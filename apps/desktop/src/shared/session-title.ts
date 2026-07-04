@@ -25,6 +25,9 @@ const GENERIC_SESSION_TITLES = new Set([
   'doubao',
   'mimo',
   'xiaomi ai studio',
+  'deepseek - 探索未至之境',
+  '千问-阿里 ai 助手',
+  '豆包 - 字节跳动旗下 ai 智能助手',
   'new chat',
   'new conversation',
   'untitled',
@@ -43,8 +46,9 @@ type SessionTitleInput = Pick<
 >;
 
 export function resolveSessionTitle(session: SessionTitleInput): string {
-  const title = session.title?.trim() ?? '';
-  if (isMeaningfulSessionTitle(title, session)) {
+  const rawTitle = session.title?.trim() ?? '';
+  const title = stripProviderTitleChrome(rawTitle, session.provider);
+  if (isMeaningfulSessionTitle(rawTitle, session) && isMeaningfulSessionTitle(title, session)) {
     return title;
   }
 
@@ -102,6 +106,16 @@ function isMeaningfulSessionTitle(
 
 function normalizeTitle(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function stripProviderTitleChrome(value: string, providerId: ProviderId): string {
+  const patterns: Partial<Record<ProviderId, RegExp[]>> = {
+    deepseek: [/^\s*DeepSeek\s*[-–—]\s*/i, /\s*[-–—]\s*DeepSeek\s*$/i],
+    doubao: [/^\s*豆包\s*[-–—]\s*/i, /\s*[-–—]\s*豆包\s*$/i],
+    qianwen: [/^\s*(?:千问|通义千问)\s*[-–—]\s*/i, /\s*[-–—]\s*(?:千问|通义千问)\s*$/i],
+  };
+
+  return (patterns[providerId] ?? []).reduce((title, pattern) => title.replace(pattern, ''), value).trim();
 }
 
 function normalizePreviewText(providerId: ProviderId, previewText: string): string {
