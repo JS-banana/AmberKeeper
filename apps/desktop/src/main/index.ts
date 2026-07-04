@@ -68,6 +68,7 @@ import {
   getActiveShellRuntime,
   isProviderRuntime,
   listResolvedShellRuntimes,
+  resolveShellRuntimeByWebContentsId,
   syncCustomServiceRuntimes,
   syncShellStageController,
 } from './runtime/shell-runtime-coordination';
@@ -1343,12 +1344,22 @@ registerAppLifecycle({
           summary: 'none',
           entries: [],
         }),
-      onPageContext: (payload) => {
-        if (activeServiceId === activeProviderId && activeProviderId && payload.title?.trim()) {
-          providerPageTitles.set(activeProviderId, payload.title.trim());
+      onPageContext: (sender, payload) => {
+        const runtime = resolveShellRuntimeByWebContentsId({
+          runtimeRegistry,
+          customRuntimeRegistry,
+          webContentsId: sender.id,
+        }) as ShellRuntimeContext | null;
+
+        if (runtime && payload.url) {
+          runtime.currentUrl = payload.url;
         }
 
-        if (payload.url) {
+        if (runtime && isProviderRuntime(runtime) && payload.title?.trim()) {
+          providerPageTitles.set(runtime.providerId, payload.title.trim());
+        }
+
+        if (runtime?.serviceId === activeServiceId && payload.url) {
           currentUrl = payload.url;
         }
 

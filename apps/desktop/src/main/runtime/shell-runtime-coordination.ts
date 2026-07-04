@@ -11,10 +11,16 @@ type CustomRuntimeRegistryLike = {
   syncServices(nextServices: ServiceRecord[], nextActiveServiceId?: string | null): void;
 };
 
+type RuntimeViewLike = {
+  webContents?: {
+    id?: number;
+  };
+};
+
 export interface ShellRuntimeLike {
   serviceId: string;
   providerId: string | null;
-  view: unknown;
+  view: RuntimeViewLike;
   browserSession: unknown;
   cdpObserver: unknown;
   currentUrl: string;
@@ -66,6 +72,18 @@ export function getActiveShellRuntime(options: {
   }
 
   return options.customRuntimeRegistry?.getActiveRuntime() ?? null;
+}
+
+export function resolveShellRuntimeByWebContentsId(options: {
+  runtimeRegistry: RuntimeRegistryLike | null;
+  customRuntimeRegistry: CustomRuntimeRegistryLike | null;
+  webContentsId: number;
+}): ShellRuntimeLike | null {
+  return (
+    listResolvedShellRuntimes(options).find(
+      (runtime) => runtime.view.webContents?.id === options.webContentsId
+    ) ?? null
+  );
 }
 
 export function syncShellStageController(options: {
