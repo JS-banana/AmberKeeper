@@ -1111,8 +1111,80 @@ describe('capture-store', () => {
       }),
     ]);
     expect(userArtifact.content).not.toContain('Long assistant answer');
+    expect(assistantArtifact.content).toContain('## Provider export title');
     expect(assistantArtifact.content).toContain('Long assistant answer');
     expect(assistantArtifact.content).not.toContain('Keep my research prompt');
+  });
+
+  test('uses only exported messages for previews and fallback titles across export targets', () => {
+    const store = new CaptureStore(dbPath);
+    const prompt = 'Private launch notes';
+    const answer = 'Review summary';
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        title: 'New chat',
+        titleSource: 'provider',
+        messages: [
+          { role: 'user', content: prompt, createdAt: '2026-03-19T10:00:00.000Z' },
+          { role: 'assistant', content: answer, createdAt: '2026-03-19T10:00:02.000Z' },
+        ],
+      })
+    );
+
+    const sessionMarkdown = store.exportSession(sessionId, 'markdown', 'assistant');
+    const sessionJson = store.exportSession(sessionId, 'json', 'assistant');
+
+    for (const artifact of [
+      sessionJson,
+      store.exportProviderSessions('chatgpt', 'json', 'assistant'),
+      store.exportAllSessions('json', 'assistant'),
+    ]) {
+      const payload = JSON.parse(artifact.content);
+      const entry = artifact.scope === 'session' ? payload : payload.sessions[0];
+      expect(entry.session.previewText).toBe(answer);
+      expect(entry.messages).toEqual([expect.objectContaining({ role: 'assistant', content: answer })]);
+      expect(artifact.content).not.toContain(prompt);
+    }
+
+    for (const artifact of [
+      sessionMarkdown,
+      store.exportProviderSessions('chatgpt', 'markdown', 'assistant'),
+      store.exportAllSessions('markdown', 'assistant'),
+    ]) {
+      expect(artifact.content).toContain(`## ${answer}`);
+      expect(artifact.content).not.toContain(prompt);
+    }
+
+    expect(sessionMarkdown.fileName).toBe('amberkeeper-chatgpt-review-summary.md');
+    expect(sessionJson.fileName).toBe('amberkeeper-chatgpt-review-summary.json');
+    expect(store.exportSession(sessionId, 'markdown').content).toContain(`## ${prompt}`);
+    expect(store.listSessions()[0]?.previewText).toBe(prompt);
+  });
+
+  test.each([
+    ['assistant', 'user'],
+    ['user', 'assistant'],
+  ] as const)('omits message-derived metadata when the %s export is empty', (scope, excludedRole) => {
+    const store = new CaptureStore(dbPath);
+    const excludedContent = 'Content outside the export scope';
+    const sessionId = store.persistEnvelope(
+      buildEnvelope({
+        title: excludedContent,
+        titleSource: 'fallback',
+        messages: [{ role: excludedRole, content: excludedContent, createdAt: '2026-03-19T10:00:00.000Z' }],
+      })
+    );
+
+    const json = store.exportSession(sessionId, 'json', scope);
+    const markdown = store.exportSession(sessionId, 'markdown', scope);
+    expect(JSON.parse(json.content)).toMatchObject({
+      session: { previewText: null, title: null },
+      messages: [],
+    });
+    expect(json.content).not.toContain(excludedContent);
+    expect(markdown.fileName).toBe('amberkeeper-chatgpt-conv-123.md');
+    expect(markdown.content).not.toContain(excludedContent);
+    expect(markdown.content).toContain('本次导出范围内没有消息。');
   });
 
   test('migrates legacy capture tables into the new read model', () => {
