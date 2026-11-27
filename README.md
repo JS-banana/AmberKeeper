@@ -78,13 +78,13 @@ AmberKeeper 当前内置支持:
 - DeepSeek
 - Grok
 - Kimi
-- 通义千问
+- 通义千问（[qianwen.com](https://www.qianwen.com/)）
 - 豆包
 - 小米 AI Studio
 
 这些会话可以在应用内统一管理与归档。
 
-如果你还有其他常用 AI 站点，也可以把它作为自定义服务添加进来。自定义服务当前主要用于统一入口，不参与内置 provider 级的自动采集。
+如果你还有其他常用 AI 站点，也可以把它作为自定义服务添加进来。比如想在应用内打开 [Qwen 国际站](https://chat.qwen.ai/)，可在「服务」→「添加服务」中填入 `https://chat.qwen.ai/`。自定义服务仅提供浏览入口，不会自动保存对话，也不会将其纳入本地导出。
 
 ## 设计原则
 
