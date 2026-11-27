@@ -10,18 +10,12 @@ import {
   type ProviderLiveAutomationRuntime,
 } from '../runtime/provider-live-automation';
 import { createProviderLiveProbeServer } from '../runtime/provider-live-probe-server';
+import type { CaptureAttemptInput } from '../storage/capture-store';
 
 export function createLiveProbeService(options: {
   manifestPath: string;
   diagnosticsEnabled: () => boolean;
-  recordAttempt: (input: {
-    source: 'runtime';
-    stage: string;
-    status: 'info' | 'error';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }) => void;
+  recordAttempt: (input: CaptureAttemptInput) => void;
   formatError: (error: unknown) => string;
   activateProvider: (providerId: ProviderId) => Promise<void> | void;
   resolveRuntime: (providerId: ProviderId) => ProviderLiveAutomationRuntime | null;
@@ -57,7 +51,7 @@ export function createLiveProbeService(options: {
             stage: 'live-probe-server',
             status: 'info',
             message: 'Started local provider live probe server.',
-            detail: JSON.stringify(manifest),
+            metadataDetail: JSON.stringify(manifest),
             createdAt: new Date().toISOString(),
           });
         })

@@ -1,6 +1,7 @@
 import type { ProviderSignal, RuntimeSignal } from '@amberkeeper/capture-core';
 import type { CaptureEnvelope, ProviderAdapter, ProviderId } from '@amberkeeper/shared-types';
 import { resolveConversationIdSignal } from '../runtime/conversation-id-resolution';
+import type { CaptureAttemptInput } from '../storage/capture-store';
 
 type RequestSeenSignal = Extract<RuntimeSignal, { kind: 'requestSeen' }>;
 type ResponseMetaSeenSignal = Extract<RuntimeSignal, { kind: 'responseMetaSeen' }>;
@@ -26,22 +27,8 @@ export function createRequestIngestionService(options: {
     pageUrl: string;
   }) => void;
   emitProviderSignals: (signals: ProviderSignal[]) => void;
-  recordUniqueObservation: (key: string, input: {
-    source: 'cdp-network';
-    stage: string;
-    status: 'info';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }) => void;
-  recordAttempt: (input: {
-    source: 'cdp-network';
-    stage: string;
-    status: 'info' | 'captured';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }) => void;
+  recordUniqueObservation: (key: string, input: CaptureAttemptInput) => void;
+  recordAttempt: (input: CaptureAttemptInput) => void;
   persistEnvelope: (envelope: CaptureEnvelope) => string | null | undefined;
   markCapturePersisted: (capturedAt: string) => void;
   resolveActiveRuntimeTitle: (providerId: ProviderId) => string | null;
@@ -102,7 +89,8 @@ export function createRequestIngestionService(options: {
             stage: classification === 'capture' ? 'request-candidate' : 'request-discovery',
             status: 'info',
             message: `${tracked.method} ${tracked.resourceType} ${tracked.url}`,
-            detail: tracked.postData ? tracked.postData.slice(0, 400) : tracked.pageUrl,
+            detail: tracked.postData?.slice(0, 400) || undefined,
+            metadataDetail: tracked.pageUrl,
             createdAt: tracked.capturedAt,
           }
         );
@@ -127,7 +115,7 @@ export function createRequestIngestionService(options: {
             stage: 'request-parse-empty',
             status: 'info',
             message: 'Request matched capture route but yielded no normalized user message.',
-            detail: tracked.url,
+            metadataDetail: tracked.url,
             createdAt: tracked.capturedAt,
           });
         }
@@ -155,7 +143,7 @@ export function createRequestIngestionService(options: {
                 : 'response-discovery',
             status: 'info',
             message: `${input.tracked.method} ${input.signal.status ?? 'unknown'} ${input.signal.mimeType ?? 'unknown'} ${input.signal.url}`,
-            detail: input.tracked.pageUrl,
+            metadataDetail: input.tracked.pageUrl,
             createdAt: input.signal.capturedAt,
           }
         );
@@ -204,7 +192,7 @@ export function createRequestIngestionService(options: {
         stage: 'websocket-created',
         status: 'info',
         message: `WebSocket observed: ${input.signal.url}`,
-        detail: input.signal.pageUrl,
+        metadataDetail: input.signal.pageUrl,
         createdAt: input.signal.capturedAt,
       });
     },
@@ -257,17 +245,14 @@ export function createRequestIngestionService(options: {
       }
 
       options.markCapturePersisted(tracked.capturedAt);
+      const metadata = { sessionId, remoteConversationId: conversationId, pageUrl: tracked.pageUrl };
       options.recordAttempt({
         source: 'cdp-network',
         stage: 'request-user-persist',
         status: 'captured',
         message: `Persisted request-side user turn for ${tracked.provider}.`,
-        detail: JSON.stringify({
-          sessionId,
-          remoteConversationId: conversationId,
-          pageUrl: tracked.pageUrl,
-          preview: latestUserSignal.content.slice(0, 160),
-        }),
+        detail: JSON.stringify({ ...metadata, preview: latestUserSignal.content.slice(0, 160) }),
+        metadataDetail: JSON.stringify(metadata),
         createdAt: tracked.capturedAt,
       });
     },

@@ -37,6 +37,7 @@ import { createHistorySessionOpenService } from './capture/history-session-open-
 import { createNetworkResponseIngestionService } from './capture/network-response-ingestion-service';
 import { createRequestIngestionService } from './capture/request-ingestion-service';
 import { createDiagnosticsService } from './diagnostics/diagnostics-service';
+import { summarizeDomSnapshotMetadata } from './diagnostics/dom-snapshot-metadata';
 import { createLiveProbeService } from './diagnostics/live-probe-service';
 import { registerCaptureIpc } from './ipc/capture-ipc';
 import { installApplicationMenu } from './menu/app-menu';
@@ -72,7 +73,7 @@ import {
   syncCustomServiceRuntimes,
   syncShellStageController,
 } from './runtime/shell-runtime-coordination';
-import { CaptureStore } from './storage/capture-store';
+import { CaptureStore, type CaptureAttemptInput } from './storage/capture-store';
 import {
   requestChatDataLocationChange,
   requestDefaultChatDataLocation,
@@ -605,7 +606,7 @@ async function captureConversationFromDom(pageUrl: string): Promise<void> {
           stage: 'dom-auto-capture',
           status: 'captured',
           message: 'Captured stabilized DOM message(s) after network trigger.',
-          detail: `${snapshot.url || pageUrl}\ntrigger=${triggerUrl}`,
+          metadataDetail: `${snapshot.url || pageUrl}\ntrigger=${triggerUrl}`,
           createdAt: capturedAt,
         });
         return;
@@ -620,7 +621,7 @@ async function captureConversationFromDom(pageUrl: string): Promise<void> {
       stage: 'dom-auto-capture',
       status: 'info',
       message: 'Network trigger observed but DOM capture never reached a stable assistant turn.',
-      detail: `${pageUrl}\ntrigger=${triggerUrl}`,
+      metadataDetail: `${pageUrl}\ntrigger=${triggerUrl}`,
       createdAt: new Date().toISOString(),
     });
   } finally {
@@ -641,7 +642,7 @@ function persistTurn(turn: CompletedTurn): void {
     stage: 'capture',
     status: 'captured',
     message: `Persisted ${turn.messages.length} message(s).`,
-    detail: turn.conversationId ?? turn.pageUrl,
+    metadataDetail: turn.conversationId ?? turn.pageUrl,
     createdAt: turn.capturedAt,
   });
 }
@@ -800,12 +801,11 @@ async function collectDeepSeekHistoryFetchDiagnostics(
   runtime: ProviderRuntimeContext,
   remoteConversationId: string | null
 ): Promise<string | null> {
-  return (
-    historyDomHydrationService?.collectDeepSeekHistoryFetchDiagnostics(
-      runtime,
-      remoteConversationId
-    ) ?? null
+  const diagnostics = await historyDomHydrationService?.collectDeepSeekHistoryFetchDiagnostics(
+    runtime,
+    remoteConversationId
   );
+  return diagnostics?.detail ?? null;
 }
 
 function publishRuntimeStatus(): void {
@@ -1053,29 +1053,12 @@ function getTrackedRequestKey(providerId: ProviderId, requestId: string): string
   return `${providerId}:${requestId}`;
 }
 
-function recordAttempt(input: {
-  source: 'cdp-network' | 'preload-dom' | 'runtime';
-  stage: string;
-  status: 'info' | 'captured' | 'error';
-  message: string;
-  detail?: string | null;
-  createdAt: string;
-}): void {
+function recordAttempt(input: CaptureAttemptInput): void {
   captureStore?.logAttempt(input);
   publishRuntimeStatus();
 }
 
-function recordUniqueObservation(
-  key: string,
-  input: {
-    source: 'cdp-network' | 'preload-dom' | 'runtime';
-    stage: string;
-    status: 'info' | 'captured' | 'error';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }
-): void {
+function recordUniqueObservation(key: string, input: CaptureAttemptInput): void {
   if (seenObservationKeySet.has(key)) {
     return;
   }
@@ -1332,6 +1315,7 @@ registerAppLifecycle({
           status: 'info',
           message: snapshot.message,
           detail: snapshot.detail,
+          metadataDetail: summarizeDomSnapshotMetadata(snapshot.detail),
           createdAt: new Date().toISOString(),
         });
 

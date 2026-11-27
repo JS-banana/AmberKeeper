@@ -1,6 +1,7 @@
 import type { ProviderSignal, RuntimeSignal } from '@amberkeeper/capture-core';
 import type { CaptureEnvelope, ProviderAdapter, ProviderId } from '@amberkeeper/shared-types';
 import { shouldRecordParsedResponseDiagnostics } from '../runtime/response-diagnostics';
+import type { CaptureAttemptInput } from '../storage/capture-store';
 
 type ResponseBodySeenSignal = Extract<RuntimeSignal, { kind: 'responseBodySeen' }>;
 type ResponseBodyFailedSignal = Extract<RuntimeSignal, { kind: 'responseBodyFailed' }>;
@@ -30,14 +31,7 @@ export function createNetworkResponseIngestionService(options: {
   ) => string | null;
   emitProviderSignals: (signals: ProviderSignal[]) => void;
   captureConversationFromDom: (pageUrl: string) => Promise<void>;
-  recordAttempt: (input: {
-    source: 'cdp-network';
-    stage: string;
-    status: 'info' | 'error';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }) => void;
+  recordAttempt: (input: CaptureAttemptInput) => void;
   formatError: (error: unknown) => string;
 }) {
   return {
@@ -51,6 +45,7 @@ export function createNetworkResponseIngestionService(options: {
         status: 'error',
         message: `Failed to retrieve or parse a ${input.signal.provider} response body.`,
         detail: [input.tracked?.url ?? '', options.formatError(input.signal.error)].filter(Boolean).join('\n'),
+        metadataDetail: input.tracked?.url,
         createdAt: input.signal.capturedAt,
       });
     },
@@ -100,11 +95,12 @@ export function createNetworkResponseIngestionService(options: {
             message: `Parsed ${response.signals.length} signal(s) from ${input.tracked.provider} response.`,
             detail: [
               input.tracked.url,
-              summarizeSignalsForDiagnostics(response.signals),
+              summarizeSignalsForDiagnostics(response.signals, true),
               input.adapter.summarizeResponseBody(text, 800),
             ]
               .filter(Boolean)
               .join('\n'),
+            metadataDetail: `${input.tracked.url}\n${summarizeSignalsForDiagnostics(response.signals, false)}`,
             createdAt: input.signal.capturedAt,
           });
         }
@@ -117,6 +113,7 @@ export function createNetworkResponseIngestionService(options: {
           status: 'info',
           message: `Matched ${input.tracked.provider} request but parsed no normalized messages.`,
           detail: `${input.tracked.url}\n${input.adapter.summarizeResponseBody(text)}`,
+          metadataDetail: `${input.tracked.url}\nresponseBytes=${Buffer.byteLength(text)}`,
           createdAt: input.signal.capturedAt,
         });
       }
@@ -128,7 +125,7 @@ export function createNetworkResponseIngestionService(options: {
   };
 }
 
-function summarizeSignalsForDiagnostics(signals: ProviderSignal[]): string {
+function summarizeSignalsForDiagnostics(signals: ProviderSignal[], includeContent: boolean): string {
   return JSON.stringify(
     signals.map((signal) => ({
       kind: signal.kind,
@@ -136,10 +133,11 @@ function summarizeSignalsForDiagnostics(signals: ProviderSignal[]): string {
       createdAt: 'createdAt' in signal ? (signal.createdAt ?? null) : null,
       remoteMessageId: 'remoteMessageId' in signal ? (signal.remoteMessageId ?? null) : null,
       stable: 'stable' in signal ? (signal.stable ?? null) : null,
-      content:
-        'content' in signal && typeof signal.content === 'string'
+      ...(includeContent && {
+        content: 'content' in signal && typeof signal.content === 'string'
           ? signal.content.slice(0, 160)
           : null,
+      }),
     })),
     null,
     2
