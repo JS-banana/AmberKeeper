@@ -25,6 +25,12 @@ describe('qianwen-network', () => {
     expect(classifyQianwenRequest('https://example.com/api/chat/completions', 'POST')).toBe('ignore');
   });
 
+  test('does not route Qwen international URLs to the qianwen.com adapter', () => {
+    expect(matchesQianwenView('https://chat.qwen.ai/')).toBe(false);
+    expect(classifyQianwenRequest('https://chat.qwen.ai/api/chat/completions', 'POST')).toBe('ignore');
+    expect(extractQianwenConversationIdFromUrl('https://chat.qwen.ai/chat/qw-123')).toBeNull();
+  });
+
   test('extracts conversation ids from qianwen urls', () => {
     expect(extractQianwenConversationIdFromUrl('https://www.qianwen.com/chat/qw-123')).toBe('qw-123');
     expect(
