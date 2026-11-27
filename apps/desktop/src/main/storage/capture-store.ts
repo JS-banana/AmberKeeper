@@ -310,9 +310,9 @@ export class CaptureStore {
       throw new Error(`Unknown session: ${sessionId}.`);
     }
 
-    const messages = filterMessagesByExportScope(this.listMessages(sessionId), messageScope);
+    const entry = this.getSessionExportEntry(session, messageScope);
 
-    return buildSessionExportArtifact(session, messages, format, messageScope);
+    return buildSessionExportArtifact(entry.session, entry.messages, format, messageScope);
   }
 
   exportProviderSessions(
@@ -331,10 +331,7 @@ export class CaptureStore {
     return buildProviderExportArtifact(
       providerId,
       provider.name,
-      sessions.map((session) => ({
-        session,
-        messages: filterMessagesByExportScope(this.listMessages(session.id), messageScope),
-      })),
+      sessions.map((session) => this.getSessionExportEntry(session, messageScope)),
       format,
       messageScope
     );
@@ -349,13 +346,32 @@ export class CaptureStore {
 
     return buildAllSessionsExportArtifact(
       sessions.map((session) => ({
-        session,
+        ...this.getSessionExportEntry(session, messageScope),
         providerName: providerNames.get(session.provider) ?? session.provider,
-        messages: filterMessagesByExportScope(this.listMessages(session.id), messageScope),
       })),
       format,
       messageScope
     );
+  }
+
+  private getSessionExportEntry(
+    session: CaptureSessionRecord,
+    messageScope: CaptureExportMessageScope
+  ): { session: CaptureSessionRecord; messages: CaptureMessageRecord[] } {
+    const messages = this.listMessages(session.id);
+    if (messageScope === 'complete') {
+      return { session, messages };
+    }
+
+    const scopedMessages = messages.filter((message) => message.role === messageScope);
+    return {
+      session: {
+        ...session,
+        title: session.titleSource === 'provider' ? session.title : null,
+        previewText: scopedMessages[0]?.content ?? null,
+      },
+      messages: scopedMessages,
+    };
   }
 
   listProviders(): ProviderRecord[] {
@@ -857,7 +873,7 @@ function renderSessionMarkdown(
 
   const messageLines =
     messages.length === 0
-      ? ['> 当前会话还没有已持久化消息。']
+      ? ['> 本次导出范围内没有消息。']
       : messages.flatMap((message, index) => [
           `### ${index + 1}. ${message.role === 'assistant' ? '助手' : '用户'}`,
           '',
@@ -879,17 +895,6 @@ function toFileSegment(input: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64) || 'session';
-}
-
-function filterMessagesByExportScope(
-  messages: CaptureMessageRecord[],
-  messageScope: CaptureExportMessageScope
-): CaptureMessageRecord[] {
-  if (messageScope === 'complete') {
-    return messages;
-  }
-
-  return messages.filter((message) => message.role === messageScope);
 }
 
 function applySaveScope(envelope: CaptureEnvelope, saveScope: CaptureSaveScope): CaptureEnvelope {
