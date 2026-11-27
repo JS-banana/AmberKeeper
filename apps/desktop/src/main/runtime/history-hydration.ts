@@ -71,33 +71,38 @@ export function resolveSessionNavigationUrl(
   return buildConversationUrl(session.provider, remoteConversationId) ?? providerHomeUrl;
 }
 
-export function summarizeDeepSeekHydrationDiagnostics(input: {
-  historyFetch?: DeepSeekHydrationHistoryFetchSummary | null;
-  dom?: DeepSeekHydrationDomSummary | null;
-}): string {
+export function summarizeDeepSeekHydrationDiagnostics(
+  input: {
+    historyFetch?: DeepSeekHydrationHistoryFetchSummary | null;
+    dom?: DeepSeekHydrationDomSummary | null;
+  },
+  includeSamples = true
+): string {
   return JSON.stringify({
     historyFetch: input.historyFetch
       ? {
           ok: input.historyFetch.ok ?? false,
           status: input.historyFetch.status ?? null,
           url: input.historyFetch.url ?? '',
-          preview: normalizeWhitespace(input.historyFetch.preview),
+          preview: includeSamples ? normalizeWhitespace(input.historyFetch.preview) : undefined,
         }
       : null,
     dom: input.dom
       ? {
           locationHref: input.dom.locationHref ?? '',
-          title: input.dom.title ?? '',
-          bodyTextSample: normalizeWhitespace(input.dom.bodyTextSample),
-          mainHtmlSample: normalizeWhitespace(input.dom.mainHtmlSample),
+          title: includeSamples ? (input.dom.title ?? '') : undefined,
+          bodyTextSample: includeSamples ? normalizeWhitespace(input.dom.bodyTextSample) : undefined,
+          mainHtmlSample: includeSamples ? normalizeWhitespace(input.dom.mainHtmlSample) : undefined,
           selectorCounts: input.dom.selectorCounts ?? {},
-          candidateNodes: (input.dom.candidateNodes ?? []).map((node) => ({
-            selector: node.selector ?? '',
-            tagName: node.tagName ?? '',
-            className: normalizeWhitespace(node.className),
-            textSample: normalizeWhitespace(node.textSample),
-            htmlSample: normalizeWhitespace(node.htmlSample),
-          })),
+          candidateNodes: includeSamples
+            ? (input.dom.candidateNodes ?? []).map((node) => ({
+                selector: node.selector ?? '',
+                tagName: node.tagName ?? '',
+                className: normalizeWhitespace(node.className),
+                textSample: normalizeWhitespace(node.textSample),
+                htmlSample: normalizeWhitespace(node.htmlSample),
+              }))
+            : undefined,
         }
       : null,
   });

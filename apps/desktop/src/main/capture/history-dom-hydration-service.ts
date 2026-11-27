@@ -1,10 +1,12 @@
 import type { ProviderId } from '@amberkeeper/shared-types';
+import { summarizeDomSnapshotMetadata } from '../diagnostics/dom-snapshot-metadata';
 import type { getProviderAdapter } from '../runtime/provider-adapters';
 import {
   normalizeHydratedDomMessages,
   summarizeDeepSeekHydrationDiagnostics,
 } from '../runtime/history-hydration';
 import { shouldAcceptAutoCacheSnapshot } from '../runtime/old-session-auto-cache';
+import type { CaptureAttemptInput } from '../storage/capture-store';
 
 type ProviderAdapter = NonNullable<ReturnType<typeof getProviderAdapter>>;
 
@@ -29,14 +31,7 @@ export function createHistoryDomHydrationService<TRuntime extends RuntimeLike>(o
   getProviderAdapter: (providerId: ProviderId) => ProviderAdapter | null;
   wait: (milliseconds: number) => Promise<void>;
   formatError: (error: unknown) => string;
-  recordAttempt: (input: {
-    source: 'preload-dom';
-    stage: string;
-    status: 'info';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }) => void;
+  recordAttempt: (input: CaptureAttemptInput) => void;
   persistHydratedConversationSnapshot: (input: {
     providerId: ProviderId;
     existingSessionId?: string | null;
@@ -72,7 +67,7 @@ export function createHistoryDomHydrationService<TRuntime extends RuntimeLike>(o
           input.stage === 'history-hydration'
             ? 'Started DOM hydration for the selected session.'
             : 'Started DOM auto-cache for the active remote session.',
-        detail: [
+        metadataDetail: [
           input.preferredConversationId ? `remoteConversationId=${input.preferredConversationId}` : '',
           `targetUrl=${input.targetUrl}`,
         ]
@@ -175,12 +170,15 @@ export function createHistoryDomHydrationService<TRuntime extends RuntimeLike>(o
         });
       }
 
-      let domSnapshotDetail = '';
+      let domSnapshotDetail: string;
+      let domSnapshotMetadata: string;
       try {
         const domSnapshot = await input.runtime.browserSession.runDomSnapshot();
         domSnapshotDetail = domSnapshot.detail;
+        domSnapshotMetadata = summarizeDomSnapshotMetadata(domSnapshotDetail) ?? 'unstructured';
       } catch (error) {
         domSnapshotDetail = `runDomSnapshot failed: ${options.formatError(error)}`;
+        domSnapshotMetadata = 'failed';
       }
 
       const deepSeekHistoryDiagnostics =
@@ -190,7 +188,10 @@ export function createHistoryDomHydrationService<TRuntime extends RuntimeLike>(o
               input.preferredConversationId ?? null
             )
           : null;
-      const createdAt = new Date().toISOString();
+      const targetMetadata = [
+        input.targetUrl,
+        input.preferredConversationId ? `remoteConversationId=${input.preferredConversationId}` : '',
+      ].filter(Boolean);
 
       options.recordAttempt({
         source: 'preload-dom',
@@ -201,14 +202,20 @@ export function createHistoryDomHydrationService<TRuntime extends RuntimeLike>(o
             ? 'Opened remote session but found no DOM messages to hydrate.'
             : 'Observed remote session route but found no DOM history to cache.',
         detail: [
-          input.targetUrl,
-          input.preferredConversationId ? `remoteConversationId=${input.preferredConversationId}` : '',
-          deepSeekHistoryDiagnostics ? `deepseekHistory=${deepSeekHistoryDiagnostics}` : '',
-          domSnapshotDetail ? `domSnapshot=${domSnapshotDetail}` : '',
+          ...targetMetadata,
+          deepSeekHistoryDiagnostics && `deepseekHistory=${deepSeekHistoryDiagnostics.detail}`,
+          domSnapshotDetail && `domSnapshot=${domSnapshotDetail}`,
         ]
           .filter(Boolean)
           .join('\n'),
-        createdAt,
+        metadataDetail: [
+          ...targetMetadata,
+          deepSeekHistoryDiagnostics && `deepseekHistory=${deepSeekHistoryDiagnostics.metadataDetail}`,
+          `domSnapshot=${domSnapshotMetadata}`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        createdAt: new Date().toISOString(),
       });
 
       return {
@@ -220,9 +227,10 @@ export function createHistoryDomHydrationService<TRuntime extends RuntimeLike>(o
     async collectDeepSeekHistoryFetchDiagnostics(
       runtime: TRuntime,
       remoteConversationId: string | null
-    ): Promise<string | null> {
+    ): Promise<{ detail: string; metadataDetail: string }> {
       if (!remoteConversationId) {
-        return 'missing-remote-conversation-id';
+        const detail = 'missing-remote-conversation-id';
+        return { detail, metadataDetail: detail };
       }
 
       try {
@@ -322,12 +330,15 @@ export function createHistoryDomHydrationService<TRuntime extends RuntimeLike>(o
           } | null;
         } | null;
 
-        return summarizeDeepSeekHydrationDiagnostics({
-          historyFetch: diagnostics?.historyFetch ?? null,
-          dom: diagnostics?.dom ?? null,
-        });
+        return {
+          detail: summarizeDeepSeekHydrationDiagnostics(diagnostics ?? {}),
+          metadataDetail: summarizeDeepSeekHydrationDiagnostics(diagnostics ?? {}, false),
+        };
       } catch (error) {
-        return `executeJavaScript failed: ${options.formatError(error)}`;
+        return {
+          detail: `executeJavaScript failed: ${options.formatError(error)}`,
+          metadataDetail: 'executeJavaScript failed',
+        };
       }
     },
   };

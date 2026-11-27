@@ -31,6 +31,15 @@ import { createServiceSettingsRepository } from './service-settings-repository';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { ensureCaptureStoreSchema, hasTable } from './schema';
 
+export type CaptureAttemptInput = Pick<
+  CaptureAttemptLogRecord,
+  'source' | 'stage' | 'status' | 'message' | 'createdAt'
+> & {
+  detail?: string | null;
+  // Only this explicitly body-free detail may be written in the user save scope.
+  metadataDetail?: string | null;
+};
+
 export class CaptureStore {
   private readonly database: DatabaseSync;
   private readonly conversationRepository: ReturnType<typeof createConversationRepository>;
@@ -421,14 +430,10 @@ export class CaptureStore {
     return this.serviceSettingsRepository.updateCustomIcon(serviceId, iconUrl);
   }
 
-  logAttempt(input: {
-    source: 'cdp-network' | 'preload-dom' | 'runtime';
-    stage: string;
-    status: 'info' | 'captured' | 'error';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }): void {
+  logAttempt(input: CaptureAttemptInput): void {
+    const detail =
+      this.getCaptureSaveScope() === 'user' ? input.metadataDetail : input.detail ?? input.metadataDetail;
+
     this.database
       .prepare(
         `
@@ -449,7 +454,7 @@ export class CaptureStore {
         input.stage,
         input.status,
         input.message,
-        input.detail ?? null,
+        detail ?? null,
         input.createdAt
       );
   }

@@ -1,6 +1,6 @@
 import type { CaptureSessionRecord, ProviderId, ProviderRecord } from '@amberkeeper/shared-types';
 import { resolveSessionNavigationUrl } from '../runtime/history-hydration';
-import type { CaptureStore } from '../storage/capture-store';
+import type { CaptureAttemptInput, CaptureStore } from '../storage/capture-store';
 
 type RuntimeLike = {
   providerId: ProviderId;
@@ -17,14 +17,7 @@ export function createHistorySessionOpenService<TRuntime extends RuntimeLike>(op
     runtime: TRuntime,
     targetUrl: string
   ) => Promise<{ message: string; detail: string }>;
-  recordAttempt: (input: {
-    source: 'preload-dom';
-    stage: string;
-    status: 'info' | 'error';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }) => void;
+  recordAttempt: (input: CaptureAttemptInput) => void;
   formatError: (error: unknown) => string;
 }) {
   return {
@@ -44,7 +37,7 @@ export function createHistorySessionOpenService<TRuntime extends RuntimeLike>(op
           stage: 'history-hydration',
           status: 'error',
           message: 'Requested hydration for an unknown session.',
-          detail: `session=${sessionId}`,
+          metadataDetail: `session=${sessionId}`,
           createdAt: new Date().toISOString(),
         });
         throw new Error(`Unknown session: ${sessionId}.`);
@@ -55,7 +48,7 @@ export function createHistorySessionOpenService<TRuntime extends RuntimeLike>(op
         stage: 'history-hydration',
         status: 'info',
         message: 'Requested hydration for the selected session.',
-        detail: [
+        metadataDetail: [
           `session=${session.id}`,
           `provider=${session.provider}`,
           `activeProvider=${options.getSelectedProviderId() ?? ''}`,
@@ -71,7 +64,7 @@ export function createHistorySessionOpenService<TRuntime extends RuntimeLike>(op
           stage: 'history-hydration',
           status: 'error',
           message: 'Selected session does not belong to the active provider.',
-          detail: [
+          metadataDetail: [
             `session=${session.id}`,
             `provider=${session.provider}`,
             `activeProvider=${options.getSelectedProviderId() ?? ''}`,
@@ -89,7 +82,7 @@ export function createHistorySessionOpenService<TRuntime extends RuntimeLike>(op
           stage: 'history-hydration',
           status: 'error',
           message: 'Selected session provider could not be resolved.',
-          detail: [`session=${session.id}`, `provider=${session.provider}`].join('\n'),
+          metadataDetail: [`session=${session.id}`, `provider=${session.provider}`].join('\n'),
           createdAt: new Date().toISOString(),
         });
         throw new Error(`Unknown provider for session ${sessionId}.`);
@@ -102,7 +95,7 @@ export function createHistorySessionOpenService<TRuntime extends RuntimeLike>(op
           stage: 'history-hydration',
           status: 'error',
           message: 'Active runtime is not ready for the selected session provider.',
-          detail: [
+          metadataDetail: [
             `session=${session.id}`,
             `provider=${session.provider}`,
             `runtimeProvider=${runtime?.providerId ?? ''}`,
@@ -121,7 +114,7 @@ export function createHistorySessionOpenService<TRuntime extends RuntimeLike>(op
         stage: 'history-hydration',
         status: 'info',
         message: 'Resolved selected session navigation target.',
-        detail: [
+        metadataDetail: [
           `session=${session.id}`,
           `currentUrl=${runtime.currentUrl}`,
           `targetUrl=${targetUrl}`,
@@ -138,23 +131,21 @@ export function createHistorySessionOpenService<TRuntime extends RuntimeLike>(op
             stage: 'history-hydration',
             status: 'info',
             message: 'Navigated the active runtime to the selected session URL.',
-            detail: [`session=${session.id}`, `targetUrl=${targetUrl}`].join('\n'),
+            metadataDetail: [`session=${session.id}`, `targetUrl=${targetUrl}`].join('\n'),
             createdAt: new Date().toISOString(),
           });
         }
 
         return options.hydrateSessionHistory(session, runtime, targetUrl);
       } catch (error) {
+        const metadataDetail = `session=${session.id}\ntargetUrl=${targetUrl}`;
         options.recordAttempt({
           source: 'preload-dom',
           stage: 'history-hydration',
           status: 'error',
           message: 'Selected session hydration failed before persistence.',
-          detail: [
-            `session=${session.id}`,
-            `targetUrl=${targetUrl}`,
-            options.formatError(error),
-          ].join('\n'),
+          detail: `${metadataDetail}\n${options.formatError(error)}`,
+          metadataDetail,
           createdAt: new Date().toISOString(),
         });
 

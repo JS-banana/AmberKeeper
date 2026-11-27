@@ -3,7 +3,7 @@ import type {
   CaptureSessionRecord,
   ProviderId,
 } from '@amberkeeper/shared-types';
-import type { CaptureStore } from '../storage/capture-store';
+import type { CaptureAttemptInput, CaptureStore } from '../storage/capture-store';
 import { normalizeHydratedDomMessages } from '../runtime/history-hydration';
 import {
   alignDomSnapshotToLatestExistingUser,
@@ -26,14 +26,7 @@ type RuntimeLike = {
 export function createHistoryCapturePersistenceService(options: {
   getCaptureStore: () => CaptureStore | null;
   setLastCaptureAt: (capturedAt: string) => void;
-  recordAttempt: (input: {
-    source: 'cdp-network' | 'preload-dom' | 'runtime';
-    stage: string;
-    status: 'info' | 'captured' | 'error';
-    message: string;
-    detail?: string | null;
-    createdAt: string;
-  }) => void;
+  recordAttempt: (input: CaptureAttemptInput) => void;
 }) {
   return {
     persistHydratedConversationSnapshot(input: {
@@ -63,7 +56,7 @@ export function createHistoryCapturePersistenceService(options: {
           stage: input.stage,
           status: 'info',
           message: 'Opened remote session but normalized history was empty.',
-          detail: `${input.targetUrl}\nremoteConversationId=${conversationId ?? ''}`,
+          metadataDetail: `${input.targetUrl}\nremoteConversationId=${conversationId ?? ''}`,
           createdAt: capturedAt,
         });
 
@@ -160,7 +153,7 @@ export function createHistoryCapturePersistenceService(options: {
           status: 'info',
           message:
             'Skipped user-only DOM snapshot because the cached session already has messages.',
-          detail: [
+          metadataDetail: [
             input.triggerUrl,
             `session=${existingSession.id}`,
             envelope.remoteConversationId ? `remoteConversationId=${envelope.remoteConversationId}` : '',
@@ -186,7 +179,7 @@ export function createHistoryCapturePersistenceService(options: {
           status: 'info',
           message:
             'Skipped assistant-only DOM snapshot because the cached latest turn already has an assistant.',
-          detail: [
+          metadataDetail: [
             input.triggerUrl,
             `session=${existingSession.id}`,
             envelope.remoteConversationId ? `remoteConversationId=${envelope.remoteConversationId}` : '',
@@ -242,7 +235,7 @@ export function createHistoryCapturePersistenceService(options: {
         stage: input.trigger === 'history-hydration' ? 'history-hydration' : 'history-auto-cache',
         status: 'captured',
         message: `${existingSession ? 'Updated' : 'Cached'} ${envelopeToPersist.messages.length} message(s) from the remote session.`,
-        detail: [
+        metadataDetail: [
           input.triggerUrl,
           `session=${sessionId}`,
           envelope.remoteConversationId ? `remoteConversationId=${envelope.remoteConversationId}` : '',
